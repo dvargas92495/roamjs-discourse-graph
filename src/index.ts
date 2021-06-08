@@ -1,4 +1,5 @@
-import { toConfig, createPage } from "roam-client";
+import { toConfig } from "roam-client";
+import { createConfigObserver } from "roamjs-components";
 
 const CONFIG = toConfig("discourse-graph");
-createPage({ title: CONFIG });
+createConfigObserver({ title: CONFIG, config: { tabs: [] } });
