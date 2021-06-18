@@ -6,7 +6,7 @@ import {
 } from "roam-client";
 import { createConfigObserver } from "roamjs-components";
 import { render } from "./NodeMenu";
-
+import { render as exportRender } from "./ExportDialog";
 
 /*
 declare global {
@@ -95,4 +95,9 @@ document.addEventListener("input", (e) => {
       render({ textarea });
     }
   }
+});
+
+window.roamAlphaAPI.ui.commandPalette.addCommand({
+  label: "Export Property Graph CSV",
+  callback: () => exportRender({}),
 });

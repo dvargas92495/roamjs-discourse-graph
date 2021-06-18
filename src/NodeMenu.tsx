@@ -12,22 +12,14 @@ import {
   getUids,
   updateBlock,
 } from "roam-client";
+import { NODE_LABELS } from "./util";
 
 type Props = {
   textarea: HTMLTextAreaElement;
 };
 
-const menuItems = [
-  { text: "Claim", shortcut: "C", abbr: "CLM" },
-  { text: "Question", shortcut: "Q", abbr: "QUE" },
-  { text: "Evidence", shortcut: "E", abbr: "EVD" },
-  { text: "Source", shortcut: "S", abbr: "SOU" },
-  { text: "Excerpt", shortcut: "X", abbr: "EXC" },
-  { text: "Author", shortcut: "A", abbr: "AUT" },
-];
-
 const indexBySC = Object.fromEntries(
-  menuItems.map((mi, i) => [mi.shortcut, i])
+  NODE_LABELS.map((mi, i) => [mi.shortcut, i])
 );
 
 const shortcuts = new Set(Object.keys(indexBySC));
@@ -98,7 +90,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
       position={Position.BOTTOM_RIGHT}
       content={
         <Menu ulRef={menuRef} data-active-index={activeIndex}>
-          {menuItems.map((item, i) => {
+          {NODE_LABELS.map((item, i) => {
             return (
               <MenuItem
                 key={item.text}
