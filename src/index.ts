@@ -6,17 +6,16 @@ import { render as exportRender } from "./ExportDialog";
 const CONFIG = toConfig("discourse-graph");
 createConfigObserver({ title: CONFIG, config: { tabs: [] } });
 
-const triggerRegex = /\\/;
-document.addEventListener("input", (e) => {
-  const target = e.target as HTMLElement;
-  if (
-    target.tagName === "TEXTAREA" &&
-    target.classList.contains("rm-block-input")
-  ) {
-    const textarea = target as HTMLTextAreaElement;
-    const valueToCursor = textarea.value.substring(0, textarea.selectionStart);
-    if (triggerRegex.test(valueToCursor)) {
-      render({ textarea });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "\\") {
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === "TEXTAREA" &&
+      target.classList.contains("rm-block-input")
+    ) {
+      render({ textarea: target as HTMLTextAreaElement });
+      e.preventDefault();
+      e.stopPropagation();
     }
   }
 });
@@ -49,14 +48,21 @@ createHTMLObserver({
     if (uid) {
       const displayName = getDisplayNameByUid(uid);
       const container = document.createElement("div");
-      container.style.marginTop = "-16px";
-      container.style.marginBottom = "32px";
+      const oldMarginBottom = getComputedStyle(h1).marginBottom;
+      container.style.marginTop = `${
+        4 - Number(oldMarginBottom.replace("px", "")) / 2
+      }px`;
+      container.style.marginBottom = oldMarginBottom;
       const label = document.createElement("i");
       label.innerText = `Created by ${displayName || "Anonymous"} on ${new Date(
         createdTime
       ).toLocaleDateString()}`;
       container.appendChild(label);
-      h1.parentElement.appendChild(container);
+      if (h1.parentElement.lastChild === h1) {
+        h1.parentElement.appendChild(container);
+      } else {
+        h1.parentElement.insertBefore(container, h1.nextSibling);
+      }
     }
   },
 });

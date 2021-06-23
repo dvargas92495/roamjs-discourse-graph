@@ -8,8 +8,13 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 import {
+  createBlock,
+  createPage,
+  getPageUidByPageTitle,
   getTextByBlockUid,
+  getTreeByPageName,
   getUids,
+  openBlockInSidebar,
   updateBlock,
 } from "roam-client";
 import { NODE_LABELS } from "./util";
@@ -34,16 +39,38 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
         .querySelector(".bp3-menu-item")
         .getAttribute("data-abbr");
       const text = getTextByBlockUid(blockUid);
+      const highlighted = textarea.value.substring(
+        textarea.selectionStart,
+        textarea.selectionEnd
+      );
+      const pagename = `[[${abbr}]] - ${highlighted}`;
       const newText = `${text.substring(
         0,
-        textarea.selectionStart - 1
-      )}[]([[[[${abbr}]] - ]])${text.substring(textarea.selectionStart)}`;
+        textarea.selectionStart
+      )}[]([[${pagename}]])${text.substring(textarea.selectionEnd)}`;
       updateBlock({ text: newText, uid: blockUid });
       setTimeout(() => {
-        textarea.setSelectionRange(
-          textarea.selectionStart + 1,
-          textarea.selectionEnd + 1
-        );
+        if (highlighted) {
+          const pageUid =
+            getPageUidByPageTitle(pagename) || createPage({ title: pagename });
+          if (pageUid) {
+            setTimeout(() => {
+              const nodes = getTreeByPageName(abbr);
+              nodes.forEach((node, order) =>
+                createBlock({ node, order, parentUid: pageUid })
+              );
+              openBlockInSidebar(pageUid);
+            }, 1);
+          }
+        }
+        setTimeout(() => {
+          if (document.activeElement.tagName === "TEXTAREA") {
+            (document.activeElement as HTMLTextAreaElement).setSelectionRange(
+              textarea.selectionStart + 1,
+              textarea.selectionStart + 1
+            );
+          }
+        }, 500);
       }, 1);
       onClose();
     },
