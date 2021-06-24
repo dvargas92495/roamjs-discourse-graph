@@ -6,3 +6,7 @@ export const NODE_LABELS = [
   { text: "Excerpt", shortcut: "X", abbr: "EXC" },
   { text: "Author", shortcut: "A", abbr: "AUT" },
 ];
+
+export const NODE_LABEL_ABBR_BY_TEXT = Object.fromEntries(
+  NODE_LABELS.map(({ text, abbr }) => [text, abbr])
+);
