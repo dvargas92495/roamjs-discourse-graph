@@ -1,7 +1,13 @@
-import { createHTMLObserver, getDisplayNameByUid, toConfig } from "roam-client";
+import {
+  createButtonObserver,
+  createHTMLObserver,
+  getDisplayNameByUid,
+  toConfig,
+} from "roam-client";
 import { createConfigObserver } from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
+import { render as synthesisRender } from "./SynthesisQuery";
 
 const CONFIG = toConfig("discourse-graph");
 createConfigObserver({ title: CONFIG, config: { tabs: [] } });
@@ -65,4 +71,10 @@ createHTMLObserver({
       }
     }
   },
+});
+
+createButtonObserver({
+  shortcut: "synthesis",
+  attribute: "synthesis",
+  render: synthesisRender,
 });
