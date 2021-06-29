@@ -121,7 +121,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
                 width: 180,
                 margin: "0 8px",
                 display: "flex",
-                "justify-content": "space-between",
+                justifyContent: "space-between",
               },
             }}
           />

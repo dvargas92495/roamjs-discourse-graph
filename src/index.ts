@@ -69,6 +69,32 @@ createHTMLObserver({
       } else {
         h1.parentElement.insertBefore(container, h1.nextSibling);
       }
+      if (title.startsWith("[[EVD]]")) {
+        const earliestBlockRef = window.roamAlphaAPI
+          .q(
+            `[:find ?u ?t :where [?b :block/uid ?u] [?b :create/time ?t] [?b :block/refs ?p] [?p :node/title "${title}"]]`
+          )
+          .reduce(
+            (prev, cur) => (prev[1] > cur[1] ? cur : prev),
+            ["", Number.MAX_VALUE]
+          )[0];
+        if (earliestBlockRef) {
+          const referencedPaper = window.roamAlphaAPI
+            .q(
+              `[:find ?t :where [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${earliestBlockRef}"]]`
+            )
+            .map((s) => s[0] as string)
+            .find((s) => s.startsWith("@"));
+          if (referencedPaper) {
+            const citation = document.createElement("span");
+            citation.innerText = ` - ${referencedPaper}`;
+            h1.appendChild(citation);
+            new MutationObserver(() => h1.appendChild(citation)).observe(h1, {
+              attributeFilter: ["class"],
+            });
+          }
+        }
+      }
     }
   },
 });

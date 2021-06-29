@@ -47,7 +47,9 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
       const newText = `${text.substring(
         0,
         textarea.selectionStart
-      )}[]([[${pagename}]])${text.substring(textarea.selectionEnd)}`;
+      )}[${highlighted}]([[${pagename}]])${text.substring(
+        textarea.selectionEnd
+      )}`;
       updateBlock({ text: newText, uid: blockUid });
       setTimeout(() => {
         if (highlighted) {
@@ -60,17 +62,30 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
                 createBlock({ node, order, parentUid: pageUid })
               );
               openBlockInSidebar(pageUid);
+              setTimeout(() => {
+                const sidebarTitle = document.querySelector(
+                  ".rm-sidebar-outline .rm-title-display"
+                );
+                sidebarTitle.dispatchEvent(
+                  new MouseEvent("mousedown", { bubbles: true })
+                );
+                setTimeout(() => {
+                  const ta = document.activeElement as HTMLTextAreaElement;
+                  ta.selectionStart = ta.selectionEnd = ta.value.length;
+                }, 1);
+              }, 1);
             }, 1);
           }
+        } else {
+          setTimeout(() => {
+            if (document.activeElement.tagName === "TEXTAREA") {
+              (document.activeElement as HTMLTextAreaElement).setSelectionRange(
+                textarea.selectionStart + 1,
+                textarea.selectionStart + 1
+              );
+            }
+          }, 500);
         }
-        setTimeout(() => {
-          if (document.activeElement.tagName === "TEXTAREA") {
-            (document.activeElement as HTMLTextAreaElement).setSelectionRange(
-              textarea.selectionStart + 1,
-              textarea.selectionStart + 1
-            );
-          }
-        }, 500);
       }, 1);
       onClose();
     },
