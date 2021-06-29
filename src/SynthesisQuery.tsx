@@ -6,6 +6,7 @@ import {
   getFirstChildTextByBlockUid,
   getRoamUrl,
   getShallowTreeByParentUid,
+  openBlockInSidebar,
   updateBlock,
 } from "roam-client";
 import {
@@ -193,10 +194,10 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
                   const relate = `[?${prefix}-b :block/refs ?p] [?${prefix}-pred :node/title "${predicate}"] [?${prefix}-b :block/page ?${prefix}-pred]`;
                   return that ? relate : `(not ${relate})`;
                 } else if (relation === "Supports") {
-                  const relate = `[?${prefix}-bpred :block/refs ?${prefix}-pred] [?${prefix}-bs :block/refs ?${prefix}-s] [?${prefix}-s :node/title "Supported By"] [?${prefix}-b :block/refs ?p] [?${prefix}-pred :node/title "${predicate}"] [?${prefix}-b :block/parents ?${prefix}-bs] [?${prefix}-b :block/parents ?${prefix}-bs]`;
+                  const relate = `[?${prefix}-bpred :block/refs ?${prefix}-pred] [?${prefix}-bs :block/refs ?${prefix}-s] [?${prefix}-s :node/title "Supported By"] [?${prefix}-b :block/refs ?p] [?${prefix}-pred :node/title "${predicate}"] [?${prefix}-b :block/parents ?${prefix}-bs] [?${prefix}-bs :block/parents ?${prefix}-bpred]`;
                   return that ? relate : `(not ${relate})`;
                 } else if (relation === "Opposes") {
-                  const relate = `[?${prefix}-bpred :block/refs ?${prefix}-pred] [?${prefix}-bs :block/refs ?${prefix}-s] [?${prefix}-s :node/title "Opposed By"] [?${prefix}-b :block/refs ?p] [?${prefix}-pred :node/title "${predicate}"] [?${prefix}-b :block/parents ?${prefix}-bs] [?${prefix}-b :block/parents ?${prefix}-bs]`;
+                  const relate = `[?${prefix}-bpred :block/refs ?${prefix}-pred] [?${prefix}-bo :block/refs ?${prefix}-o] [?${prefix}-o :node/title "Opposed By"] [?${prefix}-b :block/refs ?p] [?${prefix}-pred :node/title "${predicate}"] [?${prefix}-b :block/parents ?${prefix}-bo] [?${prefix}-bo :block/parents ?${prefix}-bpred]`;
                   return that ? relate : `(not ${relate})`;
                 }
               })
@@ -247,7 +248,19 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
               <ul>
                 {results.map((r) => (
                   <li key={r.uid}>
-                    <a href={getRoamUrl(r.uid)}>{r.text}</a>
+                    <a
+                      className={"rm-page-ref"}
+                      href={getRoamUrl(r.uid)}
+                      onClick={(e) => {
+                        if (e.ctrlKey) {
+                          openBlockInSidebar(r.uid);
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
+                      {r.text}
+                    </a>
                   </li>
                 ))}
               </ul>
