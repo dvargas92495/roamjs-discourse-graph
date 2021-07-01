@@ -2,6 +2,8 @@ import {
   createButtonObserver,
   createHTMLObserver,
   getDisplayNameByUid,
+  getRoamUrl,
+  openBlockInSidebar,
   toConfig,
 } from "roam-client";
 import { createConfigObserver } from "roamjs-components";
@@ -81,13 +83,28 @@ createHTMLObserver({
         if (earliestBlockRef) {
           const referencedPaper = window.roamAlphaAPI
             .q(
-              `[:find ?t :where [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${earliestBlockRef}"]]`
+              `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${earliestBlockRef}"]]`
             )
-            .map((s) => s[0] as string)
-            .find((s) => s.startsWith("@"));
+            .map((s) => ({ title: s[0] as string, uid: s[1] as string }))
+            .find(({ title }) => title.startsWith("@"));
           if (referencedPaper) {
             const citation = document.createElement("span");
-            citation.innerText = ` - ${referencedPaper}`;
+            const formatting = document.createElement("span");
+            formatting.innerText = " - ";
+            const link = document.createElement("span");
+            link.innerText = referencedPaper.title;
+            link.onclick = (e) => {
+              if (e.shiftKey || e.ctrlKey) {
+                openBlockInSidebar(referencedPaper.uid);
+              } else {
+                window.location.assign(getRoamUrl(referencedPaper.uid));
+              }
+            };
+            link.onmousedown = (e) => e.stopPropagation();
+            link.style.userSelect = "none";
+            link.style.cursor = "pointer";
+            citation.appendChild(formatting);
+            citation.appendChild(link);
             h1.appendChild(citation);
             new MutationObserver(() => h1.appendChild(citation)).observe(h1, {
               attributeFilter: ["class"],

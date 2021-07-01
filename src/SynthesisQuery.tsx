@@ -252,7 +252,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
                       className={"rm-page-ref"}
                       href={getRoamUrl(r.uid)}
                       onClick={(e) => {
-                        if (e.ctrlKey) {
+                        if (e.ctrlKey || e.shiftKey) {
                           openBlockInSidebar(r.uid);
                           e.preventDefault();
                           e.stopPropagation();
