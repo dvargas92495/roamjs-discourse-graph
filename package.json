@@ -23,6 +23,6 @@
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
     "roam-client": "^1.78.0",
-    "roamjs-components": "^0.16.3"
+    "roamjs-components": "^0.17.0"
   }
 }

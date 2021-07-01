@@ -17,6 +17,7 @@ import {
   openBlockInSidebar,
   updateBlock,
 } from "roam-client";
+import { getCoordsFromTextarea } from "roamjs-components";
 import { NODE_LABELS } from "./util";
 
 type Props = {
@@ -47,9 +48,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
       const newText = `${text.substring(
         0,
         textarea.selectionStart
-      )}[${highlighted}]([[${pagename}]])${text.substring(
-        textarea.selectionEnd
-      )}`;
+      )}[[${pagename}]]${text.substring(textarea.selectionEnd)}`;
       updateBlock({ text: newText, uid: blockUid });
       setTimeout(() => {
         if (highlighted) {
@@ -80,11 +79,11 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
           setTimeout(() => {
             if (document.activeElement.tagName === "TEXTAREA") {
               (document.activeElement as HTMLTextAreaElement).setSelectionRange(
-                textarea.selectionStart + 1,
-                textarea.selectionStart + 1
+                textarea.selectionStart + 12,
+                textarea.selectionStart + 12
               );
             }
-          }, 500);
+          }, 1);
         }
       }, 1);
       onClose();
@@ -152,6 +151,10 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
 
 export const render = (props: Props) => {
   const parent = document.createElement("span");
+  const coords = getCoordsFromTextarea(props.textarea);
+  parent.style.position = "absolute";
+  parent.style.left = `${coords.left}px`;
+  parent.style.top = `${coords.top}px`;
   props.textarea.parentElement.insertBefore(parent, props.textarea);
   ReactDOM.render(
     <NodeMenu
