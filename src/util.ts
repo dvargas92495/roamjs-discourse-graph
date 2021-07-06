@@ -10,3 +10,9 @@ export const NODE_LABELS = [
 export const NODE_LABEL_ABBR_BY_TEXT = Object.fromEntries(
   NODE_LABELS.map(({ text, abbr }) => [text, abbr])
 );
+
+export const NODE_TITLE_REGEX = new RegExp(
+  `^\\[\\[(${NODE_LABELS.map(({ abbr }) => abbr).join("|")})\\]\\] - `
+);
+
+export const NODE_ABBRS = new Set(NODE_LABELS.map(({ abbr }) => abbr));
