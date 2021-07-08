@@ -16,3 +16,11 @@ export const NODE_TITLE_REGEX = new RegExp(
 );
 
 export const NODE_ABBRS = new Set(NODE_LABELS.map(({ abbr }) => abbr));
+
+const queryCache: {[s: string]: unknown[][]} = {};
+export const query = (s: string) => {
+  if (queryCache[s]) {
+    return queryCache[s];
+  }
+  return queryCache[s] = window.roamAlphaAPI.q(s);
+}

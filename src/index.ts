@@ -12,7 +12,8 @@ import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
 import { render as contextRender } from "./DiscourseContext";
-import { NODE_TITLE_REGEX } from "./util";
+import { render as cyRender } from "./CytoscapePlayground";
+import { NODE_TITLE_REGEX, query } from "./util";
 
 const CONFIG = toConfig("discourse-graph");
 createConfigObserver({ title: CONFIG, config: { tabs: [] } });
@@ -55,19 +56,16 @@ const elToTitle = (e: Node): string => {
 };
 
 const getCitation = (title: string) => {
-  const earliestBlockRef = window.roamAlphaAPI
-    .q(
-      `[:find ?u ?t :where [?b :block/uid ?u] [?b :create/time ?t] [?b :block/refs ?p] [?p :node/title "${title}"]]`
-    )
-    .reduce(
-      (prev, cur) => (prev[1] > cur[1] ? cur : prev),
-      ["", Number.MAX_VALUE]
-    )[0];
+  const earliestBlockRef = query(
+    `[:find ?u ?t :where [?b :block/uid ?u] [?b :create/time ?t] [?b :block/refs ?p] [?p :node/title "${title}"]]`
+  ).reduce(
+    (prev, cur) => (prev[1] > cur[1] ? cur : prev),
+    ["", Number.MAX_VALUE]
+  )[0];
   if (earliestBlockRef) {
-    const referencedPaper = window.roamAlphaAPI
-      .q(
-        `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${earliestBlockRef}"]]`
-      )
+    const referencedPaper = query(
+      `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${earliestBlockRef}"]]`
+    )
       .map((s) => ({ title: s[0] as string, uid: s[1] as string }))
       .find(({ title }) => title.startsWith("@"));
     if (referencedPaper) {
@@ -98,9 +96,9 @@ createHTMLObserver({
   className: "rm-title-display",
   callback: (h1: HTMLHeadingElement) => {
     const title = elToTitle(h1);
-    const [createdTime, uid] = window.roamAlphaAPI.q(
+    const [createdTime, uid] = (query(
       `[:find ?ct ?uid :where [?cu :user/uid ?uid] [?p :create/user ?cu] [?p :create/time ?ct] [?p :node/title "${title}"]]`
-    )[0] || [0, ""];
+    )[0] as [number, string]) || [0, ""];
     if (uid) {
       const displayName = getDisplayNameByUid(uid);
       const container = document.createElement("div");
@@ -127,6 +125,15 @@ createHTMLObserver({
             attributeFilter: ["class"],
           });
         }
+      } else if (title.startsWith("Playground")) {
+        const children = document.querySelector<HTMLDivElement>(
+          ".roam-article .rm-block-children"
+        );
+        children.style.display = "none";
+        const p = document.createElement("div");
+        children.parentElement.appendChild(p);
+        p.style.height = '500px';
+        cyRender({ p, title });
       }
     }
   },
@@ -182,12 +189,18 @@ createHTMLObserver({
   tag: "DIV",
   className: "rm-reference-main",
   callback: (d: HTMLDivElement) => {
-    if (!d.getAttribute("data-roamjs-discourse-context")) {
+    const title = elToTitle(getPageTitleByHtmlElement(d));
+    if (
+      NODE_TITLE_REGEX.test(title) &&
+      !d.getAttribute("data-roamjs-discourse-context")
+    ) {
       d.setAttribute("data-roamjs-discourse-context", "true");
       const parent = d.querySelector("div.rm-reference-container");
-      const p = document.createElement("div");
-      parent.parentElement.insertBefore(p, parent);
-      contextRender({ p, title: elToTitle(getPageTitleByHtmlElement(d)) });
+      if (parent) {
+        const p = document.createElement("div");
+        parent.parentElement.insertBefore(p, parent);
+        contextRender({ p, title: elToTitle(getPageTitleByHtmlElement(d)) });
+      }
     }
   },
 });
