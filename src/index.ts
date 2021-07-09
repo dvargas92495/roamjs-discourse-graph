@@ -1,4 +1,5 @@
 import {
+  addStyle,
   createButtonObserver,
   createHTMLObserver,
   getDisplayNameByUid,
@@ -13,7 +14,27 @@ import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
+import { render as previewRender } from "./LivePreview";
 import { NODE_TITLE_REGEX, query } from "./util";
+
+addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-live-preview>div>.rm-inline-references {
+  display: none;
+}
+
+.roamjs-discourse-live-preview>div>.rm-block-children {
+  margin-left: -4px;
+}
+
+.roamjs-discourse-live-preview>div>.rm-block-children>.rm-multibar {
+  display: none;
+}
+
+.roamjs-discourse-live-preview {
+  width: 300px;
+  height: 300px;
+  overflow-y: scroll;
+  padding-top: 16px;
+}`);
 
 const CONFIG = toConfig("discourse-graph");
 createConfigObserver({ title: CONFIG, config: { tabs: [] } });
@@ -132,7 +153,7 @@ createHTMLObserver({
         children.style.display = "none";
         const p = document.createElement("div");
         children.parentElement.appendChild(p);
-        p.style.height = '500px';
+        p.style.height = "500px";
         cyRender({ p, title });
       }
     }
@@ -153,15 +174,17 @@ createHTMLObserver({
     const tag =
       s.getAttribute("data-tag") ||
       s.parentElement.getAttribute("data-link-title");
-    if (
-      NODE_TITLE_REGEX.test(tag) &&
-      !s.getAttribute("data-roamjs-discourse-augment-tag")
-    ) {
+    if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
       s.setAttribute("data-roamjs-discourse-augment-tag", "true");
-      const child = getCitation(tag);
-      if (child) {
-        s.appendChild(child);
+      if (NODE_TITLE_REGEX.test(tag)) {
+        const child = getCitation(tag);
+        if (child) {
+          s.appendChild(child);
+        }
       }
+      const parent = document.createElement("span");
+      previewRender({ parent, tag });
+      s.appendChild(parent);
     }
   },
 });
