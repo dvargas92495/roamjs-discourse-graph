@@ -30,10 +30,9 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 }
 
 .roamjs-discourse-live-preview {
-  width: 300px;
-  height: 300px;
+  max-width: 300px;
+  max-height: 300px;
   overflow-y: scroll;
-  padding-top: 16px;
 }`);
 
 const CONFIG = toConfig("discourse-graph");

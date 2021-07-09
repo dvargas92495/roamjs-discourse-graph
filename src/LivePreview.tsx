@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import ReactDOM from "react-dom";
-import { getPageUidByPageTitle } from "roam-client";
+import { getChildrenLengthByPageUid, getPageUidByPageTitle } from "roam-client";
 
 const TooltipContent = ({
   tag,
@@ -19,21 +19,27 @@ const TooltipContent = ({
   close: () => void;
 }) => {
   const uid = useMemo(() => getPageUidByPageTitle(tag), [tag]);
+  const numChildren = useMemo(() => getChildrenLengthByPageUid(uid), [uid]);
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    window.roamAlphaAPI.ui.components.renderBlock({
-      uid,
-      el: containerRef.current,
-    });
-    containerRef.current.parentElement.style.padding = "0";
-  }, [uid, containerRef]);
+    if (numChildren) {
+      window.roamAlphaAPI.ui.components.renderBlock({
+        uid,
+        el: containerRef.current,
+      });
+      containerRef.current.parentElement.style.padding = "0";
+    }
+  }, [uid, containerRef, numChildren]);
   return (
     <div
       ref={containerRef}
       onMouseEnter={open}
       onMouseLeave={close}
       className={"roamjs-discourse-live-preview"}
-    />
+      style={{ paddingTop: numChildren ? 16 : 0 }}
+    >
+      {!numChildren && <i>Page is empty.</i>}
+    </div>
   );
 };
 
@@ -44,11 +50,11 @@ const LivePreview = ({ tag }: { tag: string }) => {
   const timeoutRef = useRef(null);
   const open = useCallback(() => {
     clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setIsOpen(true), 250);
+    timeoutRef.current = setTimeout(() => setIsOpen(true), 100);
   }, [setIsOpen, timeoutRef]);
   const close = useCallback(() => {
     clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setIsOpen(false), 250);
+    timeoutRef.current = setTimeout(() => setIsOpen(false), 100);
   }, [setIsOpen, timeoutRef]);
   useEffect(() => {
     if (!loaded) setLoaded(true);
