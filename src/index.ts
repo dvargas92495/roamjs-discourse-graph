@@ -28,8 +28,6 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 }
 
 .roamjs-discourse-live-preview {
-  max-width: 300px;
-  max-height: 300px;
   overflow-y: scroll;
 }
 

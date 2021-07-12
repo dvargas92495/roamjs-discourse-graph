@@ -148,14 +148,36 @@ const CytoscapePlayground = ({ title }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
   const onOpen = useCallback(() => setIsOpen(true), [setIsOpen]);
   const onClose = useCallback(() => setIsOpen(false), [setIsOpen]);
+  const [maximized, setMaximized] = useState(false);
+  const maximize = useCallback(() => setMaximized(true), [setMaximized]);
+  const minimize = useCallback(() => setMaximized(false), [setMaximized]);
   return (
     <div
-      style={{ width: "100%", height: "100%", border: "1px solid gray" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        border: "1px solid gray",
+        background: "white",
+        zIndex: 1,
+        ...(maximized ? { inset: 0, position: "absolute" } : {}),
+      }}
       ref={containerRef}
     >
       <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+        {maximized ? (
+          <>
+            <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
+            <Tooltip content={"Minimize"}>
+              <Button icon={"minimize"} onClick={minimize} />
+            </Tooltip>
+          </>
+        ) : (
+          <Tooltip content={"Maximize"}>
+            <Button icon={"maximize"} onClick={maximize} />
+          </Tooltip>
+        )}
         <Tooltip content={"Add Node"}>
-          <Button icon={"circle"} onClick={onOpen} />
+          <Button icon={"circle"} onClick={onOpen} style={{ marginLeft: 8 }} />
         </Tooltip>
         <Dialog
           isOpen={isOpen}
