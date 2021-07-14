@@ -4,16 +4,18 @@ import {
   createHTMLObserver,
   getDisplayNameByUid,
   getPageTitleByHtmlElement,
+  getTreeByPageName,
   toConfig,
 } from "roam-client";
-import { createConfigObserver } from "roamjs-components";
+import { createConfigObserver, toFlexRegex } from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
-import { NODE_TITLE_REGEX, query } from "./util";
+import { DEFAULT_NODE_VALUES, DEFAULT_RELATION_VALUES } from "./util";
+import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 
 addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-live-preview>div>.rm-inline-references {
   display: none;
@@ -42,7 +44,40 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 }`);
 
 const CONFIG = toConfig("discourse-graph");
-createConfigObserver({ title: CONFIG, config: { tabs: [] } });
+
+createConfigObserver({
+  title: CONFIG,
+  config: {
+    tabs: [
+      { id: "preview", fields: [], toggleable: true },
+      {
+        id: "grammar",
+        fields: [
+          {
+            title: "nodes",
+            type: "custom",
+            description: "The types of nodes in your discourse graph",
+            defaultValue: DEFAULT_NODE_VALUES,
+            options: {
+              component: NodeConfigPanel,
+            },
+          },
+          {
+            title: "relations",
+            type: "custom",
+            description: "The types of relations in your discourse graph",
+            defaultValue: DEFAULT_RELATION_VALUES,
+            options: {
+              component: RelationConfigPanel,
+            },
+          },
+        ],
+      },
+    ],
+  },
+});
+
+const tree = getTreeByPageName(CONFIG);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "\\") {
@@ -86,7 +121,7 @@ createHTMLObserver({
   className: "rm-title-display",
   callback: (h1: HTMLHeadingElement) => {
     const title = elToTitle(h1);
-    const [createdTime, uid] = (query(
+    const [createdTime, uid] = (window.roamAlphaAPI.q(
       `[:find ?ct ?uid :where [?cu :user/uid ?uid] [?p :create/user ?cu] [?p :create/time ?ct] [?p :node/title "${title}"]]`
     )[0] as [number, string]) || [0, ""];
     if (uid) {
@@ -127,22 +162,26 @@ createButtonObserver({
   render: synthesisRender,
 });
 
-createHTMLObserver({
-  useBody: true,
-  tag: "SPAN",
-  className: "rm-page-ref",
-  callback: (s: HTMLSpanElement) => {
-    const tag =
-      s.getAttribute("data-tag") ||
-      s.parentElement.getAttribute("data-link-title");
-    if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
-      s.setAttribute("data-roamjs-discourse-augment-tag", "true");
-      const parent = document.createElement("span");
-      previewRender({ parent, tag });
-      s.appendChild(parent);
-    }
-  },
-});
+if (tree.some((t) => toFlexRegex("preview").test(t.text))) {
+  createHTMLObserver({
+    useBody: true,
+    tag: "SPAN",
+    className: "rm-page-ref",
+    callback: (s: HTMLSpanElement) => {
+      const tag =
+        s.getAttribute("data-tag") ||
+        s.parentElement.getAttribute("data-link-title");
+      if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
+        s.setAttribute("data-roamjs-discourse-augment-tag", "true");
+        const parent = document.createElement("span");
+        previewRender({ parent, tag });
+        s.appendChild(parent);
+      }
+    },
+  });
+}
+
+const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\w*)\\]\\] - `);
 
 createHTMLObserver({
   tag: "DIV",

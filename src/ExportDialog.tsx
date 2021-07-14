@@ -14,7 +14,7 @@ import {
   getPageTitlesAndUidsDirectlyReferencingPage,
 } from "roam-client";
 import { createOverlayRender } from "roamjs-components";
-import { NODE_LABELS } from "./util";
+import { getNodeLabels } from "./util";
 import format from "date-fns/format";
 import download from "downloadjs";
 import JSZip from "jszip";
@@ -54,7 +54,7 @@ const ExportDialog = ({ onClose }: { onClose: () => void }) => {
               setTimeout(() => {
                 const zip = new JSZip();
                 const nodeHeader = "uid:ID,label:LABEL,title\n";
-                const nodeData = NODE_LABELS.flatMap((n) =>
+                const nodeData = getNodeLabels().flatMap((n) =>
                   getPageTitlesAndUidsDirectlyReferencingPage(n.abbr).map(
                     ({ title, uid }) => {
                       const value = title.replace(/\[\[[A-Z]{3}\]\] - /,'');

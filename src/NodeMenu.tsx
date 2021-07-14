@@ -18,19 +18,19 @@ import {
   updateBlock,
 } from "roam-client";
 import { getCoordsFromTextarea } from "roamjs-components";
-import { NODE_LABELS, query } from "./util";
+import { getNodeLabels } from "./util";
 
 type Props = {
   textarea: HTMLTextAreaElement;
 };
 
-const indexBySC = Object.fromEntries(
-  NODE_LABELS.map((mi, i) => [mi.shortcut, i])
-);
-
-const shortcuts = new Set(Object.keys(indexBySC));
-
 const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
+  const NODE_LABELS = useMemo(getNodeLabels, []);
+  const indexBySC = useMemo(
+    () => Object.fromEntries(NODE_LABELS.map((mi, i) => [mi.shortcut, i])),
+    [NODE_LABELS]
+  );
+  const shortcuts = useMemo(() => new Set(Object.keys(indexBySC)), [indexBySC]);
   const blockUid = useMemo(() => getUids(textarea).blockUid, [textarea]);
   const menuRef = useRef<HTMLUListElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -44,7 +44,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
         textarea.selectionStart,
         textarea.selectionEnd
       );
-      const referencedPaper = query(
+      const referencedPaper = window.roamAlphaAPI.q(
         `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${blockUid}"]]`
       )
         .map((s) => ({ title: s[0] as string, uid: s[1] as string }))

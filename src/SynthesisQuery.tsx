@@ -16,7 +16,7 @@ import {
   setInputSetting,
   toFlexRegex,
 } from "roamjs-components";
-import { NODE_LABELS, NODE_LABEL_ABBR_BY_TEXT } from "./util";
+import { getNodeLabels } from "./util";
 
 const RELATION_LABELS = [
   { text: "Informs" },
@@ -25,6 +25,12 @@ const RELATION_LABELS = [
 ];
 
 const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
+  const NODE_LABELS = useMemo(getNodeLabels, []);
+  const items = useMemo(() => NODE_LABELS.map((nl) => nl.text), NODE_LABELS);
+  const NODE_LABEL_ABBR_BY_TEXT = useMemo(
+    () => Object.fromEntries(NODE_LABELS.map(({ text, abbr }) => [text, abbr])),
+    [NODE_LABELS]
+  );
   const tree = useMemo(() => getShallowTreeByParentUid(blockUid), [blockUid]);
   const [activeMatch, setActiveMatch] = useState(
     getFirstChildTextByBlockUid(
@@ -67,7 +73,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
             setActiveMatch(value);
             setInputSetting({ blockUid, value, key: "match" });
           }}
-          items={NODE_LABELS.map((nl) => nl.text)}
+          items={items}
           emptyValueText={"Choose node type"}
         />
       </Label>
