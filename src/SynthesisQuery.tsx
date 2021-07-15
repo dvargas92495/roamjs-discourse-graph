@@ -16,7 +16,7 @@ import {
   setInputSetting,
   toFlexRegex,
 } from "roamjs-components";
-import { getNodeLabels } from "./util";
+import { getNodes } from "./util";
 
 const RELATION_LABELS = [
   { text: "Informs" },
@@ -25,7 +25,7 @@ const RELATION_LABELS = [
 ];
 
 const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
-  const NODE_LABELS = useMemo(getNodeLabels, []);
+  const NODE_LABELS = useMemo(getNodes, []);
   const items = useMemo(() => NODE_LABELS.map((nl) => nl.text), NODE_LABELS);
   const NODE_LABEL_ABBR_BY_TEXT = useMemo(
     () => Object.fromEntries(NODE_LABELS.map(({ text, abbr }) => [text, abbr])),

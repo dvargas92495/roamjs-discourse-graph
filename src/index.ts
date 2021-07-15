@@ -4,7 +4,7 @@ import {
   createHTMLObserver,
   getDisplayNameByUid,
   getPageTitleByHtmlElement,
-  getTreeByPageName,
+  getTreeByBlockUid,
   toConfig,
 } from "roam-client";
 import { createConfigObserver, toFlexRegex } from "roamjs-components";
@@ -14,7 +14,12 @@ import { render as synthesisRender } from "./SynthesisQuery";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
-import { DEFAULT_NODE_VALUES, DEFAULT_RELATION_VALUES } from "./util";
+import {
+  DEFAULT_NODE_VALUES,
+  DEFAULT_RELATION_VALUES,
+  isFlagEnabled,
+  refreshConfigTree,
+} from "./util";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 
 addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-live-preview>div>.rm-inline-references {
@@ -45,7 +50,7 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 
 const CONFIG = toConfig("discourse-graph");
 
-createConfigObserver({
+const { pageUid } = createConfigObserver({
   title: CONFIG,
   config: {
     tabs: [
@@ -76,8 +81,6 @@ createConfigObserver({
     ],
   },
 });
-
-const tree = getTreeByPageName(CONFIG);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "\\") {
@@ -162,26 +165,7 @@ createButtonObserver({
   render: synthesisRender,
 });
 
-if (tree.some((t) => toFlexRegex("preview").test(t.text))) {
-  createHTMLObserver({
-    useBody: true,
-    tag: "SPAN",
-    className: "rm-page-ref",
-    callback: (s: HTMLSpanElement) => {
-      const tag =
-        s.getAttribute("data-tag") ||
-        s.parentElement.getAttribute("data-link-title");
-      if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
-        s.setAttribute("data-roamjs-discourse-augment-tag", "true");
-        const parent = document.createElement("span");
-        previewRender({ parent, tag });
-        s.appendChild(parent);
-      }
-    },
-  });
-}
-
-const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\w*)\\]\\] - `);
+const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\\w*)\\]\\] - `);
 
 createHTMLObserver({
   tag: "DIV",
@@ -201,4 +185,33 @@ createHTMLObserver({
       }
     }
   },
+});
+
+setTimeout(() => {
+  refreshConfigTree();
+
+  if (isFlagEnabled("preview")) {
+    createHTMLObserver({
+      useBody: true,
+      tag: "SPAN",
+      className: "rm-page-ref",
+      callback: (s: HTMLSpanElement) => {
+        const tag =
+          s.getAttribute("data-tag") ||
+          s.parentElement.getAttribute("data-link-title");
+        if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
+          s.setAttribute("data-roamjs-discourse-augment-tag", "true");
+          const parent = document.createElement("span");
+          previewRender({ parent, tag });
+          s.appendChild(parent);
+        }
+      },
+    });
+  }
+}, 1);
+
+window.addEventListener("hashchange", (e) => {
+  if (e.oldURL.endsWith(pageUid)) {
+    refreshConfigTree();
+  }
 });

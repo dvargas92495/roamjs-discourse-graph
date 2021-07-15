@@ -18,14 +18,14 @@ import {
   updateBlock,
 } from "roam-client";
 import { getCoordsFromTextarea } from "roamjs-components";
-import { getNodeLabels } from "./util";
+import { getNodes } from "./util";
 
 type Props = {
   textarea: HTMLTextAreaElement;
 };
 
 const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
-  const NODE_LABELS = useMemo(getNodeLabels, []);
+  const NODE_LABELS = useMemo(getNodes, []);
   const indexBySC = useMemo(
     () => Object.fromEntries(NODE_LABELS.map((mi, i) => [mi.shortcut, i])),
     [NODE_LABELS]

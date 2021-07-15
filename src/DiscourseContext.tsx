@@ -1,48 +1,45 @@
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { getRoamUrl, openBlockInSidebar } from "roam-client";
-import { getNodeLabels } from "./util";
+import { getNodes, getRelations, triplesToQuery } from "./util";
 
 type Props = { title: string };
 
 const ContextContent = ({ title }: Props) => {
-  const NODE_ABBRS = useMemo(
-    () => new Set(getNodeLabels().map((t) => t.text)),
-    []
-  );
-  const informs = useMemo(
+  const NODE_ABBRS = useMemo(() => new Set(getNodes().map((t) => t.abbr)), []);
+  const nodeType = useMemo(
     () =>
-      Object.fromEntries(
-        window.roamAlphaAPI.q(
-          `[:find ?grt ?gu ?gt :where [?p :node/title "${title}"] [?b :block/refs ?p] [?b :block/page ?g] [?g :node/title ?gt] [?g :block/uid ?gu] [?g :block/refs ?gr] [?gr :node/title ?grt]]`
+      window.roamAlphaAPI
+        .q(
+          `[:find ?t :where [?n :node/title ?t] [?p :block/refs ?n] [?p :node/title "${title}"]]`
         )
-          .filter(([node]) => NODE_ABBRS.has(node as string))
-          .map((a) => a.slice(1) as string[])
-      ),
-    []
+        .map((s) => s[0] as string)
+        .find((s) => NODE_ABBRS.has(s)),
+    [NODE_ABBRS, title]
   );
-  const supports = useMemo(
-    () =>
-      Object.fromEntries(
-        window.roamAlphaAPI.q(
-          `[:find ?grt ?gu ?gt :where [?p :node/title "${title}"] [?b :block/refs ?p] [?s :block/children ?b] [?s :block/refs ?sr] [?sr :node/title "Supported By"] [?bg :block/children ?s] [?bg :block/refs ?g] [?g :node/title ?gt] [?g :block/uid ?gu] [?g :block/refs ?gr] [?gr :node/title ?grt]]`
-        )
-          .filter(([node]) => NODE_ABBRS.has(node as string))
-          .map((a) => a.slice(1) as string[])
-      ),
-    []
-  );
-  const opposes = useMemo(
-    () =>
-      Object.fromEntries(
-        window.roamAlphaAPI.q(
-          `[:find ?grt ?gu ?gt :where [?p :node/title "${title}"] [?b :block/refs ?p] [?s :block/children ?b] [?s :block/refs ?sr] [?sr :node/title "Opposed By"] [?bg :block/children ?s] [?bg :block/refs ?g] [?g :node/title ?gt] [?g :block/uid ?gu] [?g :block/refs ?gr] [?gr :node/title ?grt]]`
-        )
-          .filter(([node]) => NODE_ABBRS.has(node as string))
-          .map((a) => a.slice(1) as string[])
-      ),
-    []
-  );
+  const relations = useMemo(getRelations, []);
+  const queryResults = useMemo(() => {
+    try {
+      return relations
+        .filter((r) => r.source === nodeType)
+        .map((r) => {
+          const lastPlaceholder = r.triples.find(t => t[2] === r.destination)[0];
+          return {
+            label: r.label,
+            results: Object.fromEntries(
+              window.roamAlphaAPI.q(
+                `[:find ?u ?t :where [?${lastPlaceholder} :block/uid ?u] [?${lastPlaceholder} :node/title ?t] ${triplesToQuery(
+                  [[r.triples[0][0], "Has Title", title], ...r.triples.slice(1)]
+                )}]`
+              )
+            ),
+          };
+        });
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  }, [relations, title, nodeType]);
   const renderItems = (blocks: Record<string, string>, label: string) =>
     Object.entries(blocks).map(([uid, title]) => (
       <li key={uid} style={{ margin: "2px 0" }}>
@@ -61,9 +58,9 @@ const ContextContent = ({ title }: Props) => {
     ));
   return (
     <ul style={{ listStyleType: "none" }}>
-      {renderItems(informs, "Informs")}
-      {renderItems(supports, "Supports")}
-      {renderItems(opposes, "Opposes")}
+      {queryResults.flatMap(({ label, results }) =>
+        renderItems(results, label)
+      )}
     </ul>
   );
 };

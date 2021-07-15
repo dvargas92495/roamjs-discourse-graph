@@ -4,7 +4,6 @@ import {
   createBlock,
   deleteBlock,
   getShallowTreeByParentUid,
-  getTreeByBlockUid,
 } from "roam-client";
 
 type Panel = (props: { uid: string; parentUid: string }) => React.ReactElement;
@@ -16,11 +15,12 @@ export const NodeConfigPanel: Panel = ({ uid, parentUid }) => {
   const [shortcut, setShortcut] = useState("");
   return (
     <>
-      <div style={{ display: "flex" }}>
+      <div style={{ display: "flex", marginBottom: 8 }}>
         <InputGroup
           value={node}
           onChange={(e) => setNode(e.target.value)}
           placeholder={"Enter Node"}
+          style={{ maxWidth: 100 }}
         />
         <InputGroup
           value={label}
@@ -31,6 +31,7 @@ export const NodeConfigPanel: Panel = ({ uid, parentUid }) => {
           value={shortcut}
           onChange={(e) => setShortcut(e.target.value)}
           placeholder={"Enter Shortcut"}
+          style={{ maxWidth: 50 }}
         />
         <Button
           icon={"plus"}
@@ -52,21 +53,21 @@ export const NodeConfigPanel: Panel = ({ uid, parentUid }) => {
           }}
         />
       </div>
-      <ul style={{ listStyle: "none" }}>
+      <ul style={{ listStyle: "none", paddingInlineStart: 16 }}>
         {nodes.map((n) => {
           const data = getShallowTreeByParentUid(n.uid);
           const [{ text: label }, { text: shortcut }] = data;
           return (
-            <li key={n.uid}>
+            <li key={n.uid} style={{ border: "1px dashed #80808080" }}>
               <H6 style={{ margin: 0 }}>{n.text}</H6>
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "space-around",
+                  justifyContent: "space-between",
                   alignItems: "center",
                 }}
               >
-                <span>
+                <span style={{ display: "inline-block", minWidth: 200 }}>
                   <b>Label: </b> {label}
                 </span>
                 <span>
@@ -78,6 +79,7 @@ export const NodeConfigPanel: Panel = ({ uid, parentUid }) => {
                     setNodes(nodes.filter((nn) => nn.uid !== n.uid));
                     deleteBlock(n.uid);
                   }}
+                  style={{ minWidth: 30 }}
                 />
               </div>
             </li>
