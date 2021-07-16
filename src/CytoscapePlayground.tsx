@@ -11,9 +11,11 @@ import {
   Button,
   Classes,
   Dialog,
+  Drawer,
   InputGroup,
   Intent,
   Label,
+  Position,
   Tooltip,
 } from "@blueprintjs/core";
 import {
@@ -23,10 +25,55 @@ import {
   getShallowTreeByParentUid,
 } from "roam-client";
 import { setInputSetting, toFlexRegex } from "roamjs-components";
+import { isOpen } from "@blueprintjs/core/lib/esm/components/context-menu/contextMenu";
+import SynthesisQuery from "./SynthesisQuery";
+
+const SynthesisQueryPane = ({
+  blockUid,
+  isOpen,
+  close,
+}: {
+  blockUid: string;
+  isOpen: boolean;
+  close: () => void;
+}) => {
+  return (
+    <Drawer
+      isOpen={isOpen}
+      isCloseButtonShown
+      onClose={close}
+      position={Position.LEFT}
+      title={'Synthesis Query'}
+      hasBackdrop={false}
+      canOutsideClickClose={false}
+      canEscapeKeyClose
+    >
+      <div className={Classes.DRAWER_BODY}>
+        <SynthesisQuery blockUid={blockUid} />
+      </div>
+    </Drawer>
+  );
+};
 
 type Props = {
   title: string;
 };
+
+const useTreeFieldUid = ({
+  tree,
+  parentUid,
+  field,
+}: {
+  parentUid: string;
+  field: string;
+  tree: { text: string; uid: string }[];
+}) =>
+  useMemo(
+    () =>
+      tree.find((t) => toFlexRegex(field).test(t.text))?.uid ||
+      createBlock({ node: { text: field }, parentUid }),
+    [tree, field, parentUid]
+  );
 
 const CytoscapePlayground = ({ title }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
@@ -34,12 +81,16 @@ const CytoscapePlayground = ({ title }: Props) => {
   const cyRef = useRef<cytoscape.Core>(null);
   const sourceRef = useRef<cytoscape.NodeSingular>(null);
   const tree = useMemo(() => getShallowTreeByParentUid(pageUid), [pageUid]);
-  const elementsUid = useMemo(
-    () =>
-      tree.find((t) => toFlexRegex("elements").test(t.text))?.uid ||
-      createBlock({ node: { text: "elements" }, parentUid: pageUid }),
-    [tree]
-  );
+  const elementsUid = useTreeFieldUid({
+    tree,
+    parentUid: pageUid,
+    field: "elements",
+  });
+  const queryUid = useTreeFieldUid({
+    tree,
+    parentUid: pageUid,
+    field: "query",
+  });
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.on("tap", () => {
@@ -151,6 +202,15 @@ const CytoscapePlayground = ({ title }: Props) => {
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const onDrawerOpen = useCallback(
+    () => setIsDrawerOpen(true),
+    [setIsDrawerOpen]
+  );
+  const onDrawerClose = useCallback(
+    () => setIsDrawerOpen(false),
+    [setIsDrawerOpen]
+  );
   return (
     <div
       style={{
@@ -164,6 +224,13 @@ const CytoscapePlayground = ({ title }: Props) => {
       ref={containerRef}
     >
       <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+        <Tooltip content={"Open Synthesis Query Pane"}>
+          <Button
+            icon={"drawer-left"}
+            onClick={onDrawerOpen}
+            style={{ marginRight: 8 }}
+          />
+        </Tooltip>
         {maximized ? (
           <>
             <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
@@ -221,6 +288,11 @@ const CytoscapePlayground = ({ title }: Props) => {
           </div>
         </Dialog>
       </div>
+      <SynthesisQueryPane
+        isOpen={isDrawerOpen}
+        close={onDrawerClose}
+        blockUid={queryUid}
+      />
     </div>
   );
 };
