@@ -18,6 +18,7 @@ import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
   isFlagEnabled,
+  NODE_TITLE_REGEX,
   refreshConfigTree,
 } from "./util";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
@@ -97,7 +98,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 window.roamAlphaAPI.ui.commandPalette.addCommand({
-  label: "Export Property Graph CSV",
+  label: "Export Discourse Graph",
   callback: () => exportRender({}),
 });
 
@@ -164,8 +165,6 @@ createButtonObserver({
   attribute: "synthesis",
   render: synthesisRender,
 });
-
-const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\\w*)\\]\\] - `);
 
 createHTMLObserver({
   tag: "DIV",

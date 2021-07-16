@@ -14,6 +14,8 @@ export const refreshConfigTree = () =>
 export const isFlagEnabled = (flag: string) =>
   treeRef.tree.some((t) => toFlexRegex(flag).test(t.text));
 
+export const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\\w*)\\]\\] - `);
+
 export const DEFAULT_NODE_VALUES: InputTextNode[] = [
   { text: "CLM", children: [{ text: "Claim" }, { text: "C" }] },
   { text: "QUE", children: [{ text: "Question" }, { text: "Q" }] },
@@ -60,8 +62,172 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
       },
     ],
   },
-  { text: "Supports" },
-  { text: "Opposes" },
+  {
+    text: "Supports",
+    children: [
+      { text: "Source", children: [{ text: "EVD", children: [] }] },
+      { text: "Destination", children: [{ text: "CLM", children: [] }] },
+      {
+        text: "If",
+        children: [
+          {
+            text: "And",
+            children: [
+              {
+                text: "Page",
+                children: [
+                  { text: "Is A", children: [{ text: "EVD", children: [] }] },
+                ],
+              },
+              {
+                text: "Block",
+                children: [
+                  {
+                    text: "References",
+                    children: [{ text: "Page", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "SBlock",
+                children: [
+                  {
+                    text: "References",
+                    children: [{ text: "SPage", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "SPage",
+                children: [
+                  {
+                    text: "Has Title",
+                    children: [{ text: "Supported By", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "SBlock",
+                children: [
+                  {
+                    text: "Has Child",
+                    children: [{ text: "Block", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "PBlock",
+                children: [
+                  {
+                    text: "References",
+                    children: [{ text: "ParentPage", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "PBlock",
+                children: [
+                  {
+                    text: "Has Child",
+                    children: [{ text: "SBlock", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "ParentPage",
+                children: [
+                  { text: "Is A", children: [{ text: "CLM", children: [] }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    text: "Opposes",
+    children: [
+      { text: "Source", children: [{ text: "EVD", children: [] }] },
+      { text: "Destination", children: [{ text: "CLM", children: [] }] },
+      {
+        text: "If",
+        children: [
+          {
+            text: "And",
+            children: [
+              {
+                text: "Page",
+                children: [
+                  { text: "Is A", children: [{ text: "EVD", children: [] }] },
+                ],
+              },
+              {
+                text: "Block",
+                children: [
+                  {
+                    text: "References",
+                    children: [{ text: "Page", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "SBlock",
+                children: [
+                  {
+                    text: "References",
+                    children: [{ text: "SPage", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "SPage",
+                children: [
+                  {
+                    text: "Has Title",
+                    children: [{ text: "Opposed By", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "SBlock",
+                children: [
+                  {
+                    text: "Has Child",
+                    children: [{ text: "Block", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "PBlock",
+                children: [
+                  {
+                    text: "References",
+                    children: [{ text: "ParentPage", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "PBlock",
+                children: [
+                  {
+                    text: "Has Child",
+                    children: [{ text: "SBlock", children: [] }],
+                  },
+                ],
+              },
+              {
+                text: "ParentPage",
+                children: [
+                  { text: "Is A", children: [{ text: "CLM", children: [] }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 export const getNodes = () =>
@@ -121,4 +287,8 @@ const englishToDatalog: {
 };
 
 export const triplesToQuery = (t: string[][]): string =>
-  t.map(([src, key, dest]) => englishToDatalog[key.toLowerCase().trim()](src, dest)).join(" ");
+  t
+    .map(([src, key, dest]) =>
+      englishToDatalog[key.toLowerCase().trim()](src, dest)
+    )
+    .join(" ");
