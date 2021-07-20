@@ -32,7 +32,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
     () => Object.fromEntries(NODE_LABELS.map(({ text, abbr }) => [text, abbr])),
     [NODE_LABELS]
   );
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement[]>([]);
   const tree = useMemo(() => getShallowTreeByParentUid(blockUid), [blockUid]);
   const [activeMatch, setActiveMatch] = useState(
     getFirstChildTextByBlockUid(
@@ -113,15 +113,17 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
       fireQuery();
     }
     setInitialLoad(false);
-    const target = containerRef.current.querySelector<HTMLSpanElement>(
-      ".roamjs-page-input-target"
-    );
-    if (target) {
-      target.style.width = "100%";
-      const parentStyle = target.parentElement.style;
-      parentStyle.width = "100%";
-      parentStyle.display = "inline-block";
-    }
+    containerRef.current.forEach((d) => {
+      const target = d.querySelector<HTMLSpanElement>(
+        ".roamjs-page-input-target"
+      );
+      if (target) {
+        target.style.width = "100%";
+        const parentStyle = target.parentElement.style;
+        parentStyle.width = "100%";
+        parentStyle.display = "inline-block";
+      }
+    });
   }, [pinned, setInitialLoad, initialLoad, fireQuery, containerRef]);
   return (
     <Card>
@@ -138,11 +140,11 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
           emptyValueText={"Choose node type"}
         />
       </Label>
-      {conditions.map((con) => (
+      {conditions.map((con, i) => (
         <div
           style={{ display: "flex", margin: "8px 0", alignItems: "baseline" }}
           key={con.uid}
-          ref={containerRef}
+          ref={(ref) => (containerRef.current[i] = ref)}
         >
           <Switch
             labelElement={
