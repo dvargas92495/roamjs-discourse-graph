@@ -116,10 +116,12 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
     const target = containerRef.current.querySelector<HTMLSpanElement>(
       ".roamjs-page-input-target"
     );
-    target.style.width = "100%";
-    const parentStyle = target.parentElement.style;
-    parentStyle.width = "100%";
-    parentStyle.display = "inline-block";
+    if (target) {
+      target.style.width = "100%";
+      const parentStyle = target.parentElement.style;
+      parentStyle.width = "100%";
+      parentStyle.display = "inline-block";
+    }
   }, [pinned, setInitialLoad, initialLoad, fireQuery, containerRef]);
   return (
     <Card>
