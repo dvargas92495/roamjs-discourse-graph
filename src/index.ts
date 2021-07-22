@@ -82,6 +82,7 @@ const { pageUid } = createConfigObserver({
     ],
   },
 });
+refreshConfigTree();
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "\\") {
@@ -187,8 +188,6 @@ createHTMLObserver({
 });
 
 setTimeout(() => {
-  refreshConfigTree();
-
   if (isFlagEnabled("preview")) {
     createHTMLObserver({
       useBody: true,

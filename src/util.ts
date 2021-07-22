@@ -49,7 +49,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
               {
                 text: "Block",
                 children: [
-                  { text: "Is In Page", children: [{ text: "Parent Page" }] },
+                  { text: "Is In Page", children: [{ text: "ParentPage" }] },
                 ],
               },
               {
@@ -268,9 +268,9 @@ export const getRelations = () =>
     ).map((c) => ({
       ...data,
       triples: c.children.map((t) => [
-        t.text,
+        t.text.replace(/ /g, ""),
         t.children[0]?.text,
-        t.children[0]?.children?.[0]?.text,
+        (t.children[0]?.children?.[0]?.text || "").replace(/ /g, ""),
       ]),
     }));
   });

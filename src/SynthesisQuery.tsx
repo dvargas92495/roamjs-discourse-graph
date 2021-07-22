@@ -13,9 +13,9 @@ import {
   getRoamUrl,
   getShallowTreeByParentUid,
   openBlockInSidebar,
-  updateBlock,
 } from "roam-client";
 import {
+  addInputSetting,
   createComponentRender,
   MenuItemSelect,
   PageInput,
@@ -23,6 +23,120 @@ import {
   toFlexRegex,
 } from "roamjs-components";
 import { getNodes, getRelations, triplesToQuery } from "./util";
+
+type Condition = {
+  relation: string;
+  predicate: string;
+  that: boolean;
+  uid: string;
+};
+
+const QueryCondition = ({
+  con,
+  setConditions,
+  conditions,
+  relationLabels,
+}: {
+  con: Condition;
+  setConditions: (cons: Condition[]) => void;
+  conditions: Condition[];
+  relationLabels: string[];
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const target = containerRef.current.querySelector<HTMLSpanElement>(
+      ".roamjs-page-input-target"
+    );
+    if (target) {
+      target.style.width = "100%";
+      const parentStyle = target.parentElement.style;
+      parentStyle.width = "100%";
+      parentStyle.display = "inline-block";
+    }
+  }, [containerRef]);
+  return (
+    <div
+      style={{ display: "flex", margin: "8px 0", alignItems: "baseline" }}
+      ref={containerRef}
+    >
+      <Switch
+        labelElement={
+          <span style={{ minWidth: 36, width: 36, display: "inline-block" }}>
+            {con.that ? "That" : "Not"}
+          </span>
+        }
+        checked={con.that}
+        onChange={(e) => {
+          const checked = (e.target as HTMLInputElement).checked;
+          setInputSetting({
+            blockUid: con.uid,
+            key: "That",
+            value: `${checked}`,
+          });
+          setConditions(
+            conditions.map((c) =>
+              c.uid === con.uid ? { ...con, that: checked } : c
+            )
+          );
+        }}
+      />
+      <MenuItemSelect
+        activeItem={con.relation}
+        onItemSelect={(relation) => {
+          setInputSetting({
+            blockUid: con.uid,
+            key: "Relation",
+            value: relation,
+            index: 1,
+          });
+          setConditions(
+            conditions.map((c) =>
+              c.uid === con.uid ? { ...con, relation } : c
+            )
+          );
+        }}
+        items={relationLabels}
+        emptyValueText={"Choose relationship"}
+        ButtonProps={{
+          style: {
+            minWidth: 180,
+            width: 180,
+            margin: "0 8px",
+            display: "flex",
+            justifyContent: "space-between",
+          },
+        }}
+      />
+      <div style={{ flexGrow: 1 }}>
+        <PageInput
+          value={con.predicate}
+          setValue={(value) => {
+            setInputSetting({
+              blockUid: con.uid,
+              value,
+              key: "Predicate",
+              index: 2,
+            });
+            setConditions(
+              conditions.map((c) =>
+                c.uid === con.uid ? { ...con, predicate: value } : c
+              )
+            );
+          }}
+        />
+      </div>
+      <Button
+        icon={"trash"}
+        onClick={() => {
+          deleteBlock(con.uid);
+          setConditions(conditions.filter((c) => c.uid !== con.uid));
+        }}
+        minimal
+        style={{ alignSelf: "end" }}
+      />
+    </div>
+  );
+};
 
 const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
   const NODE_LABELS = useMemo(getNodes, []);
@@ -32,16 +146,13 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
     () => Object.fromEntries(NODE_LABELS.map(({ text, abbr }) => [text, abbr])),
     [NODE_LABELS]
   );
-  const containerRef = useRef<HTMLDivElement[]>([]);
   const tree = useMemo(() => getShallowTreeByParentUid(blockUid), [blockUid]);
   const [activeMatch, setActiveMatch] = useState(
     getFirstChildTextByBlockUid(
       tree.find((t) => toFlexRegex("match").test(t.text))?.uid || ""
     )
   );
-  const [conditions, setConditions] = useState<
-    { relation: string; predicate: string; that: boolean; uid: string }[]
-  >(() => {
+  const [conditions, setConditions] = useState<Condition[]>(() => {
     const parentUid = tree.find((t) =>
       toFlexRegex("conditions").test(t.text)
     )?.uid;
@@ -66,11 +177,20 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
   const [pinned, setPinned] = useState(
     tree.find((t) => toFlexRegex("pinned").test(t.text))?.uid
   );
+  const [clearedResults, setClearedResults] = useState(
+    pinned
+      ? new Set(getShallowTreeByParentUid(pinned).map((t) => t.text))
+      : new Set()
+  );
   const [initialLoad, setInitialLoad] = useState(true);
   const [results, setResults] = useState<{ text: string; uid: string }[]>([]);
+  const filteredResults = useMemo(
+    () => results.filter((r) => !clearedResults.has(r.uid)),
+    [results, clearedResults]
+  );
   const fireQuery = useCallback(() => {
     const makeQuery = (source: string, condition: string) =>
-      `[:find ?source-title ?source-uid :where [?${source} :node/title ?source-title] [?${source} :block/uid ?source-uid] [?${source} :block/refs ?source-ref] [?source-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] ${condition}]`;
+      `[:find ?source-title ?source-uid :where [?${source} :node/title ?source-title] [?${source} :block/uid ?source-uid] ${condition}]`;
     try {
       const separateQueryResults = conditions.map(
         ({ relation, predicate, that }) => {
@@ -85,7 +205,9 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
           destinationTriple[1] = "Has Title";
           destinationTriple[2] = predicate;
           const subQuery = triplesToQuery(queryTriples);
-          const condition = that ? subQuery : `(not ${subQuery})`;
+          const condition = that
+            ? subQuery
+            : `[?${source} :block/refs ?source-ref] [?source-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] (not ${subQuery})`;
           const nodesOnPage = window.roamAlphaAPI.q(
             makeQuery(sourceTriple[0], condition)
           );
@@ -113,18 +235,11 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
       fireQuery();
     }
     setInitialLoad(false);
-    containerRef.current.forEach((d) => {
-      const target = d.querySelector<HTMLSpanElement>(
-        ".roamjs-page-input-target"
-      );
-      if (target) {
-        target.style.width = "100%";
-        const parentStyle = target.parentElement.style;
-        parentStyle.width = "100%";
-        parentStyle.display = "inline-block";
-      }
-    });
-  }, [pinned, setInitialLoad, initialLoad, fireQuery, containerRef]);
+  }, [pinned, setInitialLoad, initialLoad, fireQuery]);
+  const relationLabels = useMemo(
+    () => relations.map((r) => r.label),
+    [relations]
+  );
   return (
     <Card>
       <H3>Synthesis</H3>
@@ -140,90 +255,14 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
           emptyValueText={"Choose node type"}
         />
       </Label>
-      {conditions.map((con, i) => (
-        <div
-          style={{ display: "flex", margin: "8px 0", alignItems: "baseline" }}
+      {conditions.map((con) => (
+        <QueryCondition
           key={con.uid}
-          ref={(ref) => (containerRef.current[i] = ref)}
-        >
-          <Switch
-            labelElement={
-              <span
-                style={{ minWidth: 36, width: 36, display: "inline-block" }}
-              >
-                {con.that ? "That" : "Not"}
-              </span>
-            }
-            checked={con.that}
-            onChange={(e) => {
-              const checked = (e.target as HTMLInputElement).checked;
-              setInputSetting({
-                blockUid: con.uid,
-                key: "That",
-                value: `${checked}`,
-              });
-              setConditions(
-                conditions.map((c) =>
-                  c.uid === con.uid ? { ...con, that: checked } : c
-                )
-              );
-            }}
-          />
-          <MenuItemSelect
-            activeItem={con.relation}
-            onItemSelect={(relation) => {
-              setInputSetting({
-                blockUid: con.uid,
-                key: "Relation",
-                value: relation,
-                index: 1,
-              });
-              setConditions(
-                conditions.map((c) =>
-                  c.uid === con.uid ? { ...con, relation } : c
-                )
-              );
-            }}
-            items={relations.map((rl) => rl.label)}
-            emptyValueText={"Choose relationship"}
-            ButtonProps={{
-              style: {
-                minWidth: 180,
-                width: 180,
-                margin: "0 8px",
-                display: "flex",
-                justifyContent: "space-between",
-              },
-            }}
-          />
-          <div style={{ flexGrow: 1 }}>
-            <PageInput
-              value={con.predicate}
-              setValue={(value) => {
-                setInputSetting({
-                  blockUid: con.uid,
-                  value,
-                  key: "Predicate",
-                  index: 2,
-                });
-                setConditions(
-                  conditions.map((c) =>
-                    c.uid === con.uid ? { ...con, predicate: value } : c
-                  )
-                );
-              }}
-            />
-          </div>
-          <Button
-            icon={"trash"}
-            onClick={() => {
-              deleteBlock(con.uid);
-              setConditions(conditions.filter((c) => c.uid !== con.uid));
-            }}
-            minimal
-            style={{ alignSelf: "end" }}
-          />
-        </div>
+          relationLabels={relationLabels}
+          con={con}
+          conditions={conditions}
+          setConditions={setConditions}
+        />
       ))}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Button
@@ -255,7 +294,10 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
         />
         <Button
           text={"Query"}
-          onClick={fireQuery}
+          onClick={() => {
+            fireQuery();
+            setClearedResults(new Set());
+          }}
           intent={"primary"}
           disabled={
             !conditions.length ||
@@ -276,6 +318,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
                   if (pinned) {
                     deleteBlock(pinned);
                     setPinned("");
+                    setClearedResults(new Set());
                   } else {
                     setPinned(
                       createBlock({
@@ -299,25 +342,52 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
               />
             </div>
           </H3>
-          {results.length ? (
+          {filteredResults.length ? (
             <>
-              <i style={{ opacity: 0.8 }}>Found {results.length} results</i>
+              <i style={{ opacity: 0.8 }}>
+                Found {filteredResults.length} results
+              </i>
               <ul>
-                {results.map((r) => (
+                {filteredResults.map((r) => (
                   <li key={r.uid}>
-                    <a
-                      className={"rm-page-ref"}
-                      href={getRoamUrl(r.uid)}
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.shiftKey) {
-                          openBlockInSidebar(r.uid);
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }
+                    <span
+                      style={{
+                        display: "flex",
+                        width: "100%",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                       }}
                     >
-                      {r.text}
-                    </a>
+                      <a
+                        className={"rm-page-ref"}
+                        href={getRoamUrl(r.uid)}
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.shiftKey) {
+                            openBlockInSidebar(r.uid);
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                      >
+                        {r.text}
+                      </a>
+                      {pinned && (
+                        <Button
+                          icon={"cross"}
+                          minimal
+                          onClick={() => {
+                            createBlock({
+                              parentUid: pinned,
+                              node: { text: r.uid },
+                              order: clearedResults.size,
+                            });
+                            setClearedResults(
+                              new Set([...clearedResults, r.uid])
+                            );
+                          }}
+                        />
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
