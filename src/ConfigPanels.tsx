@@ -1,14 +1,15 @@
-import { Button, H6, InputGroup } from "@blueprintjs/core";
-import React, { useState } from "react";
+import { Button, H6, InputGroup, Intent } from "@blueprintjs/core";
+import React, { useMemo, useState } from "react";
 import {
   createBlock,
   deleteBlock,
   getShallowTreeByParentUid,
+  getTreeByBlockUid,
 } from "roam-client";
 
 type Panel = (props: { uid: string; parentUid: string }) => React.ReactElement;
 
-export const NodeConfigPanel: Panel = ({ uid, parentUid }) => {
+export const NodeConfigPanel: Panel = ({ uid }) => {
   const [nodes, setNodes] = useState(uid ? getShallowTreeByParentUid(uid) : []);
   const [node, setNode] = useState("");
   const [label, setLabel] = useState("");
@@ -91,5 +92,116 @@ export const NodeConfigPanel: Panel = ({ uid, parentUid }) => {
 };
 
 export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
-  return <ul></ul>;
+  const [relations, setRelations] = useState(
+    uid ? getShallowTreeByParentUid(uid) : []
+  );
+  const [editingRelation, setEditingRelation] = useState("");
+  const [newRelation, setNewRelation] = useState("");
+  const editingRelationInfo = useMemo(
+    () => editingRelation && getTreeByBlockUid(editingRelation),
+    [editingRelation]
+  );
+  return editingRelation ? (
+    <>
+      <h3
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        {editingRelationInfo.text}
+        <Button
+          icon={"arrow-left"}
+          minimal
+          onClick={() => setEditingRelation("")}
+        />
+      </h3>
+      <div
+        style={{
+          border: "1px solid gray",
+          borderRadius: 16,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          textAlign: "center",
+          height: 400,
+          width: "100%",
+        }}
+      >
+        Editing UI Coming Soon...
+      </div>
+      <Button
+        text={"Save"}
+        intent={Intent.PRIMARY}
+        style={{ marginTop: 10 }}
+        onClick={() => {
+          setEditingRelation("");
+        }}
+      />
+    </>
+  ) : (
+    <>
+      <div>
+        <div style={{ display: "flex" }}>
+          <InputGroup
+            value={newRelation}
+            onChange={(e) => setNewRelation(e.target.value)}
+          />
+          <Button
+            onClick={() => {
+              const relationUid = createBlock({
+                parentUid: uid,
+                order: relations.length,
+                node: { text: newRelation },
+              });
+              setTimeout(() => {
+                setRelations([
+                  ...relations,
+                  { text: newRelation, uid: relationUid },
+                ]);
+                setNewRelation("");
+                setEditingRelation(relationUid);
+              }, 1);
+            }}
+            text={"Add Relation"}
+            style={{ maxWidth: 120, marginLeft: 8 }}
+            intent={Intent.PRIMARY}
+          />
+        </div>
+      </div>
+      <ul style={{ listStyle: "none", paddingInlineStart: 16 }}>
+        {relations.map((rel) => (
+          <li key={rel.uid}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>{rel.text}</span>
+              <span>
+                <Button
+                  icon={"edit"}
+                  minimal
+                  onClick={() => {
+                    setEditingRelation(rel.uid);
+                  }}
+                />
+                <Button
+                  icon={"delete"}
+                  minimal
+                  onClick={() => {
+                    deleteBlock(rel.uid);
+                    setRelations(relations.filter((r) => r.uid !== rel.uid));
+                  }}
+                />
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
 };
