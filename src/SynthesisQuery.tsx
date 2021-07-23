@@ -15,7 +15,6 @@ import {
   openBlockInSidebar,
 } from "roam-client";
 import {
-  addInputSetting,
   createComponentRender,
   MenuItemSelect,
   PageInput,
@@ -23,6 +22,7 @@ import {
   toFlexRegex,
 } from "roamjs-components";
 import { getNodes, getRelations, triplesToQuery } from "./util";
+import { render as exportRender } from "./ExportDialog";
 
 type Condition = {
   relation: string;
@@ -312,6 +312,18 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
           <H3 style={{ display: "flex", justifyContent: "space-between" }}>
             Results
             <div>
+              <Button
+                icon={"export"}
+                minimal
+                onClick={() =>
+                  exportRender({
+                    inputPages: filteredResults.map(({ text, uid }) => ({
+                      title: text,
+                      uid,
+                    })),
+                  })
+                }
+              />
               <Button
                 icon={"pin"}
                 onClick={() => {

@@ -30,6 +30,10 @@ import format from "date-fns/format";
 import download from "downloadjs";
 import JSZip from "jszip";
 
+type Props = {
+  inputPages?: { title: string; uid: string }[];
+};
+
 const EXPORT_TYPES = ["CSV (neo4j)", "Markdown"] as const;
 
 const viewTypeToPrefix = {
@@ -82,7 +86,12 @@ const toMarkdown = ({
     )
     .join("")}`;
 
-const ExportDialog = ({ onClose }: { onClose: () => void }) => {
+const ExportDialog = ({
+  onClose,
+  inputPages = [],
+}: {
+  onClose: () => void;
+} & Props) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filename, setFilename] = useState(
@@ -90,14 +99,14 @@ const ExportDialog = ({ onClose }: { onClose: () => void }) => {
   );
   const [activeExportType, setActiveExportType] = useState<
     typeof EXPORT_TYPES[number]
-  >(EXPORT_TYPES[0]);
+  >(inputPages.length ? "Markdown" : EXPORT_TYPES[0]);
   return (
     <Dialog
       isOpen={true}
       onClose={onClose}
       canEscapeKeyClose
       canOutsideClickClose
-      title={`Export Discourse Graph to CSV`}
+      title={`Export Discourse Graph`}
     >
       <div className={Classes.DIALOG_BODY}>
         <Label>
@@ -106,6 +115,7 @@ const ExportDialog = ({ onClose }: { onClose: () => void }) => {
             items={[...EXPORT_TYPES]}
             activeItem={activeExportType}
             onItemSelect={(et) => setActiveExportType(et)}
+            disabled={!!inputPages.length}
           />
         </Label>
         <Label>
@@ -115,6 +125,9 @@ const ExportDialog = ({ onClose }: { onClose: () => void }) => {
             onChange={(e) => setFilename(e.target.value)}
           />
         </Label>
+        {!!inputPages.length && (
+          <span>Exporting {inputPages.length} Pages</span>
+        )}
       </div>
       <div className={Classes.DIALOG_FOOTER}>
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
@@ -178,19 +191,21 @@ const ExportDialog = ({ onClose }: { onClose: () => void }) => {
                   );
                   finish();
                 } else if (activeExportType === "Markdown") {
-                  const pages = getNodes().flatMap((n) =>
-                    getPageTitlesAndUidsDirectlyReferencingPage(n.abbr).map(
-                      ({ title, uid }) => {
-                        const v = getPageViewType(title) || "bullet";
-                        const treeNode = getTreeByBlockUid(uid);
-                        const content = treeNode.children
-                          .map((c) => toMarkdown({ c, v, i: 0 }))
-                          .join("\n");
-                        const uids = new Set(collectUids(treeNode));
-                        return { title, content, uids };
-                      }
-                    )
-                  );
+                  const pages = (
+                    inputPages.length
+                      ? inputPages
+                      : getNodes().flatMap((n) =>
+                          getPageTitlesAndUidsDirectlyReferencingPage(n.abbr)
+                        )
+                  ).map(({ title, uid }) => {
+                    const v = getPageViewType(title) || "bullet";
+                    const treeNode = getTreeByBlockUid(uid);
+                    const content = treeNode.children
+                      .map((c) => toMarkdown({ c, v, i: 0 }))
+                      .join("\n");
+                    const uids = new Set(collectUids(treeNode));
+                    return { title, content, uids };
+                  });
                   Promise.all(
                     pages.map(({ title, content }) =>
                       zip.file(titleToFilename(title), content)
@@ -206,6 +221,9 @@ const ExportDialog = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-export const render = createOverlayRender<{}>("discourse-export", ExportDialog);
+export const render = createOverlayRender<Props>(
+  "discourse-export",
+  ExportDialog
+);
 
 export default ExportDialog;
