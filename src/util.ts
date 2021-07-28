@@ -262,6 +262,10 @@ export const getRelations = () =>
         tree,
         key: "Destination",
       }),
+      complement: getSettingValueFromTree({
+        tree,
+        key: "Complement",
+      }),
     };
     return (
       tree.find((i) => toFlexRegex("if").test(i.text))?.children || []
@@ -275,7 +279,7 @@ export const getRelations = () =>
     }));
   });
 
-const freeVar = (v: string) => `?${v.replace(/ /g, "")}`
+export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`
 
 const englishToDatalog: {
   [label: string]: (src: string, dest: string) => string;

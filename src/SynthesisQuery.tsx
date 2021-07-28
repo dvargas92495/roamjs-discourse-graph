@@ -189,27 +189,34 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
     [results, clearedResults]
   );
   const fireQuery = useCallback(() => {
-    const makeQuery = (source: string, condition: string) =>
-      `[:find ?source-title ?source-uid :where [?${source} :node/title ?source-title] [?${source} :block/uid ?source-uid] ${condition}]`;
+    const makeQuery = (node: string, condition: string) =>
+      `[:find ?node-title ?node-uid :where [?${node} :node/title ?node-title] [?${node} :block/uid ?node-uid] ${condition}]`;
     try {
       const separateQueryResults = conditions.map(
         ({ relation, predicate, that }) => {
-          const { triples, source, destination } = relations.find(
-            (r) => r.label === relation
-          );
+          const { triples, source, destination, label, complement } =
+            relations.find((r) => [r.label, r.complement].includes(relation));
           const queryTriples = triples.map((t) => t.slice(0));
           const sourceTriple = queryTriples.find((t) => t[2] === source);
           const destinationTriple = queryTriples.find(
             (t) => t[2] === destination
           );
-          destinationTriple[1] = "Has Title";
-          destinationTriple[2] = predicate;
+          let nodeVar;
+          if (label === relation) {
+            nodeVar = sourceTriple[0];
+            destinationTriple[1] = "Has Title";
+            destinationTriple[2] = predicate;
+          } else if (complement === relation) {
+            nodeVar = destinationTriple[0];
+            sourceTriple[1] = "Has Title";
+            sourceTriple[2] = predicate;
+          }
           const subQuery = triplesToQuery(queryTriples);
           const condition = that
             ? subQuery
-            : `[?${source} :block/refs ?source-ref] [?source-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] (not ${subQuery})`;
+            : `[?${nodeVar} :block/refs ?node-ref] [?node-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] (not ${subQuery})`;
           const nodesOnPage = window.roamAlphaAPI.q(
-            makeQuery(sourceTriple[0], condition)
+            makeQuery(nodeVar, condition)
           );
           return new Set(nodesOnPage.map((t) => JSON.stringify(t)));
         }
@@ -237,7 +244,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
     setInitialLoad(false);
   }, [pinned, setInitialLoad, initialLoad, fireQuery]);
   const relationLabels = useMemo(
-    () => relations.map((r) => r.label),
+    () => relations.flatMap((r) => [r.label, r.complement]),
     [relations]
   );
   return (
