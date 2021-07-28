@@ -284,6 +284,7 @@ const englishToDatalog: {
   "is in page": (src, dest) => `[?${src} :block/page ?${dest}]`,
   "has title": (src, dest) => `[?${src} :node/title "${dest}"]`,
   "has child": (src, dest) => `[?${src} :block/children ?${dest}]`,
+  "has parent": (src, dest) => `[?${src} :block/parents ?${dest}]`,
 };
 
 export const triplesToQuery = (t: string[][]): string =>

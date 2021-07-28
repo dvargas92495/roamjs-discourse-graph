@@ -47,6 +47,10 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 
 .roamjs-discourse-context-title:hover { 
   text-decoration: underline;
+}
+
+.roamjs-discourse-config-label {
+  flex-grow: 1;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
