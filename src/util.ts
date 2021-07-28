@@ -268,23 +268,25 @@ export const getRelations = () =>
     ).map((c) => ({
       ...data,
       triples: c.children.map((t) => [
-        t.text.replace(/ /g, ""),
+        t.text,
         t.children[0]?.text,
-        (t.children[0]?.children?.[0]?.text || "").replace(/ /g, ""),
+        (t.children[0]?.children?.[0]?.text || ""),
       ]),
     }));
   });
+
+const freeVar = (v: string) => `?${v.replace(/ /g, "")}`
 
 const englishToDatalog: {
   [label: string]: (src: string, dest: string) => string;
 } = {
   "is a": (src, dest) =>
-    `[?${src} :block/refs ?${dest}-Page] [?${dest}-Page :node/title "${dest}"]`,
-  references: (src, dest) => `[?${src} :block/refs ?${dest}]`,
-  "is in page": (src, dest) => `[?${src} :block/page ?${dest}]`,
-  "has title": (src, dest) => `[?${src} :node/title "${dest}"]`,
-  "has child": (src, dest) => `[?${src} :block/children ?${dest}]`,
-  "has parent": (src, dest) => `[?${src} :block/parents ?${dest}]`,
+    `[${freeVar(src)} :block/refs ${freeVar(dest)}-Page] [${freeVar(dest)}-Page :node/title "${dest}"]`,
+  references: (src, dest) => `[${freeVar(src)} :block/refs ${freeVar(dest)}]`,
+  "is in page": (src, dest) => `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
+  "has title": (src, dest) => `[${freeVar(src)} :node/title "${dest}"]`,
+  "has child": (src, dest) => `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
+  "has parent": (src, dest) => `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
 };
 
 export const triplesToQuery = (t: string[][]): string =>
