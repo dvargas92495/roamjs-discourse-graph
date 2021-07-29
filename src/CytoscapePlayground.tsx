@@ -25,7 +25,6 @@ import {
   getShallowTreeByParentUid,
 } from "roam-client";
 import { setInputSetting, toFlexRegex } from "roamjs-components";
-import { isOpen } from "@blueprintjs/core/lib/esm/components/context-menu/contextMenu";
 import SynthesisQuery from "./SynthesisQuery";
 
 const SynthesisQueryPane = ({
@@ -185,6 +184,7 @@ const CytoscapePlayground = ({ title }: Props) => {
             "target-arrow-color": "#ccc",
             "target-arrow-shape": "triangle",
             "curve-style": "bezier",
+            label: 'hey you',
           },
         },
       ],
