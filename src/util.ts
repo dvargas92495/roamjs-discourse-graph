@@ -281,7 +281,7 @@ export const getRelations = () =>
 
 export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`
 
-const englishToDatalog: {
+export const englishToDatalog: {
   [label: string]: (src: string, dest: string) => string;
 } = {
   "is a": (src, dest) =>

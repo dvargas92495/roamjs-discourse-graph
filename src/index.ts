@@ -51,6 +51,19 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 
 .roamjs-discourse-config-label {
   flex-grow: 1;
+}
+
+.roamjs-discourse-edit-relations {
+  border: 1px solid gray;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  height: 400px;
+  width: 100%;
+  position: relative;
+}
+
+.roamjs-discourse-edit-relations:focus {
+  outline: none;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
