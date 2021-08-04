@@ -193,33 +193,38 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
       `[:find ?node-title ?node-uid :where [?${node} :node/title ?node-title] [?${node} :block/uid ?node-uid] ${condition}]`;
     try {
       const separateQueryResults = conditions.map(
-        ({ relation, predicate, that }) => {
-          const { triples, source, destination, label, complement } =
-            relations.find((r) => [r.label, r.complement].includes(relation));
-          const queryTriples = triples.map((t) => t.slice(0));
-          const sourceTriple = queryTriples.find((t) => t[2] === source);
-          const destinationTriple = queryTriples.find(
-            (t) => t[2] === destination
-          );
-          let nodeVar;
-          if (label === relation) {
-            nodeVar = sourceTriple[0];
-            destinationTriple[1] = "Has Title";
-            destinationTriple[2] = predicate;
-          } else if (complement === relation) {
-            nodeVar = destinationTriple[0];
-            sourceTriple[1] = "Has Title";
-            sourceTriple[2] = predicate;
-          }
-          const subQuery = triplesToQuery(queryTriples);
-          const condition = that
-            ? subQuery
-            : `[?${nodeVar} :block/refs ?node-ref] [?node-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] (not ${subQuery})`;
-          const nodesOnPage = window.roamAlphaAPI.q(
-            makeQuery(nodeVar, condition)
-          );
-          return new Set(nodesOnPage.map((t) => JSON.stringify(t)));
-        }
+        ({ relation, predicate, that }) =>
+          relations
+            .filter((r) => [r.label, r.complement].includes(relation))
+            .map(({ triples, source, destination, label, complement }) => {
+              const queryTriples = triples.map((t) => t.slice(0));
+              const sourceTriple = queryTriples.find((t) => t[2] === source);
+              const destinationTriple = queryTriples.find(
+                (t) => t[2] === destination
+              );
+              let nodeVar;
+              if (label === relation) {
+                nodeVar = sourceTriple[0];
+                destinationTriple[1] = "Has Title";
+                destinationTriple[2] = predicate;
+              } else if (complement === relation) {
+                nodeVar = destinationTriple[0];
+                sourceTriple[1] = "Has Title";
+                sourceTriple[2] = predicate;
+              }
+              const subQuery = triplesToQuery(queryTriples);
+              const condition = that
+                ? subQuery
+                : `[?${nodeVar} :block/refs ?node-ref] [?node-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] (not ${subQuery})`;
+              const nodesOnPage = window.roamAlphaAPI.q(
+                makeQuery(nodeVar, condition)
+              );
+              return new Set(nodesOnPage.map((t) => JSON.stringify(t)));
+            })
+            .reduce((all, cur) => {
+              cur.forEach((c) => all.add(c));
+              return all;
+            }, new Set())
       );
       const results = Array.from(
         separateQueryResults.reduce(
