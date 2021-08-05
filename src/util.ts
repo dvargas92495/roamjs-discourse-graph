@@ -274,23 +274,30 @@ export const getRelations = () =>
       triples: c.children.map((t) => [
         t.text,
         t.children[0]?.text,
-        (t.children[0]?.children?.[0]?.text || ""),
+        t.children[0]?.children?.[0]?.text || "",
       ]),
     }));
   });
 
-export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`
+export const getRelationLabels = (relations = getRelations()) =>
+  Array.from(new Set(relations.flatMap((r) => [r.label, r.complement])));
+
+export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`;
 
 export const englishToDatalog: {
   [label: string]: (src: string, dest: string) => string;
 } = {
   "is a": (src, dest) =>
-    `[${freeVar(src)} :block/refs ${freeVar(dest)}-Page] [${freeVar(dest)}-Page :node/title "${dest}"]`,
+    `[${freeVar(src)} :block/refs ${freeVar(dest)}-Page] [${freeVar(
+      dest
+    )}-Page :node/title "${dest}"]`,
   references: (src, dest) => `[${freeVar(src)} :block/refs ${freeVar(dest)}]`,
   "is in page": (src, dest) => `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
   "has title": (src, dest) => `[${freeVar(src)} :node/title "${dest}"]`,
-  "has child": (src, dest) => `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
-  "has parent": (src, dest) => `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
+  "has child": (src, dest) =>
+    `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
+  "has parent": (src, dest) =>
+    `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
 };
 
 export const triplesToQuery = (t: string[][]): string =>

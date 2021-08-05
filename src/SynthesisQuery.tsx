@@ -21,7 +21,12 @@ import {
   setInputSetting,
   toFlexRegex,
 } from "roamjs-components";
-import { getNodes, getRelations, triplesToQuery } from "./util";
+import {
+  getNodes,
+  getRelations,
+  getRelationLabels,
+  triplesToQuery,
+} from "./util";
 import { render as exportRender } from "./ExportDialog";
 
 type Condition = {
@@ -249,7 +254,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
     setInitialLoad(false);
   }, [pinned, setInitialLoad, initialLoad, fireQuery]);
   const relationLabels = useMemo(
-    () => relations.flatMap((r) => [r.label, r.complement]),
+    () => getRelationLabels(relations),
     [relations]
   );
   return (
