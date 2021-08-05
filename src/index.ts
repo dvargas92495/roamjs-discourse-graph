@@ -4,10 +4,9 @@ import {
   createHTMLObserver,
   getDisplayNameByUid,
   getPageTitleByHtmlElement,
-  getTreeByBlockUid,
   toConfig,
 } from "roam-client";
-import { createConfigObserver, toFlexRegex } from "roamjs-components";
+import { createConfigObserver } from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
@@ -64,6 +63,15 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
 
 .roamjs-discourse-edit-relations:focus {
   outline: none;
+}
+
+.roamjs-discourse-playground-drawer > .bp3-overlay {
+  pointer-events: none;
+}
+
+div.roamjs-discourse-playground-drawer div.bp3-drawer {
+  pointer-events: all;
+  width: 40%;
 }`);
 
 const CONFIG = toConfig("discourse-graph");

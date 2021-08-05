@@ -1,4 +1,12 @@
-import { Button, Card, Classes, H3, Label, Switch } from "@blueprintjs/core";
+import {
+  Button,
+  Card,
+  Classes,
+  H3,
+  IconName,
+  Label,
+  Switch,
+} from "@blueprintjs/core";
 import React, {
   useCallback,
   useEffect,
@@ -143,7 +151,13 @@ const QueryCondition = ({
   );
 };
 
-const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
+const SynthesisQuery = ({
+  blockUid,
+  clearResultIcon = { name: "cross" },
+}: {
+  blockUid: string;
+  clearResultIcon?: { name: IconName; onClick?: (t: string) => void };
+}) => {
   const NODE_LABELS = useMemo(getNodes, []);
   const relations = useMemo(getRelations, []);
   const items = useMemo(() => NODE_LABELS.map((nl) => nl.text), NODE_LABELS);
@@ -402,7 +416,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
                       </a>
                       {pinned && (
                         <Button
-                          icon={"cross"}
+                          icon={clearResultIcon.name}
                           minimal
                           onClick={() => {
                             createBlock({
@@ -413,6 +427,7 @@ const SynthesisQuery = ({ blockUid }: { blockUid: string }) => {
                             setClearedResults(
                               new Set([...clearedResults, r.uid])
                             );
+                            clearResultIcon.onClick?.(r.text);
                           }}
                         />
                       )}

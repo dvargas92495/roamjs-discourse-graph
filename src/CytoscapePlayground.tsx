@@ -32,10 +32,12 @@ const SynthesisQueryPane = ({
   blockUid,
   isOpen,
   close,
+  clearOnClick,
 }: {
   blockUid: string;
   isOpen: boolean;
   close: () => void;
+  clearOnClick: (s: string) => void;
 }) => {
   return (
     <Drawer
@@ -47,9 +49,18 @@ const SynthesisQueryPane = ({
       hasBackdrop={false}
       canOutsideClickClose={false}
       canEscapeKeyClose
+      portalClassName={"roamjs-discourse-playground-drawer"}
     >
+      <style>{`
+.roam-article {
+  margin-left: 40%;
+}
+`}</style>
       <div className={Classes.DRAWER_BODY}>
-        <SynthesisQuery blockUid={blockUid} />
+        <SynthesisQuery
+          blockUid={blockUid}
+          clearResultIcon={{ name: "hand-right", onClick: clearOnClick }}
+        />
       </div>
     </Drawer>
   );
@@ -131,7 +142,6 @@ const CytoscapePlayground = ({ title }: Props) => {
         if (blockClickRef.current) {
           return;
         }
-        e.stopPropagation();
         clearEditingRef();
         clearSourceRef();
         if (e.originalEvent.ctrlKey) {
@@ -160,7 +170,6 @@ const CytoscapePlayground = ({ title }: Props) => {
         if (blockClickRef.current) {
           return;
         }
-        e.stopPropagation();
         clearEditingRelation();
         if (e.originalEvent.ctrlKey) {
           clearSourceRef();
@@ -245,6 +254,20 @@ const CytoscapePlayground = ({ title }: Props) => {
       edgeCallback,
     ]
   );
+  const createNode = useCallback(
+    (text: string, position: { x: number; y: number }) => {
+      const uid = createBlock({
+        node: { text },
+        parentUid: elementsUid,
+      });
+      const node = cyRef.current.add({
+        data: { id: uid, label: text },
+        position,
+      })[0];
+      nodeTapCallback(node);
+    },
+    [nodeTapCallback, cyRef, elementsUid]
+  );
   useEffect(() => {
     cyRef.current = cytoscape({
       container: containerRef.current,
@@ -310,17 +333,10 @@ const CytoscapePlayground = ({ title }: Props) => {
       if (blockClickRef.current) {
         return;
       }
-      const { position } = e;
-      const text = "Click to edit block";
-      const uid = createBlock({
-        node: { text },
-        parentUid: elementsUid,
-      });
-      const node = cyRef.current.add({
-        data: { id: uid, label: text },
-        position,
-      })[0];
-      nodeTapCallback(node);
+      if (e.target !== cyRef.current) {
+        return;
+      }
+      createNode("Click to edit block", e.position);
       clearEditingRef();
       clearSourceRef();
       clearEditingRelation();
@@ -336,15 +352,16 @@ const CytoscapePlayground = ({ title }: Props) => {
     clearEditingRef,
     edgeCallback,
     nodeTapCallback,
+    createNode,
   ]);
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const onDrawerOpen = useCallback(
-    () => setIsDrawerOpen(true),
-    [setIsDrawerOpen]
-  );
+  const onDrawerOpen = useCallback(() => {
+    blockClickRef.current = false;
+    setIsDrawerOpen(true);
+  }, [setIsDrawerOpen, blockClickRef]);
   const onDrawerClose = useCallback(
     () => setIsDrawerOpen(false),
     [setIsDrawerOpen]
@@ -367,6 +384,7 @@ const CytoscapePlayground = ({ title }: Props) => {
           <Tooltip content={"Open Synthesis Query Pane"}>
             <Button
               icon={"drawer-left"}
+              onMouseDown={() => (blockClickRef.current = true)}
               onClick={onDrawerOpen}
               style={{ marginRight: 8 }}
             />
@@ -388,6 +406,10 @@ const CytoscapePlayground = ({ title }: Props) => {
           isOpen={isDrawerOpen}
           close={onDrawerClose}
           blockUid={queryUid}
+          clearOnClick={(s: string) => {
+            const { x1, x2, y1, y2 } = cyRef.current.extent();
+            createNode(s, { x: (x2 + x1) / 2, y: (y2 + y1) / 2 });
+          }}
         />
         <Menu
           style={{
@@ -412,7 +434,6 @@ const CytoscapePlayground = ({ title }: Props) => {
                     ) as cytoscape.EdgeSingular
                   ).data("label", k);
                   clearEditingRelation();
-                  e.stopPropagation();
                 }}
               />
             ))}
@@ -425,6 +446,16 @@ const CytoscapePlayground = ({ title }: Props) => {
               if (e.key === "Enter") {
                 clearEditingRef();
                 shadowInputRef.current.blur();
+              } else if (e.key === "ArrowUp") {
+                const val = Number(editingRef.current.style('text-max-width').replace(/px$/, ''));
+                editingRef.current.style('height', val * 1.1);
+                editingRef.current.style('width', val * 1.1);
+                editingRef.current.style('text-max-width', (val * 1.1).toString());
+              } else if (e.key === "ArrowDown") {
+                const val = Number(editingRef.current.style('text-max-width').replace(/px$/, ''));
+                editingRef.current.style('height', val / 1.1);
+                editingRef.current.style('width', val / 1.1);
+                editingRef.current.style('text-max-width', (val / 1.1).toString());
               }
             }}
             onChange={(e) => {
