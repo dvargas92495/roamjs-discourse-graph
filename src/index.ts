@@ -105,6 +105,7 @@ const { pageUid } = createConfigObserver({
         ],
       },
     ],
+    versioning: true,
   },
 });
 refreshConfigTree();
