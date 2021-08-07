@@ -65,6 +65,7 @@ const LivePreview = ({ tag }: { tag: string }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const spanRef = useRef<HTMLSpanElement>(null);
+  const openRef = useRef<boolean>(false);
   const timeoutRef = useRef(null);
   const open = useCallback(
     (ctrlKey: boolean) => {
@@ -72,19 +73,23 @@ const LivePreview = ({ tag }: { tag: string }) => {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
           setIsOpen(true);
+          openRef.current = true;
           timeoutRef.current = null;
         }, 100);
       }
     },
-    [setIsOpen, timeoutRef]
+    [setIsOpen, timeoutRef, openRef]
   );
   const close = useCallback(() => {
     clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-      timeoutRef.current = null;
-    }, 1000);
-  }, [setIsOpen, timeoutRef]);
+    if (openRef.current) {
+      timeoutRef.current = setTimeout(() => {
+        setIsOpen(false);
+        openRef.current= false;
+        timeoutRef.current = null;
+      }, 1000);
+    }
+  }, [setIsOpen, timeoutRef, openRef]);
   useEffect(() => {
     if (!loaded) setLoaded(true);
   }, [loaded, setLoaded]);
@@ -94,7 +99,7 @@ const LivePreview = ({ tag }: { tag: string }) => {
       pageref.addEventListener("mouseenter", (e) => open(e.ctrlKey));
       pageref.addEventListener("mouseleave", close);
     }
-  }, [spanRef, loaded, setIsOpen]);
+  }, [spanRef, loaded, setIsOpen, close, open]);
   return (
     <Tooltip
       content={<TooltipContent tag={tag} open={open} close={close} />}
