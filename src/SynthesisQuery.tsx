@@ -57,6 +57,7 @@ const QueryCondition = ({
   relationLabels: string[];
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef(0);
   useEffect(() => {
     const target = containerRef.current.querySelector<HTMLSpanElement>(
       ".roamjs-page-input-target"
@@ -125,17 +126,20 @@ const QueryCondition = ({
         <PageInput
           value={con.predicate}
           setValue={(value) => {
-            setInputSetting({
-              blockUid: con.uid,
-              value,
-              key: "Predicate",
-              index: 2,
-            });
+            window.clearTimeout(debounceRef.current);
             setConditions(
               conditions.map((c) =>
                 c.uid === con.uid ? { ...con, predicate: value } : c
               )
             );
+            debounceRef.current = window.setTimeout(() => {
+              setInputSetting({
+                blockUid: con.uid,
+                value,
+                key: "Predicate",
+                index: 2,
+              });
+            }, 1000);
           }}
         />
       </div>
@@ -167,7 +171,7 @@ const SynthesisQuery = ({
     [NODE_LABELS]
   );
   const tree = useMemo(() => getShallowTreeByParentUid(blockUid), [blockUid]);
-  const [activeMatch, setActiveMatch] = useState(
+  const [activeMatch, setActiveMatch] = useState(() =>
     getFirstChildTextByBlockUid(
       tree.find((t) => toFlexRegex("match").test(t.text))?.uid || ""
     )
