@@ -20,7 +20,7 @@ const ContextContent = ({ title }: Props) => {
   const relations = useMemo(getRelations, []);
   const queryResults = useMemo(() => {
     try {
-      return [
+      const rawResults = [
         ...relations
           .filter((r) => r.source === nodeType)
           .map((r) => {
@@ -38,7 +38,7 @@ const ContextContent = ({ title }: Props) => {
                       ...r.triples.filter((t) => t[2] !== r.source),
                     ]
                   )}]`
-                )
+                ) as [string, string][]
               ),
             };
           }),
@@ -56,14 +56,26 @@ const ContextContent = ({ title }: Props) => {
                   `[:find ?u ?t :where [${firstPlaceholder} :block/uid ?u] [${firstPlaceholder} :node/title ?t] ${triplesToQuery(
                     [
                       ...r.triples.filter((t) => t[2] !== r.destination),
-                      [destTriple[2], "Has Title", title],
+                      [destTriple[0], "Has Title", title],
                     ]
                   )}]`
-                )
+                ) as [string, string][]
               ),
             };
           }),
       ];
+      const groupedResults = Object.fromEntries(
+        rawResults.map((r) => [r.label, {} as Record<string, string>])
+      );
+      rawResults.forEach((r) =>
+        Object.entries(r.results).forEach(
+          ([k, v]) => (groupedResults[r.label][k] = v)
+        )
+      );
+      return Object.entries(groupedResults).map(([label, results]) => ({
+        label,
+        results,
+      }));
     } catch (e) {
       console.error(e);
       return [];

@@ -31,7 +31,13 @@ import download from "downloadjs";
 import JSZip from "jszip";
 
 type Props = {
-  inputPages?: { title: string; uid: string }[];
+  fromQuery?: {
+    results: { title: string; uid: string }[];
+    conditions: {
+      predicate: { title: string; uid: string };
+      relation: string;
+    }[];
+  };
 };
 
 const EXPORT_TYPES = ["CSV (neo4j)", "Markdown"] as const;
@@ -88,7 +94,7 @@ const toMarkdown = ({
 
 const ExportDialog = ({
   onClose,
-  inputPages = [],
+  fromQuery,
 }: {
   onClose: () => void;
 } & Props) => {
@@ -99,7 +105,7 @@ const ExportDialog = ({
   );
   const [activeExportType, setActiveExportType] = useState<
     typeof EXPORT_TYPES[number]
-  >(inputPages.length ? "Markdown" : EXPORT_TYPES[0]);
+  >(EXPORT_TYPES[0]);
   return (
     <Dialog
       isOpen={true}
@@ -115,7 +121,6 @@ const ExportDialog = ({
             items={[...EXPORT_TYPES]}
             activeItem={activeExportType}
             onItemSelect={(et) => setActiveExportType(et)}
-            disabled={!!inputPages.length}
           />
         </Label>
         <Label>
@@ -125,8 +130,8 @@ const ExportDialog = ({
             onChange={(e) => setFilename(e.target.value)}
           />
         </Label>
-        {!!inputPages.length && (
-          <span>Exporting {inputPages.length} Pages</span>
+        {fromQuery && (
+          <span>Exporting {fromQuery.results.length + fromQuery.conditions.length} Pages</span>
         )}
       </div>
       <div className={Classes.DIALOG_FOOTER}>
@@ -145,22 +150,29 @@ const ExportDialog = ({
                     download(content, `${filename}.zip`, "application/zip");
                     onClose();
                   });
+                const allNodes = getNodes();
+                const pageData = fromQuery
+                  ? fromQuery.results.concat(
+                      ...fromQuery.conditions.map((c) => c.predicate)
+                    )
+                  : allNodes.flatMap((n) =>
+                      getPageTitlesAndUidsDirectlyReferencingPage(n.abbr)
+                    );
                 if (activeExportType === "CSV (neo4j)") {
                   const nodeHeader = "uid:ID,label:LABEL,title\n";
-                  const nodeData = getNodes()
-                    .flatMap((n) =>
-                      getPageTitlesAndUidsDirectlyReferencingPage(n.abbr).map(
-                        ({ title, uid }) => {
-                          const value = title.replace(
-                            new RegExp(`\\[\\[${n.abbr}\\]\\] - `),
-                            ""
-                          );
-                          return `${uid},${n.text.toUpperCase()},${
-                            value.includes(",") ? `"${value}"` : value
-                          }`;
-                        }
-                      )
-                    )
+                  const nodeData = pageData
+                    .map(({ title, uid }) => {
+                      const value = title.replace(
+                        new RegExp(`^\\[\\[\\w*\\]\\] - `),
+                        ""
+                      );
+                      return `${uid},${(
+                        allNodes.find((n) => title.startsWith(`[[${n.abbr}]]`))
+                          ?.text || ""
+                      ).toUpperCase()},${
+                        value.includes(",") ? `"${value}"` : value
+                      }`;
+                    })
                     .join("\n");
                   zip.file(
                     `${filename.replace(/\.csv/, "")}_nodes.csv`,
@@ -169,35 +181,39 @@ const ExportDialog = ({
 
                   const relationHeader =
                     "start:START_ID,end:END_ID,label:TYPE\n";
-                  const relations = getRelations()
-                    .flatMap((s) =>
-                      window.roamAlphaAPI
-                        .q(
-                          `[:find ?source-uid ?dest-uid :where [?${
-                            s.triples.find((t) => t[2] === s.source)[0]
-                          } :block/uid ?source-uid] [?${
-                            s.triples.find((t) => t[2] === s.destination)[0]
-                          } :block/uid ?dest-uid] ${triplesToQuery(s.triples)}]`
+                  const relationData = fromQuery
+                    ? fromQuery.conditions.flatMap((c) =>
+                        fromQuery.results.map(
+                          (s) =>
+                            `${s.uid},${
+                              c.predicate.uid
+                            },${c.relation.toUpperCase()}`
                         )
-                        .map(
-                          ([start, end]) =>
-                            `${start},${end},${s.label.toUpperCase()}`
-                        )
-                    )
-                    .join("\n");
+                      )
+                    : getRelations().flatMap((s) =>
+                        window.roamAlphaAPI
+                          .q(
+                            `[:find ?source-uid ?dest-uid :where [?${
+                              s.triples.find((t) => t[2] === s.source)[0]
+                            } :block/uid ?source-uid] [?${
+                              s.triples.find((t) => t[2] === s.destination)[0]
+                            } :block/uid ?dest-uid] ${triplesToQuery(
+                              s.triples
+                            )}]`
+                          )
+                          .map(
+                            ([start, end]) =>
+                              `${start},${end},${s.label.toUpperCase()}`
+                          )
+                      );
+                  const relations = relationData.join("\n");
                   zip.file(
                     `${filename.replace(/\.csv/, "")}_relations.csv`,
                     `${relationHeader}${relations}`
                   );
                   finish();
                 } else if (activeExportType === "Markdown") {
-                  const pages = (
-                    inputPages.length
-                      ? inputPages
-                      : getNodes().flatMap((n) =>
-                          getPageTitlesAndUidsDirectlyReferencingPage(n.abbr)
-                        )
-                  ).map(({ title, uid }) => {
+                  const pages = pageData.map(({ title, uid }) => {
                     const v = getPageViewType(title) || "bullet";
                     const treeNode = getTreeByBlockUid(uid);
                     const content = treeNode.children

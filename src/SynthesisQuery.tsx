@@ -18,6 +18,7 @@ import {
   createBlock,
   deleteBlock,
   getFirstChildTextByBlockUid,
+  getPageUidByPageTitle,
   getRoamUrl,
   getShallowTreeByParentUid,
   openBlockInSidebar,
@@ -348,10 +349,19 @@ const SynthesisQuery = ({
                 minimal
                 onClick={() =>
                   exportRender({
-                    inputPages: filteredResults.map(({ text, uid }) => ({
-                      title: text,
-                      uid,
-                    })),
+                    fromQuery: {
+                      results: filteredResults.map(({ text, uid }) => ({
+                        title: text,
+                        uid,
+                      })),
+                      conditions: conditions.map((c) => ({
+                        predicate: {
+                          title: c.predicate,
+                          uid: getPageUidByPageTitle(c.predicate),
+                        },
+                        relation: c.relation,
+                      })),
+                    },
                   })
                 }
               />
