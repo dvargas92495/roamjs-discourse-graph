@@ -31,9 +31,7 @@ import {
   setInputSetting,
   toFlexRegex,
 } from "roamjs-components";
-import { englishToDatalog } from "./util";
-
-type Panel = (props: { uid: string; parentUid: string }) => React.ReactElement;
+import { englishToDatalog, Panel } from "./util";
 
 export const NodeConfigPanel: Panel = ({ uid }) => {
   const [nodes, setNodes] = useState(uid ? getShallowTreeByParentUid(uid) : []);

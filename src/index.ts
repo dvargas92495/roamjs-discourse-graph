@@ -2,25 +2,31 @@ import {
   addStyle,
   createButtonObserver,
   createHTMLObserver,
+  getCurrentUserDisplayName,
+  getCurrentUserUid,
   getDisplayNameByUid,
   getPageTitleByHtmlElement,
   toConfig,
 } from "roam-client";
-import { createConfigObserver } from "roamjs-components";
+import { createConfigObserver, toFlexRegex } from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
+import { render as notificationRender } from "./NotificationIcon";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  getSubscribedBlocks,
+  getUserIdentifier,
   isFlagEnabled,
   NODE_TITLE_REGEX,
   refreshConfigTree,
 } from "./util";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
+import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 
 addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-live-preview>div>.rm-inline-references {
   display: none;
@@ -65,16 +71,36 @@ addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-li
   outline: none;
 }
 
-.roamjs-discourse-playground-drawer > .bp3-overlay {
+.roamjs-discourse-playground-drawer > .bp3-overlay,
+.roamjs-discourse-notification-drawer > .bp3-overlay {
   pointer-events: none;
 }
 
-div.roamjs-discourse-playground-drawer div.bp3-drawer {
+div.roamjs-discourse-playground-drawer div.bp3-drawer,
+div.roamjs-discourse-notification-drawer div.bp3-drawer {
   pointer-events: all;
   width: 40%;
+}
+
+.bp3-tabs .bp3-tab-list {
+  max-width: 128px;
+}
+
+.roamjs-discourse-notification-drawer .roamjs-discourse-notification-uid:hover {
+  text-decoration: underline;
+}
+
+.roamjs-discourse-notification-drawer .roamjs-discourse-notification-uid {
+  cursor: pointer; 
+  color: #106BA3;
+}
+
+.roamjs-discourse-notification-drawer .bp3-drawer {
+  max-width: 400px;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
+const user = getUserIdentifier();
 
 const { pageUid } = createConfigObserver({
   title: CONFIG,
@@ -100,6 +126,20 @@ const { pageUid } = createConfigObserver({
             defaultValue: DEFAULT_RELATION_VALUES,
             options: {
               component: RelationConfigPanel,
+            },
+          },
+        ],
+      },
+      {
+        id: "subscriptions",
+        fields: [
+          {
+            title: user,
+            type: "custom",
+            description:
+              "Subscription User Settings to notify you of latest changes",
+            options: {
+              component: SubscriptionConfigPanel,
             },
           },
         ],
@@ -237,8 +277,42 @@ setTimeout(() => {
   }
 }, 1);
 
+const showNotificationIcon = (url: string) => {
+  const subscribedBlocks = getSubscribedBlocks();
+  const subscribedUids = new Set(
+    subscribedBlocks.map((t) => t.children[0]?.children?.[0]?.text)
+  );
+  const uid = url.match(/\/page\/(.*)$/)?.[1] || "";
+  if (uid && subscribedUids.has(uid)) {
+    const article = document.querySelector<HTMLDivElement>(".roam-article");
+    const articleStyle = getComputedStyle(article);
+    const span = document.createElement("span");
+    span.style.position = "absolute";
+    span.style.top = articleStyle.paddingTop;
+    span.style.left = articleStyle.paddingLeft;
+    span.id = "roamjs-discourse-notification-icon";
+    setTimeout(() => {
+      article.insertBefore(span, article.firstElementChild);
+      notificationRender({
+        p: span,
+        parentUid: uid,
+        timestamp:
+          Number(
+            (
+              subscribedBlocks.find((t) => toFlexRegex(user).test(t.text))
+                ?.children || []
+            ).find((t) => t.children[0]?.text === uid)?.children?.[1]?.text
+          ) || Number.MAX_VALUE,
+      });
+    }, 1000);
+  }
+};
+
 window.addEventListener("hashchange", (e) => {
   if (e.oldURL.endsWith(pageUid)) {
     refreshConfigTree();
   }
+  document.getElementById("roamjs-discourse-notification-icon")?.remove?.();
+  showNotificationIcon(e.newURL);
 });
+showNotificationIcon(window.location.hash);

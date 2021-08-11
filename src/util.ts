@@ -1,4 +1,7 @@
 import {
+  getCurrentUserDisplayName,
+  getCurrentUserUid,
+  getDisplayNameByUid,
   getTreeByPageName,
   InputTextNode,
   TextNode,
@@ -6,10 +9,21 @@ import {
 } from "roam-client";
 import { getSettingValueFromTree, toFlexRegex } from "roamjs-components";
 
+export type Panel = (props: {
+  uid: string;
+  parentUid: string;
+}) => React.ReactElement;
+
 let treeRef: { tree: TreeNode[] } = { tree: [] };
 
 export const refreshConfigTree = () =>
   (treeRef.tree = getTreeByPageName("roam/js/discourse-graph"));
+
+export const getSubscribedBlocks = () =>
+  (
+    treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
+      ?.children || []
+  );
 
 export const isFlagEnabled = (flag: string) =>
   treeRef.tree.some((t) => toFlexRegex(flag).test(t.text));
@@ -306,3 +320,8 @@ export const triplesToQuery = (t: string[][]): string =>
       englishToDatalog[key.toLowerCase().trim()](src, dest)
     )
     .join(" ");
+
+export const getUserIdentifier = () => {
+  const uid = getCurrentUserUid();
+  return getCurrentUserDisplayName() || getDisplayNameByUid(uid) || uid;
+};
