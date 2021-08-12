@@ -28,6 +28,7 @@ import {
 } from "./util";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
+import ReactDOM from "react-dom";
 
 addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-live-preview>div>.rm-inline-references {
   display: none;
@@ -320,7 +321,12 @@ window.addEventListener("hashchange", (e) => {
   if (e.oldURL.endsWith(pageUid)) {
     refreshConfigTree();
   }
-  document.getElementById("roamjs-discourse-notification-icon")?.remove?.();
+  const oldIcon = document.getElementById("roamjs-discourse-notification-icon");
+  if (oldIcon) {
+    ReactDOM.unmountComponentAtNode(oldIcon);
+    oldIcon.remove();
+    refreshConfigTree();
+  }
   showNotificationIcon(e.newURL);
 });
 showNotificationIcon(window.location.hash);

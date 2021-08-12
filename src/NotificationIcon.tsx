@@ -33,7 +33,7 @@ const NotificationIcon = ({ parentUid, timestamp, configUid }: Props) => {
     setNewBlocks(
       window.roamAlphaAPI
         .q(
-          `[:find ?u ?s ?w ?t :where [?b :edit/time ?t] [(<= ${timestamp} ?t)] [?user :user/uid ?w] [(!= ?w "${me}")] [?b :edit/user ?user] [?b :block/uid ?u] [?b :block/string ?s] [?b :block/parents ?p] [?p :block/uid "${parentUid}"]]`
+          `[:find ?u ?s ?w ?t :where [?b :edit/time ?t] [(< ${timestamp} ?t)] [?user :user/uid ?w] [(!= ?w "${me}")] [?b :edit/user ?user] [?b :block/uid ?u] [?b :block/string ?s] [?b :block/parents ?p] [?p :block/uid "${parentUid}"]]`
         )
         .map(([uid, text, editedBy, editedTime]) => ({
           uid,
