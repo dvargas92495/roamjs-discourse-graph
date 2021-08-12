@@ -3,8 +3,6 @@ import {
   createBlock,
   createButtonObserver,
   createHTMLObserver,
-  getCurrentUserDisplayName,
-  getCurrentUserUid,
   getDisplayNameByUid,
   getPageTitleByHtmlElement,
   toConfig,

@@ -280,6 +280,9 @@ const CytoscapePlayground = ({ title }: Props) => {
   const edgeCallback = useCallback(
     (edge: cytoscape.EdgeSingular) => {
       edge.on("click", (e) => {
+        if ((e.originalEvent.target as HTMLElement).tagName !== "CANVAS") {
+          return;
+        }
         clearSourceRef();
         if (e.originalEvent.ctrlKey) {
           clearEditingRef();
@@ -311,6 +314,9 @@ const CytoscapePlayground = ({ title }: Props) => {
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
       n.on("click", (e) => {
+        if ((e.originalEvent.target as HTMLElement).tagName !== "CANVAS") {
+          return;
+        }
         clearEditingRelation();
         if (e.originalEvent.ctrlKey) {
           clearSourceRef();
@@ -507,8 +513,16 @@ const CytoscapePlayground = ({ title }: Props) => {
         return;
       }
       if (!editingRef.current && !sourceRef.current) {
-        const nodeType = coloredNodes.find(c => c.color === nodeColorRef.current).abbr;
-        createNode(`${nodeType === 'TEX' ? '' : `[[${nodeType}]] - `}Click to edit block`, e.position, nodeColorRef.current);
+        const nodeType = coloredNodes.find(
+          (c) => c.color === nodeColorRef.current
+        ).abbr;
+        createNode(
+          `${
+            nodeType === "TEX" ? "" : `[[${nodeType}]] - `
+          }Click to edit block`,
+          e.position,
+          nodeColorRef.current
+        );
       } else {
         clearEditingRef();
         clearSourceRef();
@@ -644,11 +658,11 @@ const CytoscapePlayground = ({ title }: Props) => {
                 key={k.relation}
                 text={k.relation}
                 onClick={() => {
-                  (
-                    cyRef.current.edges(
-                      `#${selectedRelation.id}`
-                    ) as cytoscape.EdgeSingular
-                  ).data("label", k.relation);
+                  const edge = cyRef.current.edges(
+                    `#${selectedRelation.id}`
+                  ) as cytoscape.EdgeSingular;
+                  updateBlock({ uid: edge.id(), text: k.relation });
+                  edge.data("label", k.relation);
                   clearEditingRelation();
                   clearEditingRef();
                 }}
