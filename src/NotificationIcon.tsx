@@ -1,22 +1,30 @@
-import { Classes, Drawer, Position } from "@blueprintjs/core";
-import React, { useEffect, useRef, useState } from "react";
+import { Button, Classes, Drawer, Position } from "@blueprintjs/core";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { getDisplayNameByUid } from "roam-client";
+import {
+  getCurrentUserUid,
+  getDisplayNameByUid,
+  getTextByBlockUid,
+  updateBlock,
+} from "roam-client";
+import { getUserIdentifier } from "./util";
 
 type Props = {
   parentUid: string;
   timestamp: number;
+  configUid: string;
 };
 
 const idRef: Record<string, string> = {};
 
-const getUserIdentifier = (uid: string) =>
+const getOtherUserIdentifier = (uid: string) =>
   idRef[uid] || (idRef[uid] = getDisplayNameByUid(uid)) || (idRef[uid] = uid);
 
 const getPixelValue = (el: HTMLElement, field: "width" | "paddingLeft") =>
   Number((getComputedStyle(el)[field] || "0px").replace(/px$/, ""));
 
-const NotificationIcon = ({ parentUid, timestamp }: Props) => {
+const NotificationIcon = ({ parentUid, timestamp, configUid }: Props) => {
+  const me = useMemo(getCurrentUserUid, []);
   const [isOpen, setIsOpen] = useState(false);
   const [newBlocks, setNewBlocks] = useState<
     { uid: string; text: string; editedBy: string; editedTime: number }[]
@@ -25,7 +33,7 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
     setNewBlocks(
       window.roamAlphaAPI
         .q(
-          `[:find ?u ?s ?w ?t :where [?b :edit/time ?t] [(<= ${timestamp} ?t)] [?user :user/uid ?w] [?b :edit/user ?user] [?b :block/uid ?u] [?b :block/string ?s] [?b :block/parents ?p] [?p :block/uid "${parentUid}"]]`
+          `[:find ?u ?s ?w ?t :where [?b :edit/time ?t] [(<= ${timestamp} ?t)] [?user :user/uid ?w] [(!= ?w "${me}")] [?b :edit/user ?user] [?b :block/uid ?u] [?b :block/string ?s] [?b :block/parents ?p] [?p :block/uid "${parentUid}"]]`
         )
         .map(([uid, text, editedBy, editedTime]) => ({
           uid,
@@ -33,6 +41,7 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
           editedBy,
           editedTime,
         }))
+        .sort(({ editedTime: a }, { editedTime: b }) => a - b)
     );
   }, [setNewBlocks]);
   const [width, setWidth] = useState(0);
@@ -60,7 +69,7 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
           width: 12,
           height: 12,
           borderRadius: "50%",
-          display: "inline-block",
+          display: newBlocks.length ? "inline-block" : "none",
           cursor: "pointer",
         }}
       />
@@ -70,6 +79,7 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
         title={"Notifications"}
         position={Position.LEFT}
         canEscapeKeyClose
+        canOutsideClickClose={false}
         isCloseButtonShown
         hasBackdrop={false}
         portalClassName={"roamjs-discourse-notification-drawer"}
@@ -80,15 +90,18 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
 }`}
         </style>
         <div className={Classes.DRAWER_BODY} ref={drawerRef}>
-          {newBlocks
-            .sort(({ editedTime: a }, { editedTime: b }) => b - a)
-            .map((b) => (
+          {newBlocks.length ? (
+            newBlocks.map((b) => (
               <div
                 key={b.uid}
-                style={{ borderTop: "1px solid #88888880", padding: "0 4px" }}
+                style={{
+                  borderTop: "1px solid #88888880",
+                  padding: "0 4px",
+                  position: "relative",
+                }}
               >
                 <p style={{ marginTop: 2, fontSize: 12 }}>
-                  <b>{getUserIdentifier(b.editedBy)}</b> edited block{" "}
+                  <b>{getOtherUserIdentifier(b.editedBy)}</b> edited block{" "}
                   <span
                     className={"roamjs-discourse-notification-uid"}
                     onClick={() => {
@@ -123,7 +136,7 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
                             blockDiv.style.transition = "border-color 5s ease";
                           }, 1);
                         }
-                      }, 1);
+                      }, 100);
                     }}
                   >
                     {b.uid}
@@ -131,8 +144,25 @@ const NotificationIcon = ({ parentUid, timestamp }: Props) => {
                   at <i>{new Date(b.editedTime).toLocaleString()}</i> to:
                 </p>
                 <p style={{ marginTop: 4, fontSize: 10 }}>{b.text}</p>
+                <Button
+                  icon={"cross"}
+                  minimal
+                  onClick={() => {
+                    const existingTimestamp =
+                      Number(getTextByBlockUid(configUid)) || timestamp;
+                    updateBlock({
+                      text: `${Math.max(b.editedTime, existingTimestamp)}`,
+                      uid: configUid,
+                    });
+                    setNewBlocks(newBlocks.filter((bb) => b.uid !== bb.uid));
+                  }}
+                  style={{ position: "absolute", top: 4, right: 4 }}
+                />
               </div>
-            ))}
+            ))
+          ) : (
+            <p style={{ padding: 8 }}>All Caught Up!</p>
+          )}
         </div>
       </Drawer>
     </>

@@ -1,5 +1,6 @@
 import {
   addStyle,
+  createBlock,
   createButtonObserver,
   createHTMLObserver,
   getCurrentUserDisplayName,
@@ -293,16 +294,23 @@ const showNotificationIcon = (url: string) => {
     span.id = "roamjs-discourse-notification-icon";
     setTimeout(() => {
       article.insertBefore(span, article.firstElementChild);
+      const notificationBlock = (
+        subscribedBlocks.find((t) => toFlexRegex(user).test(t.text)).children ||
+        []
+      ).find((t) => t.children[0].text === uid);
+      const defaultTimestamp = new Date().valueOf();
       notificationRender({
         p: span,
         parentUid: uid,
         timestamp:
-          Number(
-            (
-              subscribedBlocks.find((t) => toFlexRegex(user).test(t.text))
-                ?.children || []
-            ).find((t) => t.children[0]?.text === uid)?.children?.[1]?.text
-          ) || Number.MAX_VALUE,
+          Number(notificationBlock.children[1]?.text) || defaultTimestamp,
+        configUid:
+          notificationBlock.children[1]?.uid ||
+          createBlock({
+            node: { text: `${defaultTimestamp}` },
+            parentUid: notificationBlock.uid,
+            order: 1,
+          }),
       });
     }, 1000);
   }
