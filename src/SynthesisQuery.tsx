@@ -161,7 +161,10 @@ const SynthesisQuery = ({
   clearResultIcon = { name: "cross" },
 }: {
   blockUid: string;
-  clearResultIcon?: { name: IconName; onClick?: (t: string) => void };
+  clearResultIcon?: {
+    name: IconName;
+    onClick?: (t: string, m: string) => void;
+  };
 }) => {
   const NODE_LABELS = useMemo(getNodes, []);
   const relations = useMemo(getRelations, []);
@@ -441,7 +444,7 @@ const SynthesisQuery = ({
                             setClearedResults(
                               new Set([...clearedResults, r.uid])
                             );
-                            clearResultIcon.onClick?.(r.text);
+                            clearResultIcon.onClick?.(r.text, activeMatch);
                           }}
                         />
                       )}

@@ -20,10 +20,8 @@ export const refreshConfigTree = () =>
   (treeRef.tree = getTreeByPageName("roam/js/discourse-graph"));
 
 export const getSubscribedBlocks = () =>
-  (
-    treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
-      ?.children || []
-  );
+  treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
+    ?.children || [];
 
 export const isFlagEnabled = (flag: string) =>
   treeRef.tree.some((t) => toFlexRegex(flag).test(t.text));
@@ -296,6 +294,18 @@ export const getRelations = () =>
 export const getRelationLabels = (relations = getRelations()) =>
   Array.from(new Set(relations.flatMap((r) => [r.label, r.complement])));
 
+export const getRelationTriples = (relations = getRelations()) =>
+  Array.from(
+    new Set(
+      relations.flatMap((r) => [
+        JSON.stringify([r.label, r.source, r.destination]),
+        JSON.stringify([r.complement, r.destination, r.source]),
+      ])
+    )
+  )
+    .map((s) => JSON.parse(s))
+    .map(([relation, source, target]) => ({ relation, source, target }));
+
 export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`;
 
 export const englishToDatalog: {
@@ -325,3 +335,8 @@ export const getUserIdentifier = () => {
   const uid = getCurrentUserUid();
   return getCurrentUserDisplayName() || getDisplayNameByUid(uid) || uid;
 };
+
+export const getPixelValue = (
+  el: HTMLElement,
+  field: "width" | "paddingLeft"
+) => Number((getComputedStyle(el)[field] || "0px").replace(/px$/, ""));

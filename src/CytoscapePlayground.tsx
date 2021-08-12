@@ -11,6 +11,7 @@ import {
   Button,
   Classes,
   Drawer,
+  Intent,
   Menu,
   MenuItem,
   Position,
@@ -24,9 +25,42 @@ import {
   getShallowTreeByParentUid,
   updateBlock,
 } from "roam-client";
-import { setInputSetting, toFlexRegex } from "roamjs-components";
+import { renderToast, setInputSetting, toFlexRegex } from "roamjs-components";
 import SynthesisQuery from "./SynthesisQuery";
-import { getRelationLabels } from "./util";
+import {
+  getNodes,
+  getPixelValue,
+  getRelationLabels,
+  getRelationTriples,
+} from "./util";
+
+const NodeIcon = ({
+  shortcut,
+  color,
+  onClick,
+}: {
+  shortcut: string;
+  color: string;
+  onClick?: () => void;
+}) => (
+  <span
+    style={{
+      height: 16,
+      width: 16,
+      borderRadius: "50%",
+      backgroundColor: `#${color}`,
+      color: "#FFFFFF",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      cursor: "pointer",
+      margin: "0 2px",
+    }}
+    onClick={onClick}
+  >
+    {shortcut}
+  </span>
+);
 
 const SynthesisQueryPane = ({
   blockUid,
@@ -37,8 +71,43 @@ const SynthesisQueryPane = ({
   blockUid: string;
   isOpen: boolean;
   close: () => void;
-  clearOnClick: (s: string) => void;
+  clearOnClick: (s: string, m: string) => void;
 }) => {
+  const [width, setWidth] = useState(0);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const calculateWidth = useCallback(() => {
+    const width = getPixelValue(drawerRef.current, "width");
+    const paddingLeft = getPixelValue(
+      document.querySelector(".rm-article-wrapper"),
+      "paddingLeft"
+    );
+    setWidth(width - paddingLeft);
+  }, [setWidth, drawerRef]);
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(calculateWidth, 1);
+    } else {
+      setWidth(0);
+    }
+  }, [setWidth, isOpen]);
+  const onMouseMove = useCallback(
+    (e: MouseEvent) => {
+      drawerRef.current.parentElement.style.width = `${Math.max(
+        e.clientX,
+        100
+      )}px`;
+      calculateWidth();
+    },
+    [calculateWidth, drawerRef]
+  );
+  const onMouseUp = useCallback(() => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  }, [onMouseMove]);
+  const onMouseDown = useCallback(() => {
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [onMouseMove, onMouseUp]);
   return (
     <Drawer
       isOpen={isOpen}
@@ -53,15 +122,26 @@ const SynthesisQueryPane = ({
     >
       <style>{`
 .roam-article {
-  margin-left: 40%;
+  margin-left: ${width}px;
 }
 `}</style>
-      <div className={Classes.DRAWER_BODY}>
+      <div className={Classes.DRAWER_BODY} ref={drawerRef}>
         <SynthesisQuery
           blockUid={blockUid}
           clearResultIcon={{ name: "hand-right", onClick: clearOnClick }}
         />
       </div>
+      <div
+        style={{
+          width: 4,
+          cursor: "ew-resize",
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+        }}
+        onMouseDown={onMouseDown}
+      />
     </Drawer>
   );
 };
@@ -94,24 +174,63 @@ const DEFAULT_SELECTED_RELATION = {
   id: "",
 };
 
+const COLORS = [
+  "8b0000",
+  "9b870c",
+  "008b8b",
+  "00008b",
+  "8b008b",
+  "85200c",
+  "ee7600",
+  "008b00",
+  "26428B",
+  "2f062f",
+];
+const TEXT_COLOR = "888888";
+
 const CytoscapePlayground = ({ title }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowInputRef = useRef<HTMLInputElement>(null);
   const cyRef = useRef<cytoscape.Core>(null);
   const sourceRef = useRef<cytoscape.NodeSingular>(null);
-  const editingRef = useRef<cytoscape.NodeSingular>(null);
-  const blockClickRef = useRef(false);
+  const editingRef = useRef<cytoscape.SingularElementArgument>(null);
+  const coloredNodes = useMemo(
+    () =>
+      getNodes()
+        .slice(0, COLORS.length)
+        .map((n, i) => ({
+          color: COLORS[i],
+          ...n,
+        }))
+        .concat({
+          color: TEXT_COLOR,
+          text: "Text",
+          shortcut: "T",
+          abbr: "TEX",
+        }),
+    []
+  );
+  const [selectedNode, setSelectedNode] = useState(
+    coloredNodes[coloredNodes.length - 1]
+  );
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const nodeColorRef = useRef(selectedNode.color);
   const clearEditingRef = useCallback(() => {
     if (editingRef.current) {
       editingRef.current.style("border-width", 0);
-      editingRef.current.unlock();
+      if (editingRef.current.isNode()) {
+        editingRef.current.unlock();
+      }
       editingRef.current = null;
     }
   }, [editingRef]);
   const clearSourceRef = useCallback(() => {
     if (sourceRef.current) {
-      sourceRef.current.style("background-color", "#888888");
+      sourceRef.current.style(
+        "background-color",
+        `#${sourceRef.current.data("color")}`
+      );
       sourceRef.current.unlock();
       sourceRef.current = null;
     }
@@ -124,7 +243,29 @@ const CytoscapePlayground = ({ title }: Props) => {
     cyRef.current.zoomingEnabled(true);
     cyRef.current.panningEnabled(true);
   }, [setSelectedRelation, cyRef]);
-  const allRelations = useMemo(getRelationLabels, []);
+  const allRelations = useMemo(getRelationTriples, []);
+  const filteredRelations = useMemo(() => {
+    if (selectedRelation.id) {
+      const edge = cyRef.current.edges(
+        `#${selectedRelation.id}`
+      ) as cytoscape.EdgeSingular;
+      const sourceColor = edge.source().data("color");
+      const targetColor = edge.target().data("color");
+      return allRelations
+        .filter((k) => {
+          if (sourceColor === TEXT_COLOR || targetColor === TEXT_COLOR) {
+            return true;
+          }
+          return (
+            k.source ===
+              coloredNodes.find((n) => n.color === sourceColor).abbr &&
+            k.target === coloredNodes.find((n) => n.color === targetColor).abbr
+          );
+        })
+        .filter((k) => k.relation !== selectedRelation.label);
+    }
+    return allRelations;
+  }, [allRelations, selectedRelation, cyRef, coloredNodes]);
   const tree = useMemo(() => getShallowTreeByParentUid(pageUid), [pageUid]);
   const elementsUid = useTreeFieldUid({
     tree,
@@ -139,17 +280,19 @@ const CytoscapePlayground = ({ title }: Props) => {
   const edgeCallback = useCallback(
     (edge: cytoscape.EdgeSingular) => {
       edge.on("click", (e) => {
-        if (blockClickRef.current) {
-          return;
-        }
-        clearEditingRef();
         clearSourceRef();
         if (e.originalEvent.ctrlKey) {
+          clearEditingRef();
           deleteBlock(edge.id());
           cyRef.current.remove(edge);
+        } else if (editingRef.current === edge) {
+          clearEditingRef();
+          clearEditingRelation();
         } else {
+          clearEditingRef();
           const { x1, y1 } = cyRef.current.extent();
           const zoom = cyRef.current.zoom();
+          editingRef.current = edge;
           setSelectedRelation({
             display: "block",
             top: (e.position.y - y1) * zoom,
@@ -162,14 +305,12 @@ const CytoscapePlayground = ({ title }: Props) => {
         }
       });
     },
-    [clearSourceRef, clearEditingRef, setSelectedRelation, cyRef, blockClickRef]
+    [clearSourceRef, clearEditingRef, setSelectedRelation, cyRef]
   );
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
+      n.style("background-color", `#${n.data("color")}`);
       n.on("click", (e) => {
-        if (blockClickRef.current) {
-          return;
-        }
         clearEditingRelation();
         if (e.originalEvent.ctrlKey) {
           clearSourceRef();
@@ -185,25 +326,46 @@ const CytoscapePlayground = ({ title }: Props) => {
             const source = sourceRef.current.id();
             const target = n.id();
             if (source !== target) {
-              const text = allRelations[0];
-              const rest = {
-                source,
-                target,
-              };
-              const id = createBlock({
-                node: {
-                  text,
-                  children: Object.entries(rest).map(([k, v]) => ({
-                    text: k,
-                    children: [{ text: v }],
-                  })),
-                },
-                parentUid: elementsUid,
-              });
-              const edge = cyRef.current.add({
-                data: { id, label: text, ...rest },
-              });
-              edgeCallback(edge);
+              const sourceType = coloredNodes.find(
+                (c) => c.color === sourceRef.current.data("color")
+              ).abbr;
+              const targetType = coloredNodes.find(
+                (c) => c.color === n.data("color")
+              ).abbr;
+              const text =
+                allRelations.find(
+                  (r) => r.source === sourceType && r.target === targetType
+                )?.relation ||
+                (sourceType === "TEX" || targetType === "TEX"
+                  ? allRelations[0].relation
+                  : "");
+              if (text) {
+                const rest = {
+                  source,
+                  target,
+                };
+                const id = createBlock({
+                  node: {
+                    text,
+                    children: Object.entries(rest).map(([k, v]) => ({
+                      text: k,
+                      children: [{ text: v }],
+                    })),
+                  },
+                  parentUid: elementsUid,
+                });
+                const edge = cyRef.current.add({
+                  data: { id, label: text, ...rest },
+                });
+                edgeCallback(edge);
+              } else {
+                renderToast({
+                  id: "roamjs-discourse-relation-error",
+                  intent: Intent.DANGER,
+                  content:
+                    "There are no relations defined between these two node types",
+                });
+              }
             }
             clearSourceRef();
           } else {
@@ -243,7 +405,6 @@ const CytoscapePlayground = ({ title }: Props) => {
       elementsUid,
       sourceRef,
       cyRef,
-      blockClickRef,
       editingRef,
       allRelations,
       shadowInputRef,
@@ -255,18 +416,25 @@ const CytoscapePlayground = ({ title }: Props) => {
     ]
   );
   const createNode = useCallback(
-    (text: string, position: { x: number; y: number }) => {
+    (text: string, position: { x: number; y: number }, color: string) => {
       const uid = createBlock({
-        node: { text },
+        node: {
+          text,
+          children: [
+            { text: "x", children: [{ text: position.x.toString() }] },
+            { text: "y", children: [{ text: position.y.toString() }] },
+            { text: "color", children: [{ text: color }] },
+          ],
+        },
         parentUid: elementsUid,
       });
       const node = cyRef.current.add({
-        data: { id: uid, label: text },
+        data: { id: uid, label: text, color },
         position,
       })[0];
       nodeTapCallback(node);
     },
-    [nodeTapCallback, cyRef, elementsUid]
+    [nodeTapCallback, cyRef, elementsUid, nodeColorRef]
   );
   useEffect(() => {
     cyRef.current = cytoscape({
@@ -276,6 +444,7 @@ const CytoscapePlayground = ({ title }: Props) => {
           const {
             x = "0",
             y = "0",
+            color = TEXT_COLOR,
             ...data
           } = Object.fromEntries(
             getShallowTreeByParentUid(uid).map(({ text, uid }) => [
@@ -286,8 +455,9 @@ const CytoscapePlayground = ({ title }: Props) => {
           return {
             data: {
               label: text,
-              ...data,
+              color,
               id: uid,
+              ...data,
             },
             position: { x: Number(x), y: Number(y) },
           };
@@ -298,7 +468,7 @@ const CytoscapePlayground = ({ title }: Props) => {
         {
           selector: "node",
           style: {
-            "background-color": "#888888",
+            "background-color": `#${TEXT_COLOR}`,
             label: "data(label)",
             shape: "round-rectangle",
             color: "#ffffff",
@@ -330,16 +500,20 @@ const CytoscapePlayground = ({ title }: Props) => {
       minZoom: 0.25,
     });
     cyRef.current.on("click", (e) => {
-      if (blockClickRef.current) {
+      if (
+        e.target !== cyRef.current ||
+        (e.originalEvent.target as HTMLElement).tagName !== "CANVAS"
+      ) {
         return;
       }
-      if (e.target !== cyRef.current) {
-        return;
+      if (!editingRef.current && !sourceRef.current) {
+        const nodeType = coloredNodes.find(c => c.color === nodeColorRef.current).abbr;
+        createNode(`${nodeType === 'TEX' ? '' : `[[${nodeType}]] - `}Click to edit block`, e.position, nodeColorRef.current);
+      } else {
+        clearEditingRef();
+        clearSourceRef();
+        clearEditingRelation();
       }
-      createNode("Click to edit block", e.position);
-      clearEditingRef();
-      clearSourceRef();
-      clearEditingRelation();
     });
     cyRef.current.nodes().forEach(nodeTapCallback);
     cyRef.current.edges().forEach(edgeCallback);
@@ -353,15 +527,16 @@ const CytoscapePlayground = ({ title }: Props) => {
     edgeCallback,
     nodeTapCallback,
     createNode,
+    coloredNodes,
+    nodeColorRef,
   ]);
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const onDrawerOpen = useCallback(() => {
-    blockClickRef.current = false;
     setIsDrawerOpen(true);
-  }, [setIsDrawerOpen, blockClickRef]);
+  }, [setIsDrawerOpen]);
   const onDrawerClose = useCallback(
     () => setIsDrawerOpen(false),
     [setIsDrawerOpen]
@@ -381,10 +556,50 @@ const CytoscapePlayground = ({ title }: Props) => {
         ref={containerRef}
       >
         <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
-          <Tooltip content={"Open Synthesis Query Pane"}>
+          <span
+            style={{
+              transform: `scale(${colorPickerOpen ? 1 : 0}, 1)`,
+              transition: "transform 0.25s linear, left 0.25s linear",
+              display: "inline-flex",
+              position: "relative",
+              left: colorPickerOpen ? 0 : 60,
+              height: "100%",
+              verticalAlign: "middle",
+            }}
+          >
+            {coloredNodes
+              .filter((f) => f !== selectedNode)
+              .map((n) => (
+                <Tooltip
+                  content={n.text}
+                  key={n.text}
+                  position={Position.BOTTOM}
+                >
+                  <NodeIcon
+                    {...n}
+                    onClick={() => {
+                      nodeColorRef.current = n.color;
+                      setSelectedNode(n);
+                      setColorPickerOpen(false);
+                    }}
+                    key={n.text}
+                  />
+                </Tooltip>
+              ))}
+          </span>
+          <Tooltip content={"Node Picker"} position={Position.BOTTOM}>
+            <Button
+              icon={<NodeIcon {...selectedNode} />}
+              onClick={() => setColorPickerOpen(!colorPickerOpen)}
+              style={{ marginRight: 8, padding: "7px 5px" }}
+            />
+          </Tooltip>
+          <Tooltip
+            content={"Open Synthesis Query Pane"}
+            position={Position.BOTTOM}
+          >
             <Button
               icon={"drawer-left"}
-              onMouseDown={() => (blockClickRef.current = true)}
               onClick={onDrawerOpen}
               style={{ marginRight: 8 }}
             />
@@ -392,12 +607,12 @@ const CytoscapePlayground = ({ title }: Props) => {
           {maximized ? (
             <>
               <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
-              <Tooltip content={"Minimize"}>
+              <Tooltip content={"Minimize"} position={Position.BOTTOM}>
                 <Button icon={"minimize"} onClick={minimize} />
               </Tooltip>
             </>
           ) : (
-            <Tooltip content={"Maximize"}>
+            <Tooltip content={"Maximize"} position={Position.BOTTOM}>
               <Button icon={"maximize"} onClick={maximize} />
             </Tooltip>
           )}
@@ -406,9 +621,13 @@ const CytoscapePlayground = ({ title }: Props) => {
           isOpen={isDrawerOpen}
           close={onDrawerClose}
           blockUid={queryUid}
-          clearOnClick={(s: string) => {
+          clearOnClick={(s: string, m: string) => {
             const { x1, x2, y1, y2 } = cyRef.current.extent();
-            createNode(s, { x: (x2 + x1) / 2, y: (y2 + y1) / 2 });
+            createNode(
+              s,
+              { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
+              coloredNodes.find((c) => c.text === m)?.color
+            );
           }}
         />
         <Menu
@@ -419,24 +638,28 @@ const CytoscapePlayground = ({ title }: Props) => {
             background: "#eeeeee",
           }}
         >
-          {allRelations
-            .filter((k) => k !== selectedRelation.label)
-            .map((k) => (
+          {filteredRelations.length ? (
+            filteredRelations.map((k) => (
               <MenuItem
-                key={k}
-                text={k}
-                onMouseDown={() => (blockClickRef.current = true)}
-                onClick={(e: React.MouseEvent) => {
-                  blockClickRef.current = false;
+                key={k.relation}
+                text={k.relation}
+                onClick={() => {
                   (
                     cyRef.current.edges(
                       `#${selectedRelation.id}`
                     ) as cytoscape.EdgeSingular
-                  ).data("label", k);
+                  ).data("label", k.relation);
                   clearEditingRelation();
+                  clearEditingRef();
                 }}
               />
-            ))}
+            ))
+          ) : (
+            <MenuItem
+              text={"No other relation could connect these nodes"}
+              disabled
+            />
+          )}
         </Menu>
         <div style={{ width: 0, overflow: "hidden" }}>
           <input
@@ -447,15 +670,25 @@ const CytoscapePlayground = ({ title }: Props) => {
                 clearEditingRef();
                 shadowInputRef.current.blur();
               } else if (e.key === "ArrowUp") {
-                const val = Number(editingRef.current.style('text-max-width').replace(/px$/, ''));
-                editingRef.current.style('height', val * 1.1);
-                editingRef.current.style('width', val * 1.1);
-                editingRef.current.style('text-max-width', (val * 1.1).toString());
+                const val = Number(
+                  editingRef.current.style("text-max-width").replace(/px$/, "")
+                );
+                editingRef.current.style("height", val * 1.1);
+                editingRef.current.style("width", val * 1.1);
+                editingRef.current.style(
+                  "text-max-width",
+                  (val * 1.1).toString()
+                );
               } else if (e.key === "ArrowDown") {
-                const val = Number(editingRef.current.style('text-max-width').replace(/px$/, ''));
-                editingRef.current.style('height', val / 1.1);
-                editingRef.current.style('width', val / 1.1);
-                editingRef.current.style('text-max-width', (val / 1.1).toString());
+                const val = Number(
+                  editingRef.current.style("text-max-width").replace(/px$/, "")
+                );
+                editingRef.current.style("height", val / 1.1);
+                editingRef.current.style("width", val / 1.1);
+                editingRef.current.style(
+                  "text-max-width",
+                  (val / 1.1).toString()
+                );
               }
             }}
             onChange={(e) => {

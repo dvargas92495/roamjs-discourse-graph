@@ -7,7 +7,7 @@ import {
   getTextByBlockUid,
   updateBlock,
 } from "roam-client";
-import { getUserIdentifier } from "./util";
+import { getPixelValue, getUserIdentifier } from "./util";
 
 type Props = {
   parentUid: string;
@@ -19,9 +19,6 @@ const idRef: Record<string, string> = {};
 
 const getOtherUserIdentifier = (uid: string) =>
   idRef[uid] || (idRef[uid] = getDisplayNameByUid(uid)) || (idRef[uid] = uid);
-
-const getPixelValue = (el: HTMLElement, field: "width" | "paddingLeft") =>
-  Number((getComputedStyle(el)[field] || "0px").replace(/px$/, ""));
 
 const NotificationIcon = ({ parentUid, timestamp, configUid }: Props) => {
   const me = useMemo(getCurrentUserUid, []);
