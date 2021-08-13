@@ -19,10 +19,14 @@ import {
 } from "@blueprintjs/core";
 import {
   createBlock,
+  createPage,
   deleteBlock,
   getFirstChildTextByBlockUid,
   getPageUidByPageTitle,
   getShallowTreeByParentUid,
+  getTreeByBlockUid,
+  InputTextNode,
+  openBlockInSidebar,
   updateBlock,
 } from "roam-client";
 import { renderToast, setInputSetting, toFlexRegex } from "roamjs-components";
@@ -30,7 +34,7 @@ import SynthesisQuery from "./SynthesisQuery";
 import {
   getNodes,
   getPixelValue,
-  getRelationLabels,
+  getRelations,
   getRelationTriples,
 } from "./util";
 
@@ -630,6 +634,167 @@ const CytoscapePlayground = ({ title }: Props) => {
               <Button icon={"maximize"} onClick={maximize} />
             </Tooltip>
           )}
+          <Tooltip content={"Generate Roam Blocks"} position={Position.BOTTOM}>
+            <Button
+              style={{ marginLeft: 8 }}
+              icon={"export"}
+              onClick={() => {
+                const elementsTree = getTreeByBlockUid(elementsUid).children;
+                const relationData = getRelations();
+                const recentPageRef: Record<string, string> = {};
+                const recentlyOpened = new Set<string>();
+                elementsTree
+                  .map((n) => {
+                    const sourceUid = n.children.find((c) =>
+                      toFlexRegex("source").test(c.text)
+                    )?.children?.[0]?.text;
+                    const targetUid = n.children.find((c) =>
+                      toFlexRegex("target").test(c.text)
+                    )?.children?.[0]?.text;
+                    if (sourceUid && targetUid) {
+                      const sourceNode = elementsTree.find(
+                        (b) => b.uid === sourceUid
+                      );
+                      const targetNode = elementsTree.find(
+                        (b) => b.uid === targetUid
+                      );
+                      return {
+                        source: sourceNode?.text || "",
+                        target: targetNode?.text || "",
+                        relation: n.text,
+                      };
+                    }
+                    return false;
+                  })
+                  .map((e) => {
+                    if (!e) return [];
+                    const { triples, source, destination, label } =
+                      relationData.find(
+                        (r) =>
+                          r.label === e.relation || r.complement === e.relation
+                      );
+                    const isOriginal = label === e.relation;
+                    const newTriples = triples.map((t) => {
+                      if (/is a/i.test(t[1])) {
+                        return [
+                          t[0],
+                          "has title",
+                          (t[2] === source && isOriginal) ||
+                          (t[2] === destination && !isOriginal)
+                            ? e.source
+                            : e.target,
+                        ];
+                      }
+                      return t.slice(0);
+                    });
+                    return newTriples.map(([source, relation, target]) => ({
+                      source,
+                      relation,
+                      target,
+                    }));
+                  })
+                  .forEach((triples) => {
+                    const relationToTitle = (source: string) =>
+                      triples.find(
+                        (h) =>
+                          h.source === source && /has title/i.test(h.relation)
+                      )?.target || source;
+                    const toBlock = (source: string): InputTextNode => ({
+                      text: `Some block text ${triples
+                        .filter(
+                          (e) =>
+                            /references/i.test(e.relation) &&
+                            e.source === source
+                        )
+                        .map((e) => ` [[${relationToTitle(e.target)}]]`)}`,
+                      children: [
+                        ...triples
+                          .filter(
+                            (c) =>
+                              /has child/i.test(c.relation) &&
+                              c.source === source
+                          )
+                          .map((c) => toBlock(c.target)),
+                        ...triples
+                          .filter(
+                            (c) =>
+                              /has parent/i.test(c.relation) &&
+                              c.target === source
+                          )
+                          .map((c) => toBlock(c.source)),
+                      ],
+                    });
+                    const toPage = (title: string, blocks: string[]) => {
+                      const parentUid =
+                        getPageUidByPageTitle(title) ||
+                        recentPageRef[title] ||
+                        (recentPageRef[title] = createPage({
+                          title: title,
+                        }));
+                      blocks
+                        .map(toBlock)
+                        .map((node, order) =>
+                          createBlock({ node, order, parentUid })
+                        );
+                      if (!recentlyOpened.has(parentUid)) {
+                        recentlyOpened.add(parentUid);
+                        setTimeout(() => openBlockInSidebar(parentUid), 1000);
+                      }
+                    };
+                    const pageTriples = triples.filter((e) =>
+                      /is in page/i.test(e.relation)
+                    );
+                    if (pageTriples.length) {
+                      const pages = pageTriples.reduce(
+                        (prev, cur) => ({
+                          ...prev,
+                          [cur.target]: [
+                            ...(prev[cur.target] || []),
+                            cur.source,
+                          ],
+                        }),
+                        {} as Record<string, string[]>
+                      );
+                      Object.entries(pages).forEach((p) =>
+                        toPage(relationToTitle(p[0]), p[1])
+                      );
+                    } else {
+                      toPage(
+                        `Auto generated from ${title}`,
+                        Array.from(
+                          triples.reduce(
+                            (prev, cur) => {
+                              if (
+                                [/has child/i, /references/i].some((r) =>
+                                  r.test(cur.relation)
+                                )
+                              ) {
+                                if (!prev.leaves.has(cur.source)) {
+                                  prev.roots.add(cur.source);
+                                }
+                                prev.leaves.add(cur.target);
+                                prev.roots.delete(cur.target);
+                              } else if (/has parent/i.test(cur.relation)) {
+                                if (!prev.leaves.has(cur.target)) {
+                                  prev.roots.add(cur.target);
+                                }
+                                prev.leaves.add(cur.source);
+                                prev.roots.delete(cur.source);
+                              }
+                              return prev;
+                            },
+                            {
+                              roots: new Set<string>(),
+                              leaves: new Set<string>(),
+                            }
+                          ).roots
+                        )
+                      );
+                    }
+                  });
+              }}
+            />
+          </Tooltip>
         </div>
         <SynthesisQueryPane
           isOpen={isDrawerOpen}
