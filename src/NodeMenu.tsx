@@ -39,49 +39,52 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
       const abbr = menuRef.current.children[index]
         .querySelector(".bp3-menu-item")
         .getAttribute("data-abbr");
-      const text = getTextByBlockUid(blockUid);
       const highlighted = textarea.value.substring(
         textarea.selectionStart,
         textarea.selectionEnd
       );
-      const referencedPaper = window.roamAlphaAPI.q(
-        `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${blockUid}"]]`
-      )
-        .map((s) => ({ title: s[0] as string, uid: s[1] as string }))
-        .find(({ title }) => title.startsWith("@"))?.title;
-      const suffix = referencedPaper ? ` - [[${referencedPaper}]]` : "";
-      const pagename = `[[${abbr}]] - ${highlighted}${suffix}`;
-      const newText = `${text.substring(
-        0,
-        textarea.selectionStart
-      )}[[${pagename}]]${text.substring(textarea.selectionEnd)}`;
-      updateBlock({ text: newText, uid: blockUid });
       setTimeout(() => {
-        const pageUid =
-          getPageUidByPageTitle(pagename) || createPage({ title: pagename });
-        if (pageUid) {
-          setTimeout(() => {
-            const nodes = getTreeByPageName(abbr);
-            nodes.forEach((node, order) =>
-              createBlock({ node, order, parentUid: pageUid })
-            );
-            openBlockInSidebar(pageUid);
+        const text = getTextByBlockUid(blockUid);
+        const referencedPaper = window.roamAlphaAPI
+          .q(
+            `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${blockUid}"]]`
+          )
+          .map((s) => ({ title: s[0] as string, uid: s[1] as string }))
+          .find(({ title }) => title.startsWith("@"))?.title;
+        const suffix = referencedPaper ? ` - [[${referencedPaper}]]` : "";
+        const pagename = `[[${abbr}]] - ${highlighted}${suffix}`;
+        const newText = `${text.substring(
+          0,
+          textarea.selectionStart
+        )}[[${pagename}]]${text.substring(textarea.selectionEnd)}`;
+        updateBlock({ text: newText, uid: blockUid });
+        setTimeout(() => {
+          const pageUid =
+            getPageUidByPageTitle(pagename) || createPage({ title: pagename });
+          if (pageUid) {
             setTimeout(() => {
-              const sidebarTitle = document.querySelector(
-                ".rm-sidebar-outline .rm-title-display"
+              const nodes = getTreeByPageName(abbr);
+              nodes.forEach((node, order) =>
+                createBlock({ node, order, parentUid: pageUid })
               );
-              sidebarTitle.dispatchEvent(
-                new MouseEvent("mousedown", { bubbles: true })
-              );
+              openBlockInSidebar(pageUid);
               setTimeout(() => {
-                const ta = document.activeElement as HTMLTextAreaElement;
-                const index = ta.value.length - suffix.length;
-                ta.setSelectionRange(index, index);
+                const sidebarTitle = document.querySelector(
+                  ".rm-sidebar-outline .rm-title-display"
+                );
+                sidebarTitle.dispatchEvent(
+                  new MouseEvent("mousedown", { bubbles: true })
+                );
+                setTimeout(() => {
+                  const ta = document.activeElement as HTMLTextAreaElement;
+                  const index = ta.value.length - suffix.length;
+                  ta.setSelectionRange(index, index);
+                }, 1);
               }, 1);
             }, 1);
-          }, 1);
-        }
-      }, 1);
+          }
+        }, 1);
+      });
       onClose();
     },
     [menuRef, blockUid, onClose]
