@@ -61,28 +61,31 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
         setTimeout(() => {
           const pageUid =
             getPageUidByPageTitle(pagename) || createPage({ title: pagename });
-          if (pageUid) {
+          setTimeout(() => {
+            const nodes = getTreeByPageName(abbr);
+            nodes.forEach(
+              ({ text, textAlign, heading, viewType, children }, order) =>
+                createBlock({
+                  node: { text, textAlign, heading, viewType, children },
+                  order,
+                  parentUid: pageUid,
+                })
+            );
+            openBlockInSidebar(pageUid);
             setTimeout(() => {
-              const nodes = getTreeByPageName(abbr);
-              nodes.forEach((node, order) =>
-                createBlock({ node, order, parentUid: pageUid })
+              const sidebarTitle = document.querySelector(
+                ".rm-sidebar-outline .rm-title-display"
               );
-              openBlockInSidebar(pageUid);
+              sidebarTitle.dispatchEvent(
+                new MouseEvent("mousedown", { bubbles: true })
+              );
               setTimeout(() => {
-                const sidebarTitle = document.querySelector(
-                  ".rm-sidebar-outline .rm-title-display"
-                );
-                sidebarTitle.dispatchEvent(
-                  new MouseEvent("mousedown", { bubbles: true })
-                );
-                setTimeout(() => {
-                  const ta = document.activeElement as HTMLTextAreaElement;
-                  const index = ta.value.length - suffix.length;
-                  ta.setSelectionRange(index, index);
-                }, 1);
+                const ta = document.activeElement as HTMLTextAreaElement;
+                const index = ta.value.length - suffix.length;
+                ta.setSelectionRange(index, index);
               }, 1);
             }, 1);
-          }
+          }, 1);
         }, 1);
       });
       onClose();
