@@ -38,6 +38,8 @@ import {
   getRelations,
   getRelationTriples,
 } from "./util";
+import editCursor from './cursors/edit.png';
+import trashCursor from './cursors/trash.png';
 
 const NodeIcon = ({
   shortcut,
@@ -369,56 +371,62 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
           cyRef.current.remove(n);
         } else if (e.originalEvent.shiftKey) {
           clearEditingRef();
-          if (sourceRef.current) {
-            const source = sourceRef.current.id();
-            const target = n.id();
-            if (source !== target) {
-              const sourceType = coloredNodes.find(
-                (c) => c.color === sourceRef.current.data("color")
-              ).abbr;
-              const targetType = coloredNodes.find(
-                (c) => c.color === n.data("color")
-              ).abbr;
-              const text =
-                allRelations.find(
-                  (r) => r.source === sourceType && r.target === targetType
-                )?.relation ||
-                (sourceType === "TEX" || targetType === "TEX"
-                  ? allRelations[0].relation
-                  : "");
-              if (text) {
-                const rest = {
-                  source,
-                  target,
-                };
-                const id = createBlock({
-                  node: {
-                    text,
-                    children: Object.entries(rest).map(([k, v]) => ({
-                      text: k,
-                      children: [{ text: v }],
-                    })),
-                  },
-                  parentUid: elementsUid,
-                });
-                const edge = cyRef.current.add({
-                  data: { id, label: text, ...rest },
-                });
-                edgeCallback(edge);
-              } else {
-                renderToast({
-                  id: "roamjs-discourse-relation-error",
-                  intent: Intent.DANGER,
-                  content:
-                    "There are no relations defined between these two node types",
-                });
+          if (n.style("color") === "#FFFFFF") {
+            if (sourceRef.current) {
+              const source = sourceRef.current.id();
+              const target = n.id();
+              if (source !== target) {
+                const sourceType = coloredNodes.find(
+                  (c) => c.color === sourceRef.current.data("color")
+                ).abbr;
+                const targetType = coloredNodes.find(
+                  (c) => c.color === n.data("color")
+                ).abbr;
+                const text =
+                  allRelations.find(
+                    (r) => r.source === sourceType && r.target === targetType
+                  )?.relation ||
+                  (sourceType === "TEX" || targetType === "TEX"
+                    ? allRelations[0].relation
+                    : "");
+                if (text) {
+                  const rest = {
+                    source,
+                    target,
+                  };
+                  const id = createBlock({
+                    node: {
+                      text,
+                      children: Object.entries(rest).map(([k, v]) => ({
+                        text: k,
+                        children: [{ text: v }],
+                      })),
+                    },
+                    parentUid: elementsUid,
+                  });
+                  const edge = cyRef.current.add({
+                    data: { id, label: text, ...rest },
+                  });
+                  edgeCallback(edge);
+                } else {
+                  renderToast({
+                    id: "roamjs-discourse-relation-error",
+                    intent: Intent.DANGER,
+                    content:
+                      "There are no relations defined between these two node types",
+                  });
+                }
               }
+              clearSourceRef();
+            } else {
+              n.style("background-color", "#000000");
+              n.lock();
+              sourceRef.current = n;
             }
-            clearSourceRef();
           } else {
-            n.style("background-color", "#000000");
-            n.lock();
-            sourceRef.current = n;
+            const title = n.data("label");
+            const uid = getPageUidByPageTitle(title) || createPage({ title });
+            setTimeout(() => openBlockInSidebar(uid), 1);
           }
         } else {
           clearSourceRef();
@@ -447,15 +455,31 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
         setInputSetting({ blockUid: uid, value: `${x}`, key: "x" });
         setInputSetting({ blockUid: uid, value: `${y}`, key: "y" });
       });
-      if (previewEnabled) {
-        n.on("mouseover", () => {
-          const tag = n.data("label");
-          cyRef.current.scratch("roamjs_preview_tag", tag);
-        });
-        n.on("mouseout", () => {
-          cyRef.current.scratch("roamjs_preview_tag", "");
-        });
-      }
+      n.on("mousemove", (e) => {
+        const inLabel =
+          Math.abs(e.position.y - n.position().y) < n.height() / 4;
+        if (e.originalEvent.shiftKey && inLabel) {
+          n.style("color", "#106ba3");
+        } else {
+          n.style("color", "#FFFFFF");
+        }
+        if (e.originalEvent.shiftKey) {
+          containerRef.current.style.cursor = inLabel ? "alias" : "pointer";
+        } else if (e.originalEvent.ctrlKey) {
+          containerRef.current.style.cursor = `url(${trashCursor}), auto`;
+        } else {
+          containerRef.current.style.cursor = `url(${editCursor}), auto`;
+        }
+      });
+      n.on("mouseover", () => {
+        const tag = n.data("label");
+        cyRef.current.scratch("roamjs_preview_tag", tag);
+      });
+      n.on("mouseout", () => {
+        cyRef.current.scratch("roamjs_preview_tag", "");
+        n.style("color", "#FFFFFF");
+        containerRef.current.style.cursor = "unset";
+      });
     },
     [
       elementsUid,
@@ -465,7 +489,6 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
       allRelations,
       shadowInputRef,
       containerRef,
-      previewEnabled,
       clearEditingRef,
       clearSourceRef,
       clearEditingRelation,
@@ -528,7 +551,7 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
             "background-color": `#${TEXT_COLOR}`,
             label: "data(label)",
             shape: "round-rectangle",
-            color: "#ffffff",
+            color: "#FFFFFF",
             "text-wrap": "wrap",
             "text-halign": "center",
             "text-valign": "center",
@@ -608,7 +631,6 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
   );
   return (
     <>
-      {" "}
       <div
         style={{
           width: "100%",

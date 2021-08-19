@@ -95,6 +95,10 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-notification-drawer .bp3-drawer {
   max-width: 400px;
+}
+
+.roam-main {
+  position: relative;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
