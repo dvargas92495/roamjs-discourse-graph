@@ -28,16 +28,14 @@ import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
 
-addStyle(`.roamjs-discourse-live-preview>div>.rm-block-main,.roamjs-discourse-live-preview>div>.rm-inline-references {
+addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
+.roamjs-discourse-live-preview>div>div>.rm-inline-references,
+.roamjs-discourse-live-preview>div>div>.rm-block-children>.rm-multibar {
   display: none;
 }
 
-.roamjs-discourse-live-preview>div>.rm-block-children {
+.roamjs-discourse-live-preview>div>div>.rm-block-children {
   margin-left: -4px;
-}
-
-.roamjs-discourse-live-preview>div>.rm-block-children>.rm-multibar {
-  display: none;
 }
 
 .roamjs-discourse-live-preview {
@@ -223,7 +221,7 @@ createHTMLObserver({
           const p = document.createElement("div");
           children.parentElement.appendChild(p);
           p.style.height = "500px";
-          cyRender({ p, title });
+          cyRender({ p, title, previewEnabled: isFlagEnabled("preview") });
         }
       }
     }
@@ -269,7 +267,14 @@ setTimeout(() => {
         if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
           s.setAttribute("data-roamjs-discourse-augment-tag", "true");
           const parent = document.createElement("span");
-          previewRender({ parent, tag });
+          previewRender({
+            parent,
+            tag,
+            registerMouseEvents: ({ open, close }) => {
+              s.addEventListener("mouseenter", (e) => open(e.ctrlKey));
+              s.addEventListener("mouseleave", close);
+            },
+          });
           s.appendChild(parent);
         }
       },

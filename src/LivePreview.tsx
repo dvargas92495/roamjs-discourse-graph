@@ -1,4 +1,4 @@
-import { Button, Position, Tooltip } from "@blueprintjs/core";
+import { Button, Tooltip } from "@blueprintjs/core";
 import React, {
   useCallback,
   useEffect,
@@ -26,11 +26,17 @@ const TooltipContent = ({
   const [sizeIndex, setSizeIndex] = useState(0);
   const size = useMemo(() => sizes[sizeIndex % sizes.length], [sizeIndex]);
   useEffect(() => {
+    document
+      .getElementById("roamjs-discourse-live-preview-container")
+      ?.remove?.();
     if (numChildren) {
+      const el = document.createElement("div");
+      el.id = "roamjs-discourse-live-preview-container";
       window.roamAlphaAPI.ui.components.renderBlock({
         uid,
-        el: containerRef.current,
+        el,
       });
+      containerRef.current.appendChild(el);
       containerRef.current.parentElement.style.padding = "0";
     }
   }, [uid, containerRef, numChildren]);
@@ -40,12 +46,14 @@ const TooltipContent = ({
       onMouseEnter={(e) => open(e.ctrlKey)}
       onMouseLeave={close}
     >
-      <Button
-        minimal
-        style={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}
-        icon={"zoom-in"}
-        onClick={() => setSizeIndex(sizeIndex + 1)}
-      />
+      {!!numChildren && (
+        <Button
+          minimal
+          style={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}
+          icon={"zoom-in"}
+          onClick={() => setSizeIndex(sizeIndex + 1)}
+        />
+      )}
       <div
         ref={containerRef}
         className={"roamjs-discourse-live-preview"}
@@ -55,13 +63,22 @@ const TooltipContent = ({
           maxHeight: size,
         }}
       >
-        {!numChildren && <i>Page is empty.</i>}
+        {!numChildren && <span>Page <i>{tag}</i> is empty.</span>}
       </div>
     </div>
   );
 };
 
-const LivePreview = ({ tag }: { tag: string }) => {
+export type Props = {
+  tag: string;
+  registerMouseEvents: (a: {
+    open: (ctrl: boolean) => void;
+    close: () => void;
+    span: HTMLSpanElement;
+  }) => void;
+};
+
+const LivePreview = ({ tag, registerMouseEvents }: Props) => {
   const [isOpen, setIsOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const spanRef = useRef<HTMLSpanElement>(null);
@@ -85,7 +102,7 @@ const LivePreview = ({ tag }: { tag: string }) => {
     if (openRef.current) {
       timeoutRef.current = setTimeout(() => {
         setIsOpen(false);
-        openRef.current= false;
+        openRef.current = false;
         timeoutRef.current = null;
       }, 1000);
     }
@@ -95,16 +112,19 @@ const LivePreview = ({ tag }: { tag: string }) => {
   }, [loaded, setLoaded]);
   useEffect(() => {
     if (loaded) {
-      const pageref = spanRef.current.closest<HTMLSpanElement>(".rm-page-ref");
-      pageref.addEventListener("mouseenter", (e) => open(e.ctrlKey));
-      pageref.addEventListener("mouseleave", close);
+      registerMouseEvents({ open, close, span: spanRef.current });
     }
-  }, [spanRef, loaded, setIsOpen, close, open]);
+  }, [spanRef, loaded, close, open, registerMouseEvents]);
+  const ref = useRef<Tooltip>(null);
+  useEffect(() => {
+    ref.current.reposition();
+  }, [tag]);
   return (
     <Tooltip
       content={<TooltipContent tag={tag} open={open} close={close} />}
       placement={"right"}
       isOpen={isOpen}
+      ref={ref}
     >
       <span ref={spanRef} />
     </Tooltip>
@@ -113,8 +133,9 @@ const LivePreview = ({ tag }: { tag: string }) => {
 
 export const render = ({
   parent,
-  tag,
+  ...props
 }: {
   parent: HTMLSpanElement;
-  tag: string;
-}) => ReactDOM.render(<LivePreview tag={tag} />, parent);
+} & Props) => ReactDOM.render(<LivePreview {...props} />, parent);
+
+export default LivePreview;

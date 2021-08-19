@@ -31,6 +31,7 @@ import {
 } from "roam-client";
 import { renderToast, setInputSetting, toFlexRegex } from "roamjs-components";
 import SynthesisQuery from "./SynthesisQuery";
+import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
 import {
   getNodes,
   getPixelValue,
@@ -152,6 +153,7 @@ const SynthesisQueryPane = ({
 
 type Props = {
   title: string;
+  previewEnabled: boolean;
 };
 
 const useTreeFieldUid = ({
@@ -192,7 +194,7 @@ const COLORS = [
 ];
 const TEXT_COLOR = "888888";
 
-const CytoscapePlayground = ({ title }: Props) => {
+const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowInputRef = useRef<HTMLInputElement>(null);
@@ -314,6 +316,41 @@ const CytoscapePlayground = ({ title }: Props) => {
     },
     [clearSourceRef, clearEditingRef, setSelectedRelation, cyRef]
   );
+  const [livePreviewTag, setLivePreviewTag] = useState("");
+  const registerMouseEvents = useCallback<
+    LivePreviewProps["registerMouseEvents"]
+  >(
+    ({ open, close, span }) => {
+      const root = span.closest<HTMLSpanElement>(".bp3-popover-wrapper");
+      root.style.position = "absolute";
+      cyRef.current.on("mousemove", (e) => {
+        if (
+          e.target === cyRef.current &&
+          cyRef.current.scratch("roamjs_preview_tag")
+        ) {
+          cyRef.current.scratch("roamjs_preview_tag", "");
+        }
+        const tag = cyRef.current.scratch("roamjs_preview_tag");
+        const isOpen = cyRef.current.scratch("roamjs_preview");
+
+        if (isOpen && !tag) {
+          cyRef.current.scratch("roamjs_preview", false);
+          close();
+        } else if (tag) {
+          const { x1, y1 } = cyRef.current.extent();
+          const zoom = cyRef.current.zoom();
+          root.style.top = `${(e.position.y - y1) * zoom}px`;
+          root.style.left = `${(e.position.x - x1) * zoom}px`;
+          setLivePreviewTag(tag);
+          if (!isOpen) {
+            cyRef.current.scratch("roamjs_preview", true);
+            open(e.originalEvent.ctrlKey);
+          }
+        }
+      });
+    },
+    [cyRef]
+  );
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
@@ -410,6 +447,15 @@ const CytoscapePlayground = ({ title }: Props) => {
         setInputSetting({ blockUid: uid, value: `${x}`, key: "x" });
         setInputSetting({ blockUid: uid, value: `${y}`, key: "y" });
       });
+      if (previewEnabled) {
+        n.on("mouseover", () => {
+          const tag = n.data("label");
+          cyRef.current.scratch("roamjs_preview_tag", tag);
+        });
+        n.on("mouseout", () => {
+          cyRef.current.scratch("roamjs_preview_tag", "");
+        });
+      }
     },
     [
       elementsUid,
@@ -419,6 +465,7 @@ const CytoscapePlayground = ({ title }: Props) => {
       allRelations,
       shadowInputRef,
       containerRef,
+      previewEnabled,
       clearEditingRef,
       clearSourceRef,
       clearEditingRelation,
@@ -877,6 +924,12 @@ const CytoscapePlayground = ({ title }: Props) => {
             }}
           />
         </div>
+        {previewEnabled && (
+          <LivePreview
+            tag={livePreviewTag}
+            registerMouseEvents={registerMouseEvents}
+          />
+        )}
       </div>
     </>
   );
