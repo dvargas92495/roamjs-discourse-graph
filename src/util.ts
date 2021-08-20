@@ -262,9 +262,10 @@ export const getRelations = () =>
       []
     ).find((t) => toFlexRegex("relations").test(t.text))?.children ||
     DEFAULT_RELATION_VALUES
-  ).flatMap((r) => {
+  ).flatMap((r, i) => {
     const tree = (r?.children || []) as TextNode[];
     const data = {
+      id: r.uid || `${r.text}-${i}`,
       label: r.text,
       source: getSettingValueFromTree({
         tree,
@@ -304,7 +305,7 @@ export const getRelationTriples = (relations = getRelations()) =>
     )
   )
     .map((s) => JSON.parse(s))
-    .map(([relation, source, target]) => ({ relation, source, target }));
+    .map(([relation, source, target]: string[]) => ({ relation, source, target }));
 
 export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`;
 

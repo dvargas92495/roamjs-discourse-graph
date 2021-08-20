@@ -219,10 +219,15 @@ const SynthesisQuery = ({
     const makeQuery = (node: string, condition: string) =>
       `[:find ?node-title ?node-uid :where [?${node} :node/title ?node-title] [?${node} :block/uid ?node-uid] ${condition}]`;
     try {
+      const nodeAbbr = NODE_LABEL_ABBR_BY_TEXT[activeMatch];
       const separateQueryResults = conditions.map(
         ({ relation, predicate, that }) =>
           relations
-            .filter((r) => [r.label, r.complement].includes(relation))
+            .filter(
+              (r) =>
+                (r.label === relation && r.source === nodeAbbr) ||
+                (r.destination === nodeAbbr && r.complement === relation)
+            )
             .map(({ triples, source, destination, label, complement }) => {
               const queryTriples = triples.map((t) => t.slice(0));
               const sourceTriple = queryTriples.find((t) => t[2] === source);
@@ -242,7 +247,7 @@ const SynthesisQuery = ({
               const subQuery = triplesToQuery(queryTriples);
               const condition = that
                 ? subQuery
-                : `[?${nodeVar} :block/refs ?node-ref] [?node-ref :node/title "${NODE_LABEL_ABBR_BY_TEXT[activeMatch]}"] (not ${subQuery})`;
+                : `[?${nodeVar} :block/refs ?node-ref] [?node-ref :node/title "${nodeAbbr}"] (not ${subQuery})`;
               const nodesOnPage = window.roamAlphaAPI.q(
                 makeQuery(nodeVar, condition)
               );

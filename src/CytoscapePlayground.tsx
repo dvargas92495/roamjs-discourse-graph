@@ -220,6 +220,10 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
         }),
     []
   );
+  const nodeTypeByColor = useMemo(
+    () => Object.fromEntries(coloredNodes.map((cn) => [cn.color, cn.abbr])),
+    [coloredNodes]
+  );
   const [selectedNode, setSelectedNode] = useState(
     coloredNodes[coloredNodes.length - 1]
   );
@@ -266,15 +270,14 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
             return true;
           }
           return (
-            k.source ===
-              coloredNodes.find((n) => n.color === sourceColor).abbr &&
-            k.target === coloredNodes.find((n) => n.color === targetColor).abbr
+            k.source === nodeTypeByColor[sourceColor] &&
+            k.target === nodeTypeByColor[targetColor]
           );
         })
         .filter((k) => k.relation !== selectedRelation.label);
     }
     return allRelations;
-  }, [allRelations, selectedRelation, cyRef, coloredNodes]);
+  }, [allRelations, selectedRelation, cyRef, nodeTypeByColor]);
   const tree = useMemo(() => getShallowTreeByParentUid(pageUid), [pageUid]);
   const elementsUid = useTreeFieldUid({
     tree,
@@ -379,12 +382,9 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
               const source = sourceRef.current.id();
               const target = n.id();
               if (source !== target) {
-                const sourceType = coloredNodes.find(
-                  (c) => c.color === sourceRef.current.data("color")
-                ).abbr;
-                const targetType = coloredNodes.find(
-                  (c) => c.color === n.data("color")
-                ).abbr;
+                const sourceType =
+                  nodeTypeByColor[sourceRef.current.data("color")];
+                const targetType = nodeTypeByColor[n.data("color")];
                 const text =
                   allRelations.find(
                     (r) => r.source === sourceType && r.target === targetType
@@ -590,9 +590,7 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
         return;
       }
       if (!editingRef.current && !sourceRef.current) {
-        const nodeType = coloredNodes.find(
-          (c) => c.color === nodeColorRef.current
-        ).abbr;
+        const nodeType = nodeTypeByColor[nodeColorRef.current];
         createNode(
           `${
             nodeType === "TEX" ? "" : `[[${nodeType}]] - `
@@ -618,7 +616,7 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
     edgeCallback,
     nodeTapCallback,
     createNode,
-    coloredNodes,
+    nodeTypeByColor,
     nodeColorRef,
   ]);
   const [maximized, setMaximized] = useState(false);
@@ -734,8 +732,22 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
                       connectedNodeUids.add(sourceUid);
                       connectedNodeUids.add(targetUid);
                       return {
-                        source: sourceNode?.text || "",
-                        target: targetNode?.text || "",
+                        source: {
+                          text: sourceNode?.text || "",
+                          type: nodeTypeByColor[
+                            (sourceNode?.children || []).find((s) =>
+                              toFlexRegex("color").test(s.text)
+                            )?.children?.[0]?.text
+                          ],
+                        },
+                        target: {
+                          text: targetNode?.text || "",
+                          type: nodeTypeByColor[
+                            (targetNode?.children || []).find((s) =>
+                              toFlexRegex("color").test(s.text)
+                            )?.children?.[0]?.text
+                          ],
+                        },
                         relation: n.text,
                       };
                     }
@@ -760,7 +772,12 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
                     const { triples, source, destination, label } =
                       relationData.find(
                         (r) =>
-                          r.label === e.relation || r.complement === e.relation
+                          (r.label === e.relation &&
+                            ["TEX", r.source].includes(e.source.type) &&
+                            ["TEX", r.destination].includes(e.target.type)) ||
+                          (r.complement === e.relation &&
+                            ["TEX", r.source].includes(e.target.type) &&
+                            ["TEX", r.destination].includes(e.source.type))
                       );
                     const isOriginal = label === e.relation;
                     const newTriples = triples.map((t) => {
@@ -770,8 +787,8 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
                           "has title",
                           (t[2] === source && isOriginal) ||
                           (t[2] === destination && !isOriginal)
-                            ? e.source
-                            : e.target,
+                            ? e.source.text
+                            : e.target.text,
                         ];
                       }
                       return t.slice(0);
@@ -907,21 +924,23 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
           }}
         >
           {filteredRelations.length ? (
-            filteredRelations.map((k) => (
-              <MenuItem
-                key={k.relation}
-                text={k.relation}
-                onClick={() => {
-                  const edge = cyRef.current.edges(
-                    `#${selectedRelation.id}`
-                  ) as cytoscape.EdgeSingular;
-                  updateBlock({ uid: edge.id(), text: k.relation });
-                  edge.data("label", k.relation);
-                  clearEditingRelation();
-                  clearEditingRef();
-                }}
-              />
-            ))
+            Array.from(new Set(filteredRelations.map((k) => k.relation)))
+              .sort()
+              .map((k) => (
+                <MenuItem
+                  key={k}
+                  text={k}
+                  onClick={() => {
+                    const edge = cyRef.current.edges(
+                      `#${selectedRelation.id}`
+                    ) as cytoscape.EdgeSingular;
+                    updateBlock({ uid: edge.id(), text: k });
+                    edge.data("label", k);
+                    clearEditingRelation();
+                    clearEditingRef();
+                  }}
+                />
+              ))
           ) : (
             <MenuItem
               text={"No other relation could connect these nodes"}

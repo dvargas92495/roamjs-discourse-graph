@@ -20,6 +20,7 @@ import React, {
 import {
   createBlock,
   deleteBlock,
+  getFirstChildTextByBlockUid,
   getShallowTreeByParentUid,
   getTreeByBlockUid,
   getTreeByPageName,
@@ -646,7 +647,7 @@ const RelationEditPanel = ({
             icon={"plus"}
             minimal
             onClick={() => {
-              const newId = tabs.slice(-1)[0];
+              const newId = (tabs.slice(-1)[0] || 0) + 1;
               saveCyToElementRef(tab);
               elementsRef.current.push([
                 {
@@ -841,7 +842,7 @@ const RelationEditPanel = ({
           blocks.forEach((block, order) =>
             createBlock({ parentUid: ifUid, node: block, order })
           );
-          back();
+          setTimeout(back, 1);
         }}
       />
     </>
@@ -849,19 +850,62 @@ const RelationEditPanel = ({
 };
 
 export const RelationConfigPanel: Panel = ({ uid }) => {
-  const [relations, setRelations] = useState(
-    uid ? getShallowTreeByParentUid(uid) : []
+  const refreshRelations = useCallback(
+    () =>
+      uid
+        ? getShallowTreeByParentUid(uid).map((n) => {
+            const fieldTree = getShallowTreeByParentUid(n.uid);
+            return {
+              ...n,
+              source:
+                getFirstChildTextByBlockUid(
+                  fieldTree.find((t) => toFlexRegex("source").test(t.text))
+                    ?.uid || ""
+                ) || "?",
+              destination:
+                getFirstChildTextByBlockUid(
+                  fieldTree.find((t) => toFlexRegex("destination").test(t.text))
+                    ?.uid || ""
+                ) || "?",
+            };
+          })
+        : [],
+    [uid]
   );
+  const [relations, setRelations] = useState(refreshRelations);
   const [editingRelation, setEditingRelation] = useState("");
   const [newRelation, setNewRelation] = useState("");
   const editingRelationInfo = useMemo(
     () => editingRelation && getTreeByBlockUid(editingRelation),
     [editingRelation]
   );
+  const onNewRelation = () => {
+    const relationUid = createBlock({
+      parentUid: uid,
+      order: relations.length,
+      node: { text: newRelation },
+    });
+    setTimeout(() => {
+      setRelations([
+        ...relations,
+        {
+          text: newRelation,
+          uid: relationUid,
+          source: "?",
+          destination: "?",
+        },
+      ]);
+      setNewRelation("");
+      setEditingRelation(relationUid);
+    }, 1);
+  };
   return editingRelation ? (
     <RelationEditPanel
       editingRelationInfo={editingRelationInfo}
-      back={() => setEditingRelation("")}
+      back={() => {
+        setEditingRelation("");
+        setRelations(refreshRelations());
+      }}
     />
   ) : (
     <>
@@ -870,26 +914,16 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
           <InputGroup
             value={newRelation}
             onChange={(e) => setNewRelation(e.target.value)}
+            onKeyDown={(e) =>
+              e.key === "Enter" && !!newRelation && onNewRelation()
+            }
           />
           <Button
-            onClick={() => {
-              const relationUid = createBlock({
-                parentUid: uid,
-                order: relations.length,
-                node: { text: newRelation },
-              });
-              setTimeout(() => {
-                setRelations([
-                  ...relations,
-                  { text: newRelation, uid: relationUid },
-                ]);
-                setNewRelation("");
-                setEditingRelation(relationUid);
-              }, 1);
-            }}
+            onClick={onNewRelation}
             text={"Add Relation"}
             style={{ maxWidth: 120, marginLeft: 8 }}
             intent={Intent.PRIMARY}
+            disabled={!newRelation}
           />
         </div>
       </div>
@@ -903,7 +937,14 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
                 alignItems: "center",
               }}
             >
-              <span>{rel.text}</span>
+              <span>
+                <span style={{ display: "inline-block", width: 96 }}>
+                  {rel.text}
+                </span>
+                <span style={{ fontSize: 10 }}>
+                  ({rel.source}) {"=>"} ({rel.destination})
+                </span>
+              </span>
               <span>
                 <Button
                   icon={"edit"}
