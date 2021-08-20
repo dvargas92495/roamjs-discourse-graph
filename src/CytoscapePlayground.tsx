@@ -372,7 +372,9 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
           cyRef.current.remove(n);
         } else if (e.originalEvent.shiftKey) {
           clearEditingRef();
-          if (n.style("color") === "#FFFFFF") {
+          const inLabel =
+            Math.abs(e.position.y - n.position().y) < n.height() / 4;
+          if (!inLabel) {
             if (sourceRef.current) {
               const source = sourceRef.current.id();
               const target = n.id();
