@@ -38,8 +38,8 @@ import {
   getRelations,
   getRelationTriples,
 } from "./util";
-import editCursor from './cursors/edit.png';
-import trashCursor from './cursors/trash.png';
+import editCursor from "./cursors/edit.png";
+import trashCursor from "./cursors/trash.png";
 
 const NodeIcon = ({
   shortcut,
@@ -126,6 +126,7 @@ const SynthesisQueryPane = ({
       canOutsideClickClose={false}
       canEscapeKeyClose
       portalClassName={"roamjs-discourse-playground-drawer"}
+      enforceFocus={false}
     >
       <style>{`
 .roam-article {
@@ -712,6 +713,7 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
                 const relationData = getRelations();
                 const recentPageRef: Record<string, string> = {};
                 const recentlyOpened = new Set<string>();
+                const connectedNodeUids = new Set<string>();
                 elementsTree
                   .map((n) => {
                     const sourceUid = n.children.find((c) =>
@@ -727,16 +729,32 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
                       const targetNode = elementsTree.find(
                         (b) => b.uid === targetUid
                       );
+                      connectedNodeUids.add(sourceUid);
+                      connectedNodeUids.add(targetUid);
                       return {
                         source: sourceNode?.text || "",
                         target: targetNode?.text || "",
                         relation: n.text,
                       };
                     }
-                    return false;
+                    return { node: n.text, uid: n.uid };
                   })
                   .map((e) => {
-                    if (!e) return [];
+                    if (!e.relation)
+                      return connectedNodeUids.has(e.uid)
+                        ? []
+                        : [
+                            {
+                              source: "block",
+                              target: "page",
+                              relation: "references",
+                            },
+                            {
+                              source: "page",
+                              relation: "has title",
+                              target: e.node,
+                            },
+                          ];
                     const { triples, source, destination, label } =
                       relationData.find(
                         (r) =>
