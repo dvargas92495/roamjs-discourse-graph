@@ -1,7 +1,9 @@
 import {
+  createBlock,
   getCurrentUserDisplayName,
   getCurrentUserUid,
   getDisplayNameByUid,
+  getPageUidByPageTitle,
   getTreeByPageName,
   InputTextNode,
   TextNode,
@@ -22,6 +24,14 @@ export const refreshConfigTree = () =>
 export const getSubscribedBlocks = () =>
   treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
     ?.children || [];
+
+export const getQueryUid = () =>
+  treeRef.tree.find((t) => toFlexRegex("query").test(t.text))?.uid ||
+  createBlock({
+    node: { text: "query" },
+    parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
+    order: 3,
+  });
 
 export const isFlagEnabled = (flag: string) =>
   treeRef.tree.some((t) => toFlexRegex(flag).test(t.text));
@@ -114,7 +124,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 children: [
                   {
                     text: "Has Title",
-                    children: [{ text: "Supported By", children: [] }],
+                    children: [{ text: "SupportedBy", children: [] }],
                   },
                 ],
               },
@@ -197,7 +207,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 children: [
                   {
                     text: "Has Title",
-                    children: [{ text: "Opposed By", children: [] }],
+                    children: [{ text: "OpposedBy", children: [] }],
                   },
                 ],
               },
@@ -305,7 +315,11 @@ export const getRelationTriples = (relations = getRelations()) =>
     )
   )
     .map((s) => JSON.parse(s))
-    .map(([relation, source, target]: string[]) => ({ relation, source, target }));
+    .map(([relation, source, target]: string[]) => ({
+      relation,
+      source,
+      target,
+    }));
 
 export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`;
 

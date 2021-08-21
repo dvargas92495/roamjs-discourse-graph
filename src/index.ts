@@ -3,9 +3,15 @@ import {
   createBlock,
   createButtonObserver,
   createHTMLObserver,
+  getChildrenLengthByPageUid,
+  getCurrentPageUid,
   getDisplayNameByUid,
+  getPageTitleByBlockUid,
   getPageTitleByHtmlElement,
+  getPageTitleByPageUid,
+  getTextByBlockUid,
   toConfig,
+  updateBlock,
 } from "roam-client";
 import { createConfigObserver, toFlexRegex } from "roamjs-components";
 import { render } from "./NodeMenu";
@@ -18,6 +24,7 @@ import { render as notificationRender } from "./NotificationIcon";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  getQueryUid,
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
@@ -69,12 +76,12 @@ addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
   outline: none;
 }
 
-.roamjs-discourse-playground-drawer > .bp3-overlay,
+.roamjs-discourse-query-drawer > .bp3-overlay,
 .roamjs-discourse-notification-drawer > .bp3-overlay {
   pointer-events: none;
 }
 
-div.roamjs-discourse-playground-drawer div.bp3-drawer,
+div.roamjs-discourse-query-drawer div.bp3-drawer,
 div.roamjs-discourse-notification-drawer div.bp3-drawer {
   pointer-events: all;
   width: 40%;
@@ -225,17 +232,53 @@ createHTMLObserver({
           const p = document.createElement("div");
           children.parentElement.appendChild(p);
           p.style.height = "500px";
-          cyRender({ p, title, previewEnabled: isFlagEnabled("preview") });
+          cyRender({
+            p,
+            title,
+            previewEnabled: isFlagEnabled("preview"),
+            globalRefs,
+          });
         }
       }
     }
   },
 });
 
-createButtonObserver({
-  shortcut: "synthesis",
-  attribute: "synthesis",
-  render: synthesisRender,
+const globalRefs: { [key: string]: (...args: string[]) => void } = {
+  clearOnClick: () => {},
+};
+
+window.roamAlphaAPI.ui.commandPalette.addCommand({
+  label: "Open Query Drawer",
+  callback: () =>
+    synthesisRender({
+      blockUid: getQueryUid(),
+      clearOnClick: (tag, n) => {
+        const uid =
+          window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
+        const text = `[[${tag}]]`;
+        if (uid) {
+          const currentText = getTextByBlockUid(uid);
+          setTimeout(
+            () =>
+              updateBlock({
+                text: `${currentText} ${text}`,
+                uid,
+              }),
+            1
+          );
+        } else {
+          const parentUid = getCurrentPageUid();
+          const pageTitle = getPageTitleByPageUid(parentUid);
+          if (pageTitle.startsWith("Playground")) {
+            globalRefs.clearOnClick(tag, n);
+          } else {
+            const order = getChildrenLengthByPageUid(parentUid);
+            createBlock({ parentUid, node: { text }, order });
+          }
+        }
+      },
+    }),
 });
 
 createHTMLObserver({

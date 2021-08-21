@@ -9,8 +9,6 @@ import ReactDOM from "react-dom";
 import cytoscape from "cytoscape";
 import {
   Button,
-  Classes,
-  Drawer,
   Intent,
   Menu,
   MenuItem,
@@ -69,94 +67,10 @@ const NodeIcon = ({
   </span>
 );
 
-const SynthesisQueryPane = ({
-  blockUid,
-  isOpen,
-  close,
-  clearOnClick,
-}: {
-  blockUid: string;
-  isOpen: boolean;
-  close: () => void;
-  clearOnClick: (s: string, m: string) => void;
-}) => {
-  const [width, setWidth] = useState(0);
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const calculateWidth = useCallback(() => {
-    const width = getPixelValue(drawerRef.current, "width");
-    const paddingLeft = getPixelValue(
-      document.querySelector(".rm-article-wrapper"),
-      "paddingLeft"
-    );
-    setWidth(width - paddingLeft);
-  }, [setWidth, drawerRef]);
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(calculateWidth, 1);
-    } else {
-      setWidth(0);
-    }
-  }, [setWidth, isOpen]);
-  const onMouseMove = useCallback(
-    (e: MouseEvent) => {
-      drawerRef.current.parentElement.style.width = `${Math.max(
-        e.clientX,
-        100
-      )}px`;
-      calculateWidth();
-    },
-    [calculateWidth, drawerRef]
-  );
-  const onMouseUp = useCallback(() => {
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
-  }, [onMouseMove]);
-  const onMouseDown = useCallback(() => {
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [onMouseMove, onMouseUp]);
-  return (
-    <Drawer
-      isOpen={isOpen}
-      isCloseButtonShown
-      onClose={close}
-      position={Position.LEFT}
-      title={"Synthesis Query"}
-      hasBackdrop={false}
-      canOutsideClickClose={false}
-      canEscapeKeyClose
-      portalClassName={"roamjs-discourse-playground-drawer"}
-      enforceFocus={false}
-    >
-      <style>{`
-.roam-article {
-  margin-left: ${width}px;
-}
-`}</style>
-      <div className={Classes.DRAWER_BODY} ref={drawerRef}>
-        <SynthesisQuery
-          blockUid={blockUid}
-          clearResultIcon={{ name: "hand-right", onClick: clearOnClick }}
-        />
-      </div>
-      <div
-        style={{
-          width: 4,
-          cursor: "ew-resize",
-          position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-        }}
-        onMouseDown={onMouseDown}
-      />
-    </Drawer>
-  );
-};
-
 type Props = {
   title: string;
   previewEnabled: boolean;
+  globalRefs: {[key: string]: (...args: string[]) => void};
 };
 
 const useTreeFieldUid = ({
@@ -197,7 +111,7 @@ const COLORS = [
 ];
 const TEXT_COLOR = "888888";
 
-const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
+const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowInputRef = useRef<HTMLInputElement>(null);
@@ -606,6 +520,14 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
     });
     cyRef.current.nodes().forEach(nodeTapCallback);
     cyRef.current.edges().forEach(edgeCallback);
+    globalRefs.clearOnClick = (s: string, m: string) => {
+      const { x1, x2, y1, y2 } = cyRef.current.extent();
+      createNode(
+        s,
+        { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
+        coloredNodes.find((c) => c.text === m)?.color
+      );
+    }
   }, [
     elementsUid,
     cyRef,
@@ -622,14 +544,6 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const onDrawerOpen = useCallback(() => {
-    setIsDrawerOpen(true);
-  }, [setIsDrawerOpen]);
-  const onDrawerClose = useCallback(
-    () => setIsDrawerOpen(false),
-    [setIsDrawerOpen]
-  );
   return (
     <>
       <div
@@ -680,16 +594,6 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
               icon={<NodeIcon {...selectedNode} />}
               onClick={() => setColorPickerOpen(!colorPickerOpen)}
               style={{ marginRight: 8, padding: "7px 5px" }}
-            />
-          </Tooltip>
-          <Tooltip
-            content={"Open Synthesis Query Pane"}
-            position={Position.BOTTOM}
-          >
-            <Button
-              icon={"drawer-left"}
-              onClick={onDrawerOpen}
-              style={{ marginRight: 8 }}
             />
           </Tooltip>
           {maximized ? (
@@ -902,19 +806,6 @@ const CytoscapePlayground = ({ title, previewEnabled }: Props) => {
             />
           </Tooltip>
         </div>
-        <SynthesisQueryPane
-          isOpen={isDrawerOpen}
-          close={onDrawerClose}
-          blockUid={queryUid}
-          clearOnClick={(s: string, m: string) => {
-            const { x1, x2, y1, y2 } = cyRef.current.extent();
-            createNode(
-              s,
-              { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
-              coloredNodes.find((c) => c.text === m)?.color
-            );
-          }}
-        />
         <Menu
           style={{
             position: "absolute",

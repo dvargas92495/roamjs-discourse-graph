@@ -2,9 +2,11 @@ import {
   Button,
   Card,
   Classes,
+  Drawer,
   H3,
   IconName,
   Label,
+  Position,
   Switch,
 } from "@blueprintjs/core";
 import React, {
@@ -25,6 +27,7 @@ import {
 } from "roam-client";
 import {
   createComponentRender,
+  createOverlayRender,
   MenuItemSelect,
   PageInput,
   setInputSetting,
@@ -35,6 +38,7 @@ import {
   getRelations,
   getRelationLabels,
   triplesToQuery,
+  getPixelValue,
 } from "./util";
 import { render as exportRender } from "./ExportDialog";
 
@@ -467,6 +471,91 @@ const SynthesisQuery = ({
   );
 };
 
-export const render = createComponentRender(SynthesisQuery);
+type Props = {
+  blockUid: string;
+  clearOnClick: (s: string, m: string) => void;
+};
+
+const SynthesisQueryPane = ({
+  blockUid,
+  onClose,
+  clearOnClick,
+}: {
+  onClose: () => void;
+} & Props) => {
+  const [width, setWidth] = useState(0);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const calculateWidth = useCallback(() => {
+    const width = getPixelValue(drawerRef.current, "width");
+    const paddingLeft = getPixelValue(
+      document.querySelector(".rm-article-wrapper"),
+      "paddingLeft"
+    );
+    setWidth(width - paddingLeft);
+  }, [setWidth, drawerRef]);
+  useEffect(() => {
+    setTimeout(calculateWidth, 1);
+  }, [calculateWidth]);
+  const onMouseMove = useCallback(
+    (e: MouseEvent) => {
+      drawerRef.current.parentElement.style.width = `${Math.max(
+        e.clientX,
+        100
+      )}px`;
+      calculateWidth();
+    },
+    [calculateWidth, drawerRef]
+  );
+  const onMouseUp = useCallback(() => {
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  }, [onMouseMove]);
+  const onMouseDown = useCallback(() => {
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [onMouseMove, onMouseUp]);
+  return (
+    <Drawer
+      isOpen={true}
+      isCloseButtonShown
+      onClose={onClose}
+      position={Position.LEFT}
+      title={"Synthesis Query"}
+      hasBackdrop={false}
+      canOutsideClickClose={false}
+      canEscapeKeyClose
+      portalClassName={"roamjs-discourse-query-drawer"}
+      enforceFocus={false}
+    >
+      <style>{`
+.roam-article {
+  margin-left: ${width}px;
+}
+`}</style>
+      <div className={Classes.DRAWER_BODY} ref={drawerRef}>
+        <SynthesisQuery
+          blockUid={blockUid}
+          clearResultIcon={{ name: "hand-right", onClick: clearOnClick }}
+        />
+      </div>
+      <div
+        style={{
+          width: 4,
+          cursor: "ew-resize",
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+        }}
+        onMouseDown={onMouseDown}
+      />
+    </Drawer>
+  );
+};
+
+export const render = createOverlayRender<Props>(
+  "synthesis-query-drawer",
+  SynthesisQueryPane
+);
 
 export default SynthesisQuery;
