@@ -501,7 +501,34 @@ const RelationEditPanel = ({
       }),
     [ifTree, initialDestination, initialSource]
   );
-  const elementsRef = useRef(initialElements);
+  const elementsRef = useRef(
+    initialElements.length
+      ? initialElements
+      : [
+          [
+            {
+              data: {
+                id: "source",
+                node: initialSource,
+              },
+              position: {
+                x: 200,
+                y: 50,
+              },
+            },
+            {
+              data: {
+                id: "destination",
+                node: initialDestination,
+              },
+              position: {
+                x: 200,
+                y: 350,
+              },
+            },
+          ],
+        ]
+  );
   const saveCyToElementRef = useCallback(
     (t) => {
       const nodes = cyRef.current.nodes();
@@ -513,7 +540,9 @@ const RelationEditPanel = ({
     },
     [cyRef, elementsRef]
   );
-  const [tabs, setTabs] = useState(initialElements.map((_, i) => i));
+  const [tabs, setTabs] = useState(
+    initialElements.length ? initialElements.map((_, i) => i) : [0]
+  );
 
   useEffect(() => {
     cyRef.current?.destroy?.();
