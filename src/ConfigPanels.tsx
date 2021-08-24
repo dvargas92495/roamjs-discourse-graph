@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   H6,
   InputGroup,
@@ -178,7 +179,10 @@ const RelationEditPreview = ({ elements }: { elements: Triple[] }) => {
               )
               .map((e, i) => (
                 <span key={`with-text-${i}`}>
-                  <span>{i > 0 && ' '}{e.target}</span>
+                  <span>
+                    {i > 0 && " "}
+                    {e.target}
+                  </span>
                 </span>
               ))}
             {elements
@@ -303,6 +307,12 @@ const RelationEditPanel = ({
   const sourceRef = useRef<cytoscape.NodeSingular>(null);
   const editingRef = useRef<cytoscape.NodeSingular>(null);
   const blockClickRef = useRef(false);
+  const showBackWarning = useRef(false);
+  const unsavedChanges = useCallback(
+    () => (showBackWarning.current = true),
+    [showBackWarning]
+  );
+  const [backWarningOpen, setBackWarningOpen] = useState(false);
   const clearEditingRef = useCallback(() => {
     if (editingRef.current) {
       editingRef.current.style("border-width", 0);
@@ -367,6 +377,7 @@ const RelationEditPanel = ({
         clearSourceRef();
         if (e.originalEvent.ctrlKey) {
           cyRef.current.remove(edge);
+          unsavedChanges();
         } else {
           setSelectedRelation({
             display: "block",
@@ -378,7 +389,14 @@ const RelationEditPanel = ({
         }
       });
     },
-    [clearSourceRef, clearEditingRef, setSelectedRelation, cyRef, blockClickRef]
+    [
+      clearSourceRef,
+      clearEditingRef,
+      setSelectedRelation,
+      cyRef,
+      blockClickRef,
+      unsavedChanges,
+    ]
   );
   const nodeCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
@@ -392,6 +410,7 @@ const RelationEditPanel = ({
           clearSourceRef();
           clearEditingRef();
           cyRef.current.remove(n);
+          unsavedChanges();
         } else if (e.originalEvent.shiftKey) {
           clearEditingRef();
           if (sourceRef.current) {
@@ -441,6 +460,7 @@ const RelationEditPanel = ({
       clearEditingRef,
       clearSourceRef,
       blockClickRef,
+      unsavedChanges,
     ]
   );
   const ifTree = useMemo(
@@ -608,6 +628,7 @@ const RelationEditPanel = ({
         data: { id, node: `Block${id}` },
         position,
       });
+      unsavedChanges();
       nodeCallback(node);
       clearEditingRef();
       clearSourceRef();
@@ -625,6 +646,7 @@ const RelationEditPanel = ({
     edgeCallback,
     setSelectedRelation,
     tab,
+    unsavedChanges,
   ]);
   const [isPreview, setIsPreview] = useState(false);
   return (
@@ -637,7 +659,24 @@ const RelationEditPanel = ({
         }}
       >
         {editingRelationInfo.text}
-        <Button icon={"arrow-left"} minimal onClick={back} />
+        <Button
+          icon={"arrow-left"}
+          minimal
+          onClick={() =>
+            showBackWarning.current ? setBackWarningOpen(true) : back()
+          }
+        />
+        <Alert
+          cancelButtonText={"Cancel"}
+          confirmButtonText={"Confirm"}
+          onConfirm={back}
+          intent={Intent.WARNING}
+          isOpen={backWarningOpen}
+          onCancel={() => setBackWarningOpen(false)}
+        >
+          <b>Warning:</b> You have unsaved changes. Are you sure you want to go
+          back and discard these changes?
+        </Alert>
       </h3>
       <div style={{ display: "flex" }}>
         <Label style={{ flexGrow: 1 }}>
@@ -645,6 +684,7 @@ const RelationEditPanel = ({
           <MenuItemSelect
             activeItem={source}
             onItemSelect={(e) => {
+              unsavedChanges();
               setSource(e);
               (cyRef.current.nodes("#source") as NodeSingular).data("node", e);
             }}
@@ -656,6 +696,7 @@ const RelationEditPanel = ({
           <MenuItemSelect
             activeItem={destination}
             onItemSelect={(e) => {
+              unsavedChanges();
               setDestination(e);
               (cyRef.current.nodes("#destination") as NodeSingular).data(
                 "node",
@@ -669,7 +710,10 @@ const RelationEditPanel = ({
           Complement
           <InputGroup
             value={complement}
-            onChange={(e) => setComplement(e.target.value)}
+            onChange={(e) => {
+              unsavedChanges();
+              setComplement(e.target.value);
+            }}
           />
         </Label>
       </div>
@@ -708,6 +752,7 @@ const RelationEditPanel = ({
               ]);
               setTabs([...tabs, newId]);
               setTab(newId);
+              unsavedChanges();
             }}
           />
         </Tabs>
@@ -734,6 +779,7 @@ const RelationEditPanel = ({
                   `${editingRef.current.data("node")}${e.key}`
                 );
               }
+              unsavedChanges();
             }
           }}
         />
@@ -799,6 +845,7 @@ const RelationEditPanel = ({
                 const newTabs = tabs.filter((t) => t != tab);
                 setTabs(newTabs);
                 setTab(newTabs[0]);
+                unsavedChanges();
               }}
               style={{ marginRight: 8 }}
             />
