@@ -35,7 +35,9 @@ import {
 import { englishToDatalog, Panel } from "./util";
 
 export const NodeConfigPanel: Panel = ({ uid }) => {
-  const [nodes, setNodes] = useState(uid ? getShallowTreeByParentUid(uid) : []);
+  const [nodes, setNodes] = useState(() =>
+    uid ? getShallowTreeByParentUid(uid) : []
+  );
   const [node, setNode] = useState("");
   const [label, setLabel] = useState("");
   const [shortcut, setShortcut] = useState("");
@@ -44,7 +46,7 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
       <div style={{ display: "flex", marginBottom: 8 }}>
         <InputGroup
           value={node}
-          onChange={(e) => setNode(e.target.value)}
+          onChange={(e) => setNode(e.target.value.slice(0, 3).toUpperCase())}
           placeholder={"Node"}
           style={{ maxWidth: 100 }}
         />
@@ -56,7 +58,7 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
         />
         <InputGroup
           value={shortcut}
-          onChange={(e) => setShortcut(e.target.value)}
+          onChange={(e) => setShortcut(e.target.value.slice(-1).toUpperCase())}
           placeholder={"Shortcut"}
           style={{ maxWidth: 50 }}
         />
@@ -73,10 +75,12 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
                 children: [{ text: label }, { text: shortcut }],
               },
             });
-            setNodes([...nodes, { text: node, uid: valueUid }]);
-            setNode("");
-            setLabel("");
-            setShortcut("");
+            setTimeout(() => {
+              setNodes([...nodes, { text: node, uid: valueUid }]);
+              setNode("");
+              setLabel("");
+              setShortcut("");
+            }, 1);
           }}
         />
       </div>
