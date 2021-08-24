@@ -172,13 +172,21 @@ const RelationEditPreview = ({ elements }: { elements: Triple[] }) => {
         </div>
         <div className={"roam-block"}>
           <span>
-            Some block text
+            {elements
+              .filter(
+                (e) => /with text/i.test(e.relation) && e.source === b.source
+              )
+              .map((e, i) => (
+                <span key={`with-text-${i}`}>
+                  <span>{i > 0 && ' '}{e.target}</span>
+                </span>
+              ))}
             {elements
               .filter(
                 (e) => /references/i.test(e.relation) && e.source === b.source
               )
               .map((e, i) => (
-                <span key={i}>
+                <span key={`references-${i}`}>
                   <span> </span>
                   <span className="rm-page-ref__brackets">[[</span>
                   <span className={"rm-page-ref--link"}>
@@ -255,7 +263,7 @@ const RelationEditPreview = ({ elements }: { elements: Triple[] }) => {
             elements.reduce(
               (prev, cur) => {
                 if (
-                  [/has child/i, /references/i].some((r) =>
+                  [/has child/i, /references/i, /with text/i].some((r) =>
                     r.test(cur.relation)
                   )
                 ) {

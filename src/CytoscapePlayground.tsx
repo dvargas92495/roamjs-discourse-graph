@@ -25,6 +25,7 @@ import {
   getTreeByBlockUid,
   InputTextNode,
   openBlockInSidebar,
+  TreeNode,
   updateBlock,
 } from "roam-client";
 import { renderToast, setInputSetting, toFlexRegex } from "roamjs-components";
@@ -70,7 +71,7 @@ const NodeIcon = ({
 type Props = {
   title: string;
   previewEnabled: boolean;
-  globalRefs: {[key: string]: (...args: string[]) => void};
+  globalRefs: { [key: string]: (...args: string[]) => void };
 };
 
 const useTreeFieldUid = ({
@@ -527,7 +528,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
         { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
         coloredNodes.find((c) => c.text === m)?.color
       );
-    }
+    };
   }, [
     elementsUid,
     cyRef,
@@ -626,6 +627,12 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                     const targetUid = n.children.find((c) =>
                       toFlexRegex("target").test(c.text)
                     )?.children?.[0]?.text;
+                    const getNodeType = (t: TreeNode) =>
+                      nodeTypeByColor[
+                        (t?.children || []).find((s) =>
+                          toFlexRegex("color").test(s.text)
+                        )?.children?.[0]?.text
+                      ];
                     if (sourceUid && targetUid) {
                       const sourceNode = elementsTree.find(
                         (b) => b.uid === sourceUid
@@ -638,29 +645,29 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                       return {
                         source: {
                           text: sourceNode?.text || "",
-                          type: nodeTypeByColor[
-                            (sourceNode?.children || []).find((s) =>
-                              toFlexRegex("color").test(s.text)
-                            )?.children?.[0]?.text
-                          ],
+                          type: getNodeType(sourceNode),
                         },
                         target: {
                           text: targetNode?.text || "",
-                          type: nodeTypeByColor[
-                            (targetNode?.children || []).find((s) =>
-                              toFlexRegex("color").test(s.text)
-                            )?.children?.[0]?.text
-                          ],
+                          type: getNodeType(targetNode),
                         },
                         relation: n.text,
                       };
                     }
-                    return { node: n.text, uid: n.uid };
+                    return { node: n.text, uid: n.uid, type: getNodeType(n) };
                   })
                   .map((e) => {
                     if (!e.relation)
                       return connectedNodeUids.has(e.uid)
                         ? []
+                        : e.type === "TEX"
+                        ? [
+                            {
+                              source: "block",
+                              target: e.node,
+                              relation: "with text",
+                            },
+                          ]
                         : [
                             {
                               source: "block",
@@ -673,26 +680,29 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                               target: e.node,
                             },
                           ];
-                    const { triples, source, destination, label } =
-                      relationData.find(
-                        (r) =>
-                          (r.label === e.relation &&
-                            ["TEX", r.source].includes(e.source.type) &&
-                            ["TEX", r.destination].includes(e.target.type)) ||
-                          (r.complement === e.relation &&
-                            ["TEX", r.source].includes(e.target.type) &&
-                            ["TEX", r.destination].includes(e.source.type))
-                      );
+                    const found = relationData.find(
+                      (r) =>
+                        (r.label === e.relation &&
+                          ["TEX", r.source].includes(e.source.type) &&
+                          ["TEX", r.destination].includes(e.target.type)) ||
+                        (r.complement === e.relation &&
+                          ["TEX", r.source].includes(e.target.type) &&
+                          ["TEX", r.destination].includes(e.source.type))
+                    );
+                    if (!found) return [];
+                    const { triples, source, destination, label } = found;
                     const isOriginal = label === e.relation;
                     const newTriples = triples.map((t) => {
                       if (/is a/i.test(t[1])) {
-                        return [
-                          t[0],
-                          "has title",
+                        const targetNode =
                           (t[2] === source && isOriginal) ||
                           (t[2] === destination && !isOriginal)
-                            ? e.source.text
-                            : e.target.text,
+                            ? e.source
+                            : e.target;
+                        return [
+                          t[0],
+                          targetNode.type === "TEX" ? "with text" : "has title",
+                          targetNode.text,
                         ];
                       }
                       return t.slice(0);
@@ -708,15 +718,44 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                       triples.find(
                         (h) =>
                           h.source === source && /has title/i.test(h.relation)
-                      )?.target || source;
+                      )?.target;
+                    const blockReferences = new Set<{
+                      uid: string;
+                      text: string;
+                    }>();
                     const toBlock = (source: string): InputTextNode => ({
-                      text: `Some block text ${triples
-                        .filter(
-                          (e) =>
-                            /references/i.test(e.relation) &&
-                            e.source === source
-                        )
-                        .map((e) => ` [[${relationToTitle(e.target)}]]`)}`,
+                      text: `${[
+                        ...triples
+                          .filter(
+                            (e) =>
+                              /with text/i.test(e.relation) &&
+                              e.source === source
+                          )
+                          .map((e) => e.target),
+                        ...triples
+                          .filter(
+                            (e) =>
+                              /references/i.test(e.relation) &&
+                              e.source === source
+                          )
+                          .map((e) => {
+                            const title = relationToTitle(e.target);
+                            if (title)
+                              return `[[${relationToTitle(e.target)}]]`;
+                            const text = triples.find(
+                              (h) =>
+                                h.source === e.target &&
+                                /with text/i.test(h.relation)
+                            )?.target;
+                            if (text) {
+                              const uid =
+                                window.roamAlphaAPI.util.generateUID();
+                              blockReferences.add({ uid, text });
+                              return `((${uid}))`;
+                            }
+                            return "Invalid Reference Target";
+                          }),
+                      ].join(" ")}`,
                       children: [
                         ...triples
                           .filter(
@@ -743,7 +782,8 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                         }));
                       blocks
                         .map(toBlock)
-                        .map((node, order) =>
+                        .concat(Array.from(blockReferences))
+                        .forEach((node, order) =>
                           createBlock({ node, order, parentUid })
                         );
                       if (!recentlyOpened.has(parentUid)) {
@@ -766,7 +806,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                         {} as Record<string, string[]>
                       );
                       Object.entries(pages).forEach((p) =>
-                        toPage(relationToTitle(p[0]), p[1])
+                        toPage(relationToTitle(p[0]) || p[0], p[1])
                       );
                     } else {
                       toPage(
@@ -775,9 +815,12 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                           triples.reduce(
                             (prev, cur) => {
                               if (
-                                [/has child/i, /references/i].some((r) =>
-                                  r.test(cur.relation)
-                                )
+                                [
+                                  /has child/i,
+                                  /references/i,
+                                  ,
+                                  /with text/i,
+                                ].some((r) => r.test(cur.relation))
                               ) {
                                 if (!prev.leaves.has(cur.source)) {
                                   prev.roots.add(cur.source);

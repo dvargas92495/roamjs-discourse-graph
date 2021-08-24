@@ -196,6 +196,10 @@ const elToTitle = (e: Node): string => {
   }
 };
 
+const globalRefs: { [key: string]: (...args: string[]) => void } = {
+  clearOnClick: () => {},
+};
+
 createHTMLObserver({
   tag: "H1",
   className: "rm-title-display",
@@ -243,10 +247,6 @@ createHTMLObserver({
     }
   },
 });
-
-const globalRefs: { [key: string]: (...args: string[]) => void } = {
-  clearOnClick: () => {},
-};
 
 window.roamAlphaAPI.ui.commandPalette.addCommand({
   label: "Open Query Drawer",

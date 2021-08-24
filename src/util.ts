@@ -337,6 +337,7 @@ export const englishToDatalog: {
     `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
   "has parent": (src, dest) =>
     `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
+  "with text": (src, dest) => `[${freeVar(src)} :block/string "${dest}"]`
 };
 
 export const triplesToQuery = (t: string[][]): string =>
