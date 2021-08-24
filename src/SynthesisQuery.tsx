@@ -178,6 +178,16 @@ const SynthesisQuery = ({
     [NODE_LABELS]
   );
   const tree = useMemo(() => getShallowTreeByParentUid(blockUid), [blockUid]);
+  const parentUid = useMemo(
+    () =>
+      tree.find((t) => toFlexRegex("conditions").test(t.text))?.uid ||
+      createBlock({
+        parentUid: blockUid,
+        node: { text: "Conditions" },
+        order: 1,
+      }),
+    [blockUid, tree]
+  );
   const [activeMatch, setActiveMatch] = useState(() =>
     getFirstChildTextByBlockUid(
       tree.find((t) => toFlexRegex("match").test(t.text))?.uid || ""
@@ -208,7 +218,7 @@ const SynthesisQuery = ({
   const [pinned, setPinned] = useState(
     tree.find((t) => toFlexRegex("pinned").test(t.text))?.uid
   );
-  const [clearedResults, setClearedResults] = useState(
+  const [clearedResults, setClearedResults] = useState(() =>
     pinned
       ? new Set(getShallowTreeByParentUid(pinned).map((t) => t.text))
       : new Set()
@@ -317,15 +327,6 @@ const SynthesisQuery = ({
           rightIcon={"plus"}
           text={"Add Condition"}
           onClick={() => {
-            const parentUid =
-              getShallowTreeByParentUid(blockUid).find((t) =>
-                toFlexRegex("conditions").test(t.text)
-              )?.uid ||
-              createBlock({
-                parentUid: blockUid,
-                node: { text: "Conditions" },
-                order: 1,
-              });
             const uid = createBlock({
               parentUid,
               order: conditions.length,
