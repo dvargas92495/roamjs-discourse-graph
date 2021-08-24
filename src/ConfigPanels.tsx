@@ -636,6 +636,8 @@ const RelationEditPanel = ({
     });
     cyRef.current.nodes().forEach(nodeCallback);
     cyRef.current.edges().forEach(edgeCallback);
+    cyRef.current.nodes(`#source`).style("background-color", "darkblue");
+    cyRef.current.nodes(`#destination`).style("background-color", "darkred");
   }, [
     cyRef,
     containerRef,
@@ -679,7 +681,7 @@ const RelationEditPanel = ({
         </Alert>
       </h3>
       <div style={{ display: "flex" }}>
-        <Label style={{ flexGrow: 1 }}>
+        <Label style={{ flexGrow: 1, color: "darkblue" }}>
           Source
           <MenuItemSelect
             activeItem={source}
@@ -689,9 +691,10 @@ const RelationEditPanel = ({
               (cyRef.current.nodes("#source") as NodeSingular).data("node", e);
             }}
             items={nodes}
+            ButtonProps={{ style: { color: "darkblue" } }}
           />
         </Label>
-        <Label style={{ flexGrow: 1 }}>
+        <Label style={{ flexGrow: 1, color: "darkred" }}>
           Destination
           <MenuItemSelect
             activeItem={destination}
@@ -704,6 +707,7 @@ const RelationEditPanel = ({
               );
             }}
             items={nodes}
+            ButtonProps={{ style: { color: "darkred" } }}
           />
         </Label>
         <Label style={{ flexGrow: 1 }}>
