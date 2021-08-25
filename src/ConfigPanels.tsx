@@ -785,6 +785,8 @@ const RelationEditPanel = ({
                   "node",
                   `${editingRef.current.data("node")}${e.key}`
                 );
+              } else if (e.key === " ") {
+                e.preventDefault();
               }
               unsavedChanges();
             }

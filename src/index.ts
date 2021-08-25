@@ -72,7 +72,7 @@ addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
   position: relative;
 }
 
-.roamjs-discourse-edit-relations:focus {
+.roamjs-discourse-edit-relations > div:focus {
   outline: none;
 }
 
