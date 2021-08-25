@@ -294,11 +294,18 @@ export const getRelations = () =>
       tree.find((i) => toFlexRegex("if").test(i.text))?.children || []
     ).map((c) => ({
       ...data,
-      triples: c.children.map((t) => [
-        t.text,
-        t.children[0]?.text,
-        t.children[0]?.children?.[0]?.text || "",
-      ]),
+      triples: c.children.map((t) => {
+        const target = t.children[0]?.children?.[0]?.text || "";
+        return [
+          t.text,
+          t.children[0]?.text,
+          target === "source"
+            ? data.source
+            : target === "destination"
+            ? data.destination
+            : target,
+        ];
+      }),
     }));
   });
 
@@ -337,7 +344,7 @@ export const englishToDatalog: {
     `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
   "has parent": (src, dest) =>
     `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
-  "with text": (src, dest) => `[${freeVar(src)} :block/string "${dest}"]`
+  "with text": (src, dest) => `[${freeVar(src)} :block/string "${dest}"]`,
 };
 
 export const triplesToQuery = (t: string[][]): string =>

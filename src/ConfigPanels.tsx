@@ -406,7 +406,10 @@ const RelationEditPanel = ({
         }
         e.stopPropagation();
         setSelectedRelation(DEFAULT_SELECTED_RELATION);
-        if (e.originalEvent.ctrlKey) {
+        if (
+          e.originalEvent.ctrlKey &&
+          ["source", "destination"].includes(n.id())
+        ) {
           clearSourceRef();
           clearEditingRef();
           cyRef.current.remove(n);
@@ -433,7 +436,7 @@ const RelationEditPanel = ({
               }
             }
             clearSourceRef();
-          } else {
+          } else if (!["source", "destination"].includes(n.id())) {
             n.style("background-color", "#000000");
             n.lock();
             sourceRef.current = n;
@@ -472,12 +475,13 @@ const RelationEditPanel = ({
   const initialElements = useMemo(
     () =>
       ifTree.map((andTree) => {
+        const initialNodes = [initialSource, initialDestination, "source", "destination"];
         const { nodes, edges } = andTree.children.reduce(
           ({ nodes, edges }, node) => {
             const source = node.text;
-            nodes.add(source);
+            if (!initialNodes.includes(source)) nodes.add(source);
             const target = node.children[0]?.children?.[0]?.text || "";
-            nodes.add(target);
+            if (!initialNodes.includes(target)) nodes.add(target);
             edges.add({
               source,
               target,
@@ -486,7 +490,7 @@ const RelationEditPanel = ({
             return { nodes, edges };
           },
           {
-            nodes: new Set([initialSource, initialDestination]),
+            nodes: new Set(),
             edges: new Set<{
               source: string;
               target: string;
@@ -494,28 +498,27 @@ const RelationEditPanel = ({
             }>(),
           }
         );
-        const elementNodes = Array.from(nodes).map((node, i, all) => ({
-          data: {
-            id:
-              node === initialSource
-                ? "source"
-                : node === initialDestination
-                ? "destination"
-                : (idRef.current++).toString(),
-            node,
-          },
-          position: {
-            x: Math.sin((2 * Math.PI * i) / all.length) * 150 + 200,
-            y: Math.cos((2 * Math.PI * i) / all.length) * 150 + 200,
-          },
-        }));
+        const elementNodes = Array.from(nodes)
+          .map((node) => ({ id: (idRef.current++).toString(), node }))
+          .concat([
+            { id: "source", node: initialSource },
+            { id: "destination", node: initialDestination },
+          ])
+          .map((data, i, all) => ({
+            data,
+            position: {
+              x: Math.sin((2 * Math.PI * i) / all.length) * 150 + 200,
+              y: Math.cos((2 * Math.PI * i) / all.length) * 150 + 200,
+            },
+          }));
         return [
           ...elementNodes,
           ...Array.from(edges).map(({ source, target, relation }) => {
             const sourceId = elementNodes.find((n) => n.data.node === source)
               ?.data?.id;
-            const targetId = elementNodes.find((n) => n.data.node === target)
-              ?.data?.id;
+            const targetId = ["source", "destination"].includes(target)
+              ? target
+              : elementNodes.find((n) => n.data.node === target)?.data?.id;
             return {
               data: {
                 id: `${sourceId}-${targetId}`,
@@ -917,10 +920,12 @@ const RelationEditPanel = ({
                         text: relation,
                         children: [
                           {
-                            text: (
-                              elements.find((e) => e.data.id === target)
-                                ?.data as { node: string }
-                            )?.node,
+                            text: ["source", "destination"].includes(target)
+                              ? target
+                              : (
+                                  elements.find((e) => e.data.id === target)
+                                    ?.data as { node: string }
+                                )?.node,
                           },
                         ],
                       },
