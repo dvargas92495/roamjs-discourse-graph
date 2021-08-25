@@ -408,7 +408,7 @@ const RelationEditPanel = ({
         setSelectedRelation(DEFAULT_SELECTED_RELATION);
         if (
           e.originalEvent.ctrlKey &&
-          ["source", "destination"].includes(n.id())
+          !["source", "destination"].includes(n.id())
         ) {
           clearSourceRef();
           clearEditingRef();
