@@ -7,6 +7,8 @@ import {
   Label,
   Menu,
   MenuItem,
+  Spinner,
+  SpinnerSize,
   Tab,
   Tabs,
 } from "@blueprintjs/core";
@@ -475,7 +477,12 @@ const RelationEditPanel = ({
   const initialElements = useMemo(
     () =>
       ifTree.map((andTree) => {
-        const initialNodes = [initialSource, initialDestination, "source", "destination"];
+        const initialNodes = [
+          initialSource,
+          initialDestination,
+          "source",
+          "destination",
+        ];
         const { nodes, edges } = andTree.children.reduce(
           ({ nodes, edges }, node) => {
             const source = node.text;
@@ -654,6 +661,7 @@ const RelationEditPanel = ({
     unsavedChanges,
   ]);
   const [isPreview, setIsPreview] = useState(false);
+  const [loading, setLoading] = useState(false);
   return (
     <>
       <h3
@@ -666,6 +674,7 @@ const RelationEditPanel = ({
         {editingRelationInfo.text}
         <Button
           icon={"arrow-left"}
+          disabled={loading}
           minimal
           onClick={() =>
             showBackWarning.current ? setBackWarningOpen(true) : back()
@@ -738,6 +747,7 @@ const RelationEditPanel = ({
           <Button
             icon={"plus"}
             minimal
+            disabled={loading}
             onClick={() => {
               const newId = (tabs.slice(-1)[0] || 0) + 1;
               saveCyToElementRef(tab);
@@ -850,6 +860,7 @@ const RelationEditPanel = ({
             <Button
               minimal
               icon={"trash"}
+              disabled={loading}
               onClick={() => {
                 const newTabs = tabs.filter((t) => t != tab);
                 setTabs(newTabs);
@@ -863,87 +874,95 @@ const RelationEditPanel = ({
             minimal
             icon={isPreview ? "edit" : "eye-open"}
             onClick={() => setIsPreview(!isPreview)}
+            disabled={loading}
           />
         </div>
       </div>
-      <Button
-        text={"Save"}
-        intent={Intent.PRIMARY}
-        style={{ marginTop: 10 }}
-        onClick={() => {
-          const rootUid = editingRelationInfo.uid;
-          setInputSetting({
-            blockUid: rootUid,
-            key: "source",
-            value: source,
-          });
-          setInputSetting({
-            blockUid: rootUid,
-            key: "destination",
-            value: destination,
-            index: 1,
-          });
-          setInputSetting({
-            blockUid: rootUid,
-            key: "complement",
-            value: complement,
-            index: 2,
-          });
-          const ifUid =
-            editingRelationInfo.children.find((t) =>
-              toFlexRegex("if").test(t.text)
-            )?.uid ||
-            createBlock({
-              node: { text: "If" },
-              parentUid: rootUid,
-              order: 3,
-            });
-          saveCyToElementRef(tab);
-          const blocks = tabs
-            .map((t) => elementsRef.current[t])
-            .map((elements) => ({
-              text: "And",
-              children: elements
-                .filter((e) => e.data.id.includes("-"))
-                .map((e) => {
-                  const { source, target, relation } = e.data as {
-                    source: string;
-                    target: string;
-                    relation: string;
-                  };
-                  return {
-                    text: (
-                      elements.find((e) => e.data.id === source)?.data as {
-                        node: string;
-                      }
-                    )?.node,
-                    children: [
-                      {
-                        text: relation,
+      <div style={{ display: "flex" }}>
+        <Button
+          text={"Save"}
+          intent={Intent.PRIMARY}
+          disabled={loading}
+          style={{ marginTop: 10, marginRight: 16 }}
+          onClick={() => {
+            setLoading(true);
+            setTimeout(() => {
+              const rootUid = editingRelationInfo.uid;
+              setInputSetting({
+                blockUid: rootUid,
+                key: "source",
+                value: source,
+              });
+              setInputSetting({
+                blockUid: rootUid,
+                key: "destination",
+                value: destination,
+                index: 1,
+              });
+              setInputSetting({
+                blockUid: rootUid,
+                key: "complement",
+                value: complement,
+                index: 2,
+              });
+              const ifUid =
+                editingRelationInfo.children.find((t) =>
+                  toFlexRegex("if").test(t.text)
+                )?.uid ||
+                createBlock({
+                  node: { text: "If" },
+                  parentUid: rootUid,
+                  order: 3,
+                });
+              saveCyToElementRef(tab);
+              const blocks = tabs
+                .map((t) => elementsRef.current[t])
+                .map((elements) => ({
+                  text: "And",
+                  children: elements
+                    .filter((e) => e.data.id.includes("-"))
+                    .map((e) => {
+                      const { source, target, relation } = e.data as {
+                        source: string;
+                        target: string;
+                        relation: string;
+                      };
+                      return {
+                        text: (
+                          elements.find((e) => e.data.id === source)?.data as {
+                            node: string;
+                          }
+                        )?.node,
                         children: [
                           {
-                            text: ["source", "destination"].includes(target)
-                              ? target
-                              : (
-                                  elements.find((e) => e.data.id === target)
-                                    ?.data as { node: string }
-                                )?.node,
+                            text: relation,
+                            children: [
+                              {
+                                text: ["source", "destination"].includes(target)
+                                  ? target
+                                  : (
+                                      elements.find((e) => e.data.id === target)
+                                        ?.data as { node: string }
+                                    )?.node,
+                              },
+                            ],
                           },
                         ],
-                      },
-                    ],
-                  };
-                }),
-            }));
-          getShallowTreeByParentUid(ifUid).forEach(({ uid }) =>
-            deleteBlock(uid)
-          );
-          blocks.forEach((block, order) =>
-            createBlock({ parentUid: ifUid, node: block, order })
-          );
-          setTimeout(back, 1);
-        }}
-      />
+                      };
+                    }),
+                }));
+              getShallowTreeByParentUid(ifUid).forEach(({ uid }) =>
+                deleteBlock(uid)
+              );
+              blocks.forEach((block, order) =>
+                createBlock({ parentUid: ifUid, node: block, order })
+              );
+              setTimeout(back, 1);
+            }, 1);
+          }}
+        />
+        {loading && <Spinner size={SpinnerSize.SMALL} />}
+      </div>
     </>
   );
 };
