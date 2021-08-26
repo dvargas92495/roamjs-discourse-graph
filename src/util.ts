@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createBlock,
   getCurrentUserDisplayName,
@@ -29,6 +30,14 @@ export const getQueryUid = () =>
   treeRef.tree.find((t) => toFlexRegex("query").test(t.text))?.uid ||
   createBlock({
     node: { text: "query" },
+    parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
+    order: 3,
+  });
+
+export const getQueriesUid = () =>
+  treeRef.tree.find((t) => toFlexRegex("queries").test(t.text))?.uid ||
+  createBlock({
+    node: { text: "queries" },
     parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
     order: 3,
   });
@@ -310,7 +319,9 @@ export const getRelations = () =>
   });
 
 export const getRelationLabels = (relations = getRelations()) =>
-  Array.from(new Set(relations.flatMap((r) => [r.label, r.complement])));
+  Array.from(new Set(relations.flatMap((r) => [r.label, r.complement]))).filter(
+    (s) => !!s
+  );
 
 export const getRelationTriples = (relations = getRelations()) =>
   Array.from(

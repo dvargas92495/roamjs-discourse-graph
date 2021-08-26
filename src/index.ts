@@ -1,12 +1,10 @@
 import {
   addStyle,
   createBlock,
-  createButtonObserver,
   createHTMLObserver,
   getChildrenLengthByPageUid,
   getCurrentPageUid,
   getDisplayNameByUid,
-  getPageTitleByBlockUid,
   getPageTitleByHtmlElement,
   getPageTitleByPageUid,
   getTextByBlockUid,
@@ -17,6 +15,7 @@ import { createConfigObserver, toFlexRegex } from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
+import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
@@ -24,6 +23,7 @@ import { render as notificationRender } from "./NotificationIcon";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  getQueriesUid,
   getQueryUid,
   getSubscribedBlocks,
   getUserIdentifier,
@@ -76,12 +76,12 @@ addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
   outline: none;
 }
 
-.roamjs-discourse-query-drawer > .bp3-overlay,
+.roamjs-discourse-drawer > .bp3-overlay,
 .roamjs-discourse-notification-drawer > .bp3-overlay {
   pointer-events: none;
 }
 
-div.roamjs-discourse-query-drawer div.bp3-drawer,
+div.roamjs-discourse-drawer div.bp3-drawer,
 div.roamjs-discourse-notification-drawer div.bp3-drawer {
   pointer-events: all;
   width: 40%;
@@ -106,6 +106,10 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roam-main {
   position: relative;
+}
+
+.roamjs-discourse-condition-relation {
+  min-width: 160px;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
@@ -248,36 +252,46 @@ createHTMLObserver({
   },
 });
 
+const clearOnClick = (tag: string, nodeType: string) => {
+  const uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
+  const text = `[[${tag}]]`;
+  if (uid) {
+    const currentText = getTextByBlockUid(uid);
+    setTimeout(
+      () =>
+        updateBlock({
+          text: `${currentText} ${text}`,
+          uid,
+        }),
+      1
+    );
+  } else {
+    const parentUid = getCurrentPageUid();
+    const pageTitle = getPageTitleByPageUid(parentUid);
+    if (pageTitle.startsWith("Playground")) {
+      globalRefs.clearOnClick(tag, nodeType);
+    } else {
+      const order = getChildrenLengthByPageUid(parentUid);
+      createBlock({ parentUid, node: { text }, order });
+    }
+  }
+};
+
 window.roamAlphaAPI.ui.commandPalette.addCommand({
   label: "Open Query Drawer",
   callback: () =>
     synthesisRender({
       blockUid: getQueryUid(),
-      clearOnClick: (tag, n) => {
-        const uid =
-          window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
-        const text = `[[${tag}]]`;
-        if (uid) {
-          const currentText = getTextByBlockUid(uid);
-          setTimeout(
-            () =>
-              updateBlock({
-                text: `${currentText} ${text}`,
-                uid,
-              }),
-            1
-          );
-        } else {
-          const parentUid = getCurrentPageUid();
-          const pageTitle = getPageTitleByPageUid(parentUid);
-          if (pageTitle.startsWith("Playground")) {
-            globalRefs.clearOnClick(tag, n);
-          } else {
-            const order = getChildrenLengthByPageUid(parentUid);
-            createBlock({ parentUid, node: { text }, order });
-          }
-        }
-      },
+      clearOnClick,
+    }),
+});
+
+window.roamAlphaAPI.ui.commandPalette.addCommand({
+  label: "Open Queries Drawer",
+  callback: () =>
+    queryRender({
+      blockUid: getQueriesUid(),
+      clearOnClick,
     }),
 });
 

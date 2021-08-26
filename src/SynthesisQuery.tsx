@@ -26,7 +26,6 @@ import {
   openBlockInSidebar,
 } from "roam-client";
 import {
-  createComponentRender,
   createOverlayRender,
   MenuItemSelect,
   PageInput,
@@ -38,9 +37,9 @@ import {
   getRelations,
   getRelationLabels,
   triplesToQuery,
-  getPixelValue,
 } from "./util";
 import { render as exportRender } from "./ExportDialog";
+import ResizableDrawer from "./ResizableDrawer";
 
 type Condition = {
   relation: string;
@@ -79,6 +78,7 @@ const QueryCondition = ({
       ref={containerRef}
     >
       <Switch
+        style={{ minWidth: 76 }}
         labelElement={
           <span style={{ minWidth: 36, width: 36, display: "inline-block" }}>
             {con.that ? "That" : "Not"}
@@ -100,6 +100,9 @@ const QueryCondition = ({
         }}
       />
       <MenuItemSelect
+        popoverProps={{
+          className: "roamjs-discourse-condition-relation",
+        }}
         activeItem={con.relation}
         onItemSelect={(relation) => {
           setInputSetting({
@@ -118,8 +121,8 @@ const QueryCondition = ({
         emptyValueText={"Choose relationship"}
         ButtonProps={{
           style: {
-            minWidth: 180,
-            width: 180,
+            minWidth: 144,
+            width: 144,
             margin: "0 8px",
             display: "flex",
             justifyContent: "space-between",
@@ -295,12 +298,18 @@ const SynthesisQuery = ({
     setInitialLoad(false);
   }, [pinned, setInitialLoad, initialLoad, fireQuery]);
   const relationLabels = useMemo(
-    () => getRelationLabels(relations),
-    [relations]
+    () =>
+      getRelationLabels(
+        relations.filter(
+          (r) =>
+            r.source === NODE_LABEL_ABBR_BY_TEXT[activeMatch] ||
+            r.destination === NODE_LABEL_ABBR_BY_TEXT[activeMatch]
+        )
+      ),
+    [relations, activeMatch]
   );
   return (
-    <Card>
-      <H3>Synthesis</H3>
+    <>
       <Label>
         Match
         <MenuItemSelect
@@ -468,7 +477,7 @@ const SynthesisQuery = ({
           )}
         </>
       )}
-    </Card>
+    </>
   );
 };
 
@@ -484,73 +493,13 @@ const SynthesisQueryPane = ({
 }: {
   onClose: () => void;
 } & Props) => {
-  const [width, setWidth] = useState(0);
-  const drawerRef = useRef<HTMLDivElement>(null);
-  const calculateWidth = useCallback(() => {
-    const width = getPixelValue(drawerRef.current, "width");
-    const paddingLeft = getPixelValue(
-      document.querySelector(".rm-article-wrapper"),
-      "paddingLeft"
-    );
-    setWidth(width - paddingLeft);
-  }, [setWidth, drawerRef]);
-  useEffect(() => {
-    setTimeout(calculateWidth, 1);
-  }, [calculateWidth]);
-  const onMouseMove = useCallback(
-    (e: MouseEvent) => {
-      drawerRef.current.parentElement.style.width = `${Math.max(
-        e.clientX,
-        100
-      )}px`;
-      calculateWidth();
-    },
-    [calculateWidth, drawerRef]
-  );
-  const onMouseUp = useCallback(() => {
-    document.removeEventListener("mousemove", onMouseMove);
-    document.removeEventListener("mouseup", onMouseUp);
-  }, [onMouseMove]);
-  const onMouseDown = useCallback(() => {
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, [onMouseMove, onMouseUp]);
   return (
-    <Drawer
-      isOpen={true}
-      isCloseButtonShown
-      onClose={onClose}
-      position={Position.LEFT}
-      title={"Synthesis Query"}
-      hasBackdrop={false}
-      canOutsideClickClose={false}
-      canEscapeKeyClose
-      portalClassName={"roamjs-discourse-query-drawer"}
-      enforceFocus={false}
-    >
-      <style>{`
-.roam-article {
-  margin-left: ${width}px;
-}
-`}</style>
-      <div className={Classes.DRAWER_BODY} ref={drawerRef}>
-        <SynthesisQuery
-          blockUid={blockUid}
-          clearResultIcon={{ name: "hand-right", onClick: clearOnClick }}
-        />
-      </div>
-      <div
-        style={{
-          width: 4,
-          cursor: "ew-resize",
-          position: "absolute",
-          top: 0,
-          right: 0,
-          bottom: 0,
-        }}
-        onMouseDown={onMouseDown}
+    <ResizableDrawer onClose={onClose} title={"Synthesis Query"}>
+      <SynthesisQuery
+        blockUid={blockUid}
+        clearResultIcon={{ name: "hand-right", onClick: clearOnClick }}
       />
-    </Drawer>
+    </ResizableDrawer>
   );
 };
 
