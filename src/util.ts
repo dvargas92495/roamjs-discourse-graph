@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createBlock,
+  getBasicTreeByParentUid,
   getCurrentUserDisplayName,
   getCurrentUserUid,
   getDisplayNameByUid,
+  getPageTitleByPageUid,
   getPageUidByPageTitle,
   getTreeByPageName,
   InputTextNode,
+  RoamBasicNode,
   TextNode,
   TreeNode,
 } from "roam-client";
@@ -17,10 +19,10 @@ export type Panel = (props: {
   parentUid: string;
 }) => React.ReactElement;
 
-let treeRef: { tree: TreeNode[] } = { tree: [] };
+let treeRef: { tree: RoamBasicNode[] } = { tree: [] };
 
 export const refreshConfigTree = () =>
-  (treeRef.tree = getTreeByPageName("roam/js/discourse-graph"));
+  (treeRef.tree = getBasicTreeByParentUid(getPageUidByPageTitle("roam/js/discourse-graph")));
 
 export const getSubscribedBlocks = () =>
   treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
@@ -308,11 +310,7 @@ export const getRelations = () =>
         return [
           t.text,
           t.children[0]?.text,
-          target === "source"
-            ? data.source
-            : target === "destination"
-            ? data.destination
-            : target,
+          target,
         ];
       }),
     }));

@@ -450,10 +450,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
             color = TEXT_COLOR,
             ...data
           } = Object.fromEntries(
-            children.map(({ text, children = [] }) => [
-              text,
-              children[0]?.text,
-            ])
+            children.map(({ text, children = [] }) => [text, children[0]?.text])
           );
           return {
             data: {
@@ -693,13 +690,15 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                           ["TEX", r.destination].includes(e.source.type))
                     );
                     if (!found) return [];
-                    const { triples, source, destination, label } = found;
+                    const { triples, label, source, destination } = found;
                     const isOriginal = label === e.relation;
                     const newTriples = triples.map((t) => {
                       if (/is a/i.test(t[1])) {
                         const targetNode =
-                          (t[2] === source && isOriginal) ||
-                          (t[2] === destination && !isOriginal)
+                          ((t[2] === "source" || t[2] === source) &&
+                            isOriginal) ||
+                          ((t[2] === "destination" || t[2] === destination) &&
+                            !isOriginal)
                             ? e.source
                             : e.target;
                         return [

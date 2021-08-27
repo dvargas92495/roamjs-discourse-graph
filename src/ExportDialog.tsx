@@ -131,7 +131,10 @@ const ExportDialog = ({
           />
         </Label>
         {fromQuery && (
-          <span>Exporting {fromQuery.results.length + fromQuery.conditions.length} Pages</span>
+          <span>
+            Exporting {fromQuery.results.length + fromQuery.conditions.length}{" "}
+            Pages
+          </span>
         )}
       </div>
       <div className={Classes.DIALOG_FOOTER}>
@@ -194,11 +197,23 @@ const ExportDialog = ({
                         window.roamAlphaAPI
                           .q(
                             `[:find ?source-uid ?dest-uid :where [?${
-                              s.triples.find((t) => t[2] === s.source)[0]
+                              s.triples.find(
+                                (t) => t[2] === "source" || t[2] === s.source
+                              )[0]
                             } :block/uid ?source-uid] [?${
-                              s.triples.find((t) => t[2] === s.destination)[0]
+                              s.triples.find(
+                                (t) =>
+                                  t[2] === "destination" ||
+                                  t[2] === s.destination
+                              )[0]
                             } :block/uid ?dest-uid] ${triplesToQuery(
-                              s.triples
+                              s.triples.map((t) =>
+                                t[2] === "source"
+                                  ? [t[0], t[1], s.source]
+                                  : t[2] === "destination"
+                                  ? [t[0], t[1], s.destination]
+                                  : t
+                              )
                             )}]`
                           )
                           .map(

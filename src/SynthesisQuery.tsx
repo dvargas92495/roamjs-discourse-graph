@@ -247,19 +247,24 @@ const SynthesisQuery = ({
             )
             .map(({ triples, source, destination, label, complement }) => {
               const queryTriples = triples.map((t) => t.slice(0));
-              const sourceTriple = queryTriples.find((t) => t[2] === source);
-              const destinationTriple = queryTriples.find(
-                (t) => t[2] === destination
+              const sourceTriple = queryTriples.find(
+                (t) => t[2] === "source" || t[2] === source
               );
+              const destinationTriple = queryTriples.find(
+                (t) => t[2] === "destination" || t[2] === destination
+              );
+              if (!sourceTriple || !destinationTriple) return new Set<string>();
               let nodeVar;
               if (label === relation) {
                 nodeVar = sourceTriple[0];
                 destinationTriple[1] = "Has Title";
                 destinationTriple[2] = predicate;
+                sourceTriple[2] = source;
               } else if (complement === relation) {
                 nodeVar = destinationTriple[0];
                 sourceTriple[1] = "Has Title";
                 sourceTriple[2] = predicate;
+                destinationTriple[2] = destination;
               }
               const subQuery = triplesToQuery(queryTriples);
               const condition = that
