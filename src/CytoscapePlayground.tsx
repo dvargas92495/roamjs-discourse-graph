@@ -19,26 +19,22 @@ import {
   createBlock,
   createPage,
   deleteBlock,
-  getFirstChildTextByBlockUid,
+  getAllPageNames,
+  getBasicTreeByParentUid,
   getPageUidByPageTitle,
-  getShallowTreeByParentUid,
   getTreeByBlockUid,
   InputTextNode,
   openBlockInSidebar,
+  RoamBasicNode,
   TreeNode,
   updateBlock,
 } from "roam-client";
 import { renderToast, setInputSetting, toFlexRegex } from "roamjs-components";
-import SynthesisQuery from "./SynthesisQuery";
 import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
-import {
-  getNodes,
-  getPixelValue,
-  getRelations,
-  getRelationTriples,
-} from "./util";
+import { getNodes, getRelations, getRelationTriples } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
+import fuzzy from "fuzzy";
 
 const NodeIcon = ({
   shortcut,
@@ -81,14 +77,14 @@ const useTreeFieldUid = ({
 }: {
   parentUid: string;
   field: string;
-  tree: { text: string; uid: string }[];
+  tree: RoamBasicNode[];
 }) =>
-  useMemo(
-    () =>
-      tree.find((t) => toFlexRegex(field).test(t.text))?.uid ||
-      createBlock({ node: { text: field }, parentUid }),
-    [tree, field, parentUid]
-  );
+  useMemo(() => {
+    const node = tree.find((t) => toFlexRegex(field).test(t.text));
+    const uid = node?.uid || createBlock({ node: { text: field }, parentUid });
+    const children = node?.children || [];
+    return [uid, children] as const;
+  }, [tree, field, parentUid]);
 
 const DEFAULT_SELECTED_RELATION = {
   display: "none",
@@ -114,6 +110,7 @@ const TEXT_COLOR = "888888";
 
 const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
+  const allPages = useMemo(getAllPageNames, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowInputRef = useRef<HTMLInputElement>(null);
   const cyRef = useRef<cytoscape.Core>(null);
@@ -142,6 +139,17 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
   const [selectedNode, setSelectedNode] = useState(
     coloredNodes[coloredNodes.length - 1]
   );
+  const [editingNodeValue, setEditingNodeValue] = useState("");
+  const filteredPages = useMemo(
+    () =>
+      editingNodeValue
+        ? fuzzy
+            .filter(editingNodeValue, allPages)
+            .slice(0, 5)
+            .map((p) => p.original)
+        : [],
+    [allPages, editingNodeValue]
+  );
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const nodeColorRef = useRef(selectedNode.color);
   const clearEditingRef = useCallback(() => {
@@ -151,8 +159,9 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
         editingRef.current.unlock();
       }
       editingRef.current = null;
+      setEditingNodeValue("");
     }
-  }, [editingRef]);
+  }, [editingRef, setEditingNodeValue]);
   const clearSourceRef = useCallback(() => {
     if (sourceRef.current) {
       sourceRef.current.style(
@@ -193,16 +202,11 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
     }
     return allRelations;
   }, [allRelations, selectedRelation, cyRef, nodeTypeByColor]);
-  const tree = useMemo(() => getShallowTreeByParentUid(pageUid), [pageUid]);
-  const elementsUid = useTreeFieldUid({
+  const tree = useMemo(() => getBasicTreeByParentUid(pageUid), [pageUid]);
+  const [elementsUid, elementsChildren] = useTreeFieldUid({
     tree,
     parentUid: pageUid,
     field: "elements",
-  });
-  const queryUid = useTreeFieldUid({
-    tree,
-    parentUid: pageUid,
-    field: "query",
   });
   const edgeCallback = useCallback(
     (edge: cytoscape.EdgeSingular) => {
@@ -363,6 +367,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
             shadowInputRef.current.style.left = `${
               (e.position.x - x1) * zoom
             }px`;
+            setEditingNodeValue(n.data("label"));
             n.style("border-width", 4);
           }
         }
@@ -438,16 +443,16 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
     cyRef.current = cytoscape({
       container: containerRef.current,
       elements: [
-        ...getShallowTreeByParentUid(elementsUid).map(({ text, uid }) => {
+        ...elementsChildren.map(({ text, uid, children = [] }) => {
           const {
             x = "0",
             y = "0",
             color = TEXT_COLOR,
             ...data
           } = Object.fromEntries(
-            getShallowTreeByParentUid(uid).map(({ text, uid }) => [
+            children.map(({ text, children = [] }) => [
               text,
-              getFirstChildTextByBlockUid(uid),
+              children[0]?.text,
             ])
           );
           return {
@@ -507,9 +512,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
       if (!editingRef.current && !sourceRef.current) {
         const nodeType = nodeTypeByColor[nodeColorRef.current];
         createNode(
-          `${
-            nodeType === "TEX" ? "" : `[[${nodeType}]] - `
-          }Click to edit block`,
+          nodeType === "TEX" ? "" : `[[${nodeType}]] - `,
           e.position,
           nodeColorRef.current
         );
@@ -614,7 +617,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
               style={{ marginLeft: 8 }}
               icon={"export"}
               onClick={() => {
-                const elementsTree = getTreeByBlockUid(elementsUid).children;
+                const elementsTree = getBasicTreeByParentUid(elementsUid);
                 const relationData = getRelations();
                 const recentPageRef: Record<string, string> = {};
                 const recentlyOpened = new Set<string>();
@@ -627,7 +630,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                     const targetUid = n.children.find((c) =>
                       toFlexRegex("target").test(c.text)
                     )?.children?.[0]?.text;
-                    const getNodeType = (t: TreeNode) =>
+                    const getNodeType = (t: RoamBasicNode) =>
                       nodeTypeByColor[
                         (t?.children || []).find((s) =>
                           toFlexRegex("color").test(s.text)
@@ -886,6 +889,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
           <input
             ref={shadowInputRef}
             style={{ opacity: 0, position: "absolute" }}
+            value={editingNodeValue}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 clearEditingRef();
@@ -915,10 +919,35 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
             onChange={(e) => {
               const newValue = e.target.value;
               editingRef.current.data("label", newValue);
+              setEditingNodeValue(newValue);
               updateBlock({ uid: editingRef.current.id(), text: newValue });
             }}
           />
         </div>
+        {!!filteredPages.length && (
+          <Menu
+            style={{
+              position: "absolute",
+              top: shadowInputRef.current.style.top,
+              left: shadowInputRef.current.style.left,
+              zIndex: 1,
+              background: "#eeeeee",
+            }}
+          >
+            {filteredPages.map((k) => (
+              <MenuItem
+                key={k}
+                text={k}
+                onClick={() => {
+                  editingRef.current.data("label", k);
+                  updateBlock({ uid: editingRef.current.id(), text: k });
+                  clearEditingRef();
+                  shadowInputRef.current.blur();
+                }}
+              />
+            ))}
+          </Menu>
+        )}
         {previewEnabled && (
           <LivePreview
             tag={livePreviewTag}
