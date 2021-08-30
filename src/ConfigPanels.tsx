@@ -63,7 +63,7 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
           <InputGroup
             value={format}
             onChange={(e) =>
-              setFormat(e.target.value.slice(0, 3).toUpperCase())
+              setFormat(e.target.value)
             }
             style={{ flexGrow: 1, paddingRight: 8 }}
             placeholder={`Include "{content}" in format`}
