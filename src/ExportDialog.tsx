@@ -23,6 +23,7 @@ import { createOverlayRender, MenuItemSelect } from "roamjs-components";
 import {
   getNodes,
   getRelations,
+  matchNode,
   NODE_TITLE_REGEX,
   triplesToQuery,
 } from "./util";
@@ -154,12 +155,19 @@ const ExportDialog = ({
                     onClose();
                   });
                 const allNodes = getNodes();
+                const allPages = window.roamAlphaAPI
+                  .q(
+                    "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
+                  )
+                  .map(([title, uid]) => ({ title, uid }));
                 const pageData = fromQuery
                   ? fromQuery.results.concat(
                       ...fromQuery.conditions.map((c) => c.predicate)
                     )
-                  : allNodes.flatMap((n) =>
-                      getPageTitlesAndUidsDirectlyReferencingPage(n.abbr)
+                  : allNodes.flatMap(({ format }) =>
+                      allPages.filter(({ title }) =>
+                        matchNode({ format, title })
+                      )
                     );
                 if (activeExportType === "CSV (neo4j)") {
                   const nodeHeader = "uid:ID,label:LABEL,title\n";
@@ -170,8 +178,9 @@ const ExportDialog = ({
                         ""
                       );
                       return `${uid},${(
-                        allNodes.find((n) => title.startsWith(`[[${n.abbr}]]`))
-                          ?.text || ""
+                        allNodes.find(({ format }) =>
+                          matchNode({ format, title })
+                        )?.text || ""
                       ).toUpperCase()},${
                         value.includes(",") ? `"${value}"` : value
                       }`;

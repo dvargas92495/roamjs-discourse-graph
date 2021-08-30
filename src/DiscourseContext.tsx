@@ -1,21 +1,15 @@
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { getRoamUrl, openBlockInSidebar } from "roam-client";
-import { freeVar, getNodes, getRelations, triplesToQuery } from "./util";
+import { freeVar, getNodes, getRelations, matchNode, triplesToQuery } from "./util";
 
 type Props = { title: string };
 
 const ContextContent = ({ title }: Props) => {
-  const NODE_ABBRS = useMemo(() => new Set(getNodes().map((t) => t.abbr)), []);
   const nodeType = useMemo(
-    () =>
-      window.roamAlphaAPI
-        .q(
-          `[:find ?t :where [?n :node/title ?t] [?p :block/refs ?n] [?p :node/title "${title}"]]`
-        )
-        .map((s) => s[0] as string)
-        .find((s) => NODE_ABBRS.has(s)),
-    [NODE_ABBRS, title]
+    () => 
+      getNodes().find(({format}) => matchNode({format, title}))?.type,
+    [title]
   );
   const relations = useMemo(getRelations, []);
   const queryResults = useMemo(() => {

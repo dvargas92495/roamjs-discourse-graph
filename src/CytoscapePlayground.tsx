@@ -22,6 +22,7 @@ import {
   getAllPageNames,
   getBasicTreeByParentUid,
   getPageUidByPageTitle,
+  getTextByBlockUid,
   getTreeByBlockUid,
   InputTextNode,
   openBlockInSidebar,
@@ -107,6 +108,7 @@ const COLORS = [
   "2f062f",
 ];
 const TEXT_COLOR = "888888";
+const TEXT_TYPE = "&TEX-node";
 
 const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
@@ -128,12 +130,20 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
           color: TEXT_COLOR,
           text: "Text",
           shortcut: "T",
-          abbr: "TEX",
+          type: TEXT_TYPE,
+          format: "{content}",
         }),
     []
   );
   const nodeTypeByColor = useMemo(
-    () => Object.fromEntries(coloredNodes.map((cn) => [cn.color, cn.abbr])),
+    () => Object.fromEntries(coloredNodes.map((cn) => [cn.color, cn.type])),
+    [coloredNodes]
+  );
+  const nodeFormatByType = useMemo(
+    () =>
+      Object.fromEntries(
+        coloredNodes.map((cn) => [cn.type, cn.format.replace("{content}", "")])
+      ),
     [coloredNodes]
   );
   const [selectedNode, setSelectedNode] = useState(
@@ -308,7 +318,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                   allRelations.find(
                     (r) => r.source === sourceType && r.target === targetType
                   )?.relation ||
-                  (sourceType === "TEX" || targetType === "TEX"
+                  (sourceType === TEXT_TYPE || targetType === TEXT_TYPE
                     ? allRelations[0].relation
                     : "");
                 if (text) {
@@ -509,7 +519,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
       if (!editingRef.current && !sourceRef.current) {
         const nodeType = nodeTypeByColor[nodeColorRef.current];
         createNode(
-          nodeType === "TEX" ? "" : `[[${nodeType}]] - `,
+          nodeFormatByType[nodeType],
           e.position,
           nodeColorRef.current
         );
@@ -660,7 +670,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                     if (!e.relation)
                       return connectedNodeUids.has(e.uid)
                         ? []
-                        : e.type === "TEX"
+                        : e.type === TEXT_TYPE
                         ? [
                             {
                               source: "block",
@@ -683,11 +693,11 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                     const found = relationData.find(
                       (r) =>
                         (r.label === e.relation &&
-                          ["TEX", r.source].includes(e.source.type) &&
-                          ["TEX", r.destination].includes(e.target.type)) ||
+                          [TEXT_TYPE, r.source].includes(e.source.type) &&
+                          [TEXT_TYPE, r.destination].includes(e.target.type)) ||
                         (r.complement === e.relation &&
-                          ["TEX", r.source].includes(e.target.type) &&
-                          ["TEX", r.destination].includes(e.source.type))
+                          [TEXT_TYPE, r.source].includes(e.target.type) &&
+                          [TEXT_TYPE, r.destination].includes(e.source.type))
                     );
                     if (!found) return [];
                     const { triples, label, source, destination } = found;
@@ -703,7 +713,9 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                             : e.target;
                         return [
                           t[0],
-                          targetNode.type === "TEX" ? "with text" : "has title",
+                          targetNode.type === TEXT_TYPE
+                            ? "with text"
+                            : "has title",
                           targetNode.text,
                         ];
                       }

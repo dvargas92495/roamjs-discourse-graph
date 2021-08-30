@@ -23,7 +23,9 @@ import React, {
 import {
   createBlock,
   deleteBlock,
+  getBasicTreeByParentUid,
   getFirstChildTextByBlockUid,
+  getPageUidByPageTitle,
   getShallowTreeByParentUid,
   getTreeByBlockUid,
   getTreeByPageName,
@@ -31,6 +33,7 @@ import {
 } from "roam-client";
 import {
   getSettingValueFromTree,
+  getSubTree,
   MenuItemSelect,
   setInputSetting,
   toFlexRegex,
@@ -41,52 +44,66 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
   const [nodes, setNodes] = useState(() =>
     uid ? getShallowTreeByParentUid(uid) : []
   );
-  const [node, setNode] = useState("");
+  const [format, setFormat] = useState("");
   const [label, setLabel] = useState("");
   const [shortcut, setShortcut] = useState("");
   return (
     <>
-      <div style={{ display: "flex", marginBottom: 8 }}>
-        <InputGroup
-          value={node}
-          onChange={(e) => setNode(e.target.value.slice(0, 3).toUpperCase())}
-          placeholder={"Node"}
-          style={{ maxWidth: 100 }}
-        />
+      <Label>
+        Label
         <InputGroup
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder={"Label"}
           className={"roamjs-discourse-config-label"}
         />
-        <InputGroup
-          value={shortcut}
-          onChange={(e) => setShortcut(e.target.value.slice(-1).toUpperCase())}
-          placeholder={"Shortcut"}
-          style={{ maxWidth: 50 }}
-        />
-        <Button
-          icon={"plus"}
-          minimal
-          disabled={!node || !shortcut || !label}
-          onClick={() => {
-            const valueUid = createBlock({
-              parentUid: uid,
-              order: nodes.length,
-              node: {
-                text: node,
-                children: [{ text: label }, { text: shortcut }],
-              },
-            });
-            setTimeout(() => {
-              setNodes([...nodes, { text: node, uid: valueUid }]);
-              setNode("");
-              setLabel("");
-              setShortcut("");
-            }, 1);
-          }}
-        />
+      </Label>
+      <div style={{ display: "flex", marginBottom: 8 }}>
+        <Label className={"roamjs-discourse-config-format"}>
+          Format
+          <InputGroup
+            value={format}
+            onChange={(e) =>
+              setFormat(e.target.value.slice(0, 3).toUpperCase())
+            }
+            style={{ flexGrow: 1, paddingRight: 8 }}
+            placeholder={`Include "{content}" in format`}
+          />
+        </Label>
+        <Label>
+          Shortcut
+          <InputGroup
+            value={shortcut}
+            onChange={(e) =>
+              setShortcut(e.target.value.slice(-1).toUpperCase())
+            }
+            style={{ maxWidth: 72 }}
+          />
+        </Label>
       </div>
+      <Button
+        text={"Add Node"}
+        intent={Intent.PRIMARY}
+        rightIcon={"plus"}
+        minimal
+        style={{ marginBottom: 8 }}
+        disabled={!format || !shortcut || !label}
+        onClick={() => {
+          const valueUid = createBlock({
+            parentUid: uid,
+            order: nodes.length,
+            node: {
+              text: format,
+              children: [{ text: label }, { text: shortcut }],
+            },
+          });
+          setTimeout(() => {
+            setNodes([...nodes, { text: format, uid: valueUid }]);
+            setFormat("");
+            setLabel("");
+            setShortcut("");
+          }, 1);
+        }}
+      />
       <ul
         style={{
           listStyle: "none",
@@ -298,10 +315,12 @@ const RelationEditPreview = ({ elements }: { elements: Triple[] }) => {
 
 const RelationEditPanel = ({
   editingRelationInfo,
+  nodes,
   back,
 }: {
   editingRelationInfo: TreeNode;
   back: () => void;
+  nodes: Record<string, string>;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
@@ -333,18 +352,7 @@ const RelationEditPanel = ({
     DEFAULT_SELECTED_RELATION
   );
   const [tab, setTab] = useState(0);
-  const nodes = useMemo(
-    () =>
-      (
-        (
-          getTreeByPageName("roam/js/discourse-graph").find((t) =>
-            toFlexRegex("grammar").test(t.text)
-          )?.children || []
-        ).find((t) => toFlexRegex("nodes").test(t.text))?.children || []
-      ).map((n) => n.text),
-    []
-  );
-  const initialSource = useMemo(
+  const initialSourceUid = useMemo(
     () =>
       getSettingValueFromTree({
         tree: editingRelationInfo.children,
@@ -352,8 +360,12 @@ const RelationEditPanel = ({
       }),
     []
   );
-  const [source, setSource] = useState(initialSource);
-  const initialDestination = useMemo(
+  const initialSource = useMemo(
+    () => getFirstChildTextByBlockUid(initialSourceUid),
+    [initialSourceUid]
+  );
+  const [source, setSource] = useState(initialSourceUid);
+  const initialDestinationUid = useMemo(
     () =>
       getSettingValueFromTree({
         tree: editingRelationInfo.children,
@@ -361,7 +373,11 @@ const RelationEditPanel = ({
       }),
     []
   );
-  const [destination, setDestination] = useState(initialDestination);
+  const initialDestination = useMemo(
+    () => getFirstChildTextByBlockUid(initialDestinationUid),
+    [initialDestinationUid]
+  );
+  const [destination, setDestination] = useState(initialDestinationUid);
   const [complement, setComplement] = useState(
     getSettingValueFromTree({
       tree: editingRelationInfo.children,
@@ -700,9 +716,13 @@ const RelationEditPanel = ({
             onItemSelect={(e) => {
               unsavedChanges();
               setSource(e);
-              (cyRef.current.nodes("#source") as NodeSingular).data("node", e);
+              (cyRef.current.nodes("#source") as NodeSingular).data(
+                "node",
+                nodes[e]
+              );
             }}
-            items={nodes}
+            items={Object.keys(nodes)}
+            transformItem={(u) => nodes[u]}
             ButtonProps={{ style: { color: "darkblue" } }}
           />
         </Label>
@@ -715,10 +735,11 @@ const RelationEditPanel = ({
               setDestination(e);
               (cyRef.current.nodes("#destination") as NodeSingular).data(
                 "node",
-                e
+                nodes[e]
               );
             }}
-            items={nodes}
+            items={Object.keys(nodes)}
+            transformItem={(u) => nodes[u]}
             ButtonProps={{ style: { color: "darkred" } }}
           />
         </Label>
@@ -990,6 +1011,21 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
         : [],
     [uid]
   );
+  const nodes = useMemo(
+    () =>
+      Object.fromEntries(
+        getSubTree({
+          tree: getSubTree({
+            tree: getBasicTreeByParentUid(
+              getPageUidByPageTitle("roam/js/discourse-graph")
+            ),
+            key: "grammar",
+          }).children,
+          key: "nodes",
+        }).children.map((n) => [n.uid, n.children[0].text])
+      ),
+    []
+  );
   const [relations, setRelations] = useState(refreshRelations);
   const [editingRelation, setEditingRelation] = useState("");
   const [newRelation, setNewRelation] = useState("");
@@ -1019,6 +1055,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
   };
   return editingRelation ? (
     <RelationEditPanel
+      nodes={nodes}
       editingRelationInfo={editingRelationInfo}
       back={() => {
         setEditingRelation("");
@@ -1060,7 +1097,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
                   {rel.text}
                 </span>
                 <span style={{ fontSize: 10 }}>
-                  ({rel.source}) {"=>"} ({rel.destination})
+                  ({nodes[rel.source]}) {"=>"} ({nodes[rel.destination]})
                 </span>
               </span>
               <span>

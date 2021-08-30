@@ -22,7 +22,9 @@ export type Panel = (props: {
 let treeRef: { tree: RoamBasicNode[] } = { tree: [] };
 
 export const refreshConfigTree = () =>
-  (treeRef.tree = getBasicTreeByParentUid(getPageUidByPageTitle("roam/js/discourse-graph")));
+  (treeRef.tree = getBasicTreeByParentUid(
+    getPageUidByPageTitle("roam/js/discourse-graph")
+  ));
 
 export const getSubscribedBlocks = () =>
   treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
@@ -50,18 +52,42 @@ export const isFlagEnabled = (flag: string) =>
 export const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\\w*)\\]\\] - `);
 
 export const DEFAULT_NODE_VALUES: InputTextNode[] = [
-  { text: "CLM", children: [{ text: "Claim" }, { text: "C" }] },
-  { text: "QUE", children: [{ text: "Question" }, { text: "Q" }] },
-  { text: "EVD", children: [{ text: "Evidence" }, { text: "E" }] },
-  { text: "SOU", children: [{ text: "Source" }, { text: "S" }] },
-  { text: "EXC", children: [{ text: "Excerpt" }, { text: "X" }] },
-  { text: "AUT", children: [{ text: "Author" }, { text: "A" }] },
+  {
+    uid: "_CLM-node",
+    text: "[[CLM]] - {content}",
+    children: [{ text: "Claim" }, { text: "C" }],
+  },
+  {
+    uid: "_QUE-node",
+    text: "[[QUE]] - {content}",
+    children: [{ text: "Question" }, { text: "Q" }],
+  },
+  {
+    uid: "_EVD-node",
+    text: "[[EVD]] - {content}",
+    children: [{ text: "Evidence" }, { text: "E" }],
+  },
+  {
+    uid: "_SOU-node",
+    text: "[[SOU]] - {content}",
+    children: [{ text: "Source" }, { text: "S" }],
+  },
+  {
+    uid: "_EXC-node",
+    text: "[[EXC]] - {content}",
+    children: [{ text: "Excerpt" }, { text: "X" }],
+  },
+  {
+    uid: "_AUT-node",
+    text: "[[AUT]] - {content}",
+    children: [{ text: "Author" }, { text: "A" }],
+  },
 ];
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   {
     text: "Informs",
     children: [
-      { text: "Source", children: [{ text: "EVD" }] },
+      { text: "Source", children: [{ text: "_EVD-node" }] },
       { text: "Destination", children: [{ text: "QUE" }] },
       {
         text: "If",
@@ -71,7 +97,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
             children: [
               {
                 text: "Page",
-                children: [{ text: "Is A", children: [{ text: "EVD" }] }],
+                children: [{ text: "Is A", children: [{ text: "source" }] }],
               },
               {
                 text: "Block",
@@ -87,7 +113,9 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
               },
               {
                 text: "ParentPage",
-                children: [{ text: "Is A", children: [{ text: "QUE" }] }],
+                children: [
+                  { text: "Is A", children: [{ text: "destination" }] },
+                ],
               },
             ],
           },
@@ -98,8 +126,8 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   {
     text: "Supports",
     children: [
-      { text: "Source", children: [{ text: "EVD", children: [] }] },
-      { text: "Destination", children: [{ text: "CLM", children: [] }] },
+      { text: "Source", children: [{ text: "_EVD-node", children: [] }] },
+      { text: "Destination", children: [{ text: "_CLM-node", children: [] }] },
       {
         text: "If",
         children: [
@@ -109,7 +137,10 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
               {
                 text: "Page",
                 children: [
-                  { text: "Is A", children: [{ text: "EVD", children: [] }] },
+                  {
+                    text: "Is A",
+                    children: [{ text: "source", children: [] }],
+                  },
                 ],
               },
               {
@@ -169,7 +200,10 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
               {
                 text: "ParentPage",
                 children: [
-                  { text: "Is A", children: [{ text: "CLM", children: [] }] },
+                  {
+                    text: "Is A",
+                    children: [{ text: "destination", children: [] }],
+                  },
                 ],
               },
             ],
@@ -181,8 +215,8 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   {
     text: "Opposes",
     children: [
-      { text: "Source", children: [{ text: "EVD", children: [] }] },
-      { text: "Destination", children: [{ text: "CLM", children: [] }] },
+      { text: "Source", children: [{ text: "_EVD-node", children: [] }] },
+      { text: "Destination", children: [{ text: "_CLM-node", children: [] }] },
       {
         text: "If",
         children: [
@@ -192,7 +226,10 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
               {
                 text: "Page",
                 children: [
-                  { text: "Is A", children: [{ text: "EVD", children: [] }] },
+                  {
+                    text: "Is A",
+                    children: [{ text: "source", children: [] }],
+                  },
                 ],
               },
               {
@@ -252,7 +289,10 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
               {
                 text: "ParentPage",
                 children: [
-                  { text: "Is A", children: [{ text: "CLM", children: [] }] },
+                  {
+                    text: "Is A",
+                    children: [{ text: "destination", children: [] }],
+                  },
                 ],
               },
             ],
@@ -263,6 +303,17 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   },
 ];
 
+export const matchNode = ({
+  format,
+  title,
+}: {
+  format: string;
+  title: string;
+}) => {
+  const [prefix, suffix] = format.split("{content}");
+  return title.startsWith(prefix) && title.endsWith(suffix);
+};
+
 export const getNodes = () =>
   (
     (
@@ -270,10 +321,11 @@ export const getNodes = () =>
       []
     ).find((t) => toFlexRegex("nodes").test(t.text))?.children ||
     DEFAULT_NODE_VALUES
-  ).map((n) => ({
-    abbr: n.text,
+  ).map((n: InputTextNode) => ({
+    format: n.text,
     text: n.children[0]?.text || "",
     shortcut: n.children[1]?.text || "",
+    type: n.uid,
   }));
 
 export const getRelations = () =>
@@ -283,7 +335,7 @@ export const getRelations = () =>
       []
     ).find((t) => toFlexRegex("relations").test(t.text))?.children ||
     DEFAULT_RELATION_VALUES
-  ).flatMap((r, i) => {
+  ).flatMap((r: InputTextNode, i: number) => {
     const tree = (r?.children || []) as TextNode[];
     const data = {
       id: r.uid || `${r.text}-${i}`,
@@ -307,11 +359,7 @@ export const getRelations = () =>
       ...data,
       triples: c.children.map((t) => {
         const target = t.children[0]?.children?.[0]?.text || "";
-        return [
-          t.text,
-          t.children[0]?.text,
-          target,
-        ];
+        return [t.text, t.children[0]?.text, target];
       }),
     }));
   });

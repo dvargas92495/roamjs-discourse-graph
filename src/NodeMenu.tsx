@@ -36,9 +36,9 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const onSelect = useCallback(
     (index) => {
-      const abbr = menuRef.current.children[index]
+      const format = menuRef.current.children[index]
         .querySelector(".bp3-menu-item")
-        .getAttribute("data-abbr");
+        .getAttribute("data-format");
       const highlighted = textarea.value.substring(
         textarea.selectionStart,
         textarea.selectionEnd
@@ -52,7 +52,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
           .map((s) => ({ title: s[0] as string, uid: s[1] as string }))
           .find(({ title }) => title.startsWith("@"))?.title;
         const suffix = referencedPaper ? ` - [[${referencedPaper}]]` : "";
-        const pagename = `[[${abbr}]] - ${highlighted}${suffix}`;
+        const pagename = format.replace('{content}', `${highlighted}${suffix}`);
         const newText = `${text.substring(
           0,
           textarea.selectionStart
@@ -62,7 +62,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
           const pageUid =
             getPageUidByPageTitle(pagename) || createPage({ title: pagename });
           setTimeout(() => {
-            const nodes = getTreeByPageName(abbr);
+            const nodes = getTreeByPageName(format);
             nodes.forEach(
               ({ text, textAlign, heading, viewType, children }, order) =>
                 createBlock({
@@ -137,7 +137,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
             return (
               <MenuItem
                 key={item.text}
-                data-abbr={item.abbr}
+                data-format={item.format}
                 text={`${item.text} - (${item.shortcut})`}
                 active={i === activeIndex}
                 onMouseEnter={() => setActiveIndex(i)}

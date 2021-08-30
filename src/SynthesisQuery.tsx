@@ -176,8 +176,13 @@ const SynthesisQuery = ({
   const NODE_LABELS = useMemo(getNodes, []);
   const relations = useMemo(getRelations, []);
   const items = useMemo(() => NODE_LABELS.map((nl) => nl.text), NODE_LABELS);
-  const NODE_LABEL_ABBR_BY_TEXT = useMemo(
-    () => Object.fromEntries(NODE_LABELS.map(({ text, abbr }) => [text, abbr])),
+  const NODE_FORMAT_BY_TEXT = useMemo(
+    () =>
+      Object.fromEntries(NODE_LABELS.map(({ text, format }) => [text, format])),
+    [NODE_LABELS]
+  );
+  const NODE_TYPE_BY_TEXT = useMemo(
+    () => Object.fromEntries(NODE_LABELS.map(({ text, type }) => [text, type])),
     [NODE_LABELS]
   );
   const tree = useMemo(() => getShallowTreeByParentUid(blockUid), [blockUid]);
@@ -236,14 +241,15 @@ const SynthesisQuery = ({
     const makeQuery = (node: string, condition: string) =>
       `[:find ?node-title ?node-uid :where [?${node} :node/title ?node-title] [?${node} :block/uid ?node-uid] ${condition}]`;
     try {
-      const nodeAbbr = NODE_LABEL_ABBR_BY_TEXT[activeMatch];
+      const nodeFormat = NODE_FORMAT_BY_TEXT[activeMatch];
+      const nodeType = NODE_TYPE_BY_TEXT[activeMatch];
       const separateQueryResults = conditions.map(
         ({ relation, predicate, that }) =>
           relations
             .filter(
               (r) =>
-                (r.label === relation && r.source === nodeAbbr) ||
-                (r.destination === nodeAbbr && r.complement === relation)
+                (r.label === relation && r.source === nodeType) ||
+                (r.destination === nodeType && r.complement === relation)
             )
             .map(({ triples, source, destination, label, complement }) => {
               const queryTriples = triples.map((t) => t.slice(0));
@@ -267,9 +273,18 @@ const SynthesisQuery = ({
                 destinationTriple[2] = destination;
               }
               const subQuery = triplesToQuery(queryTriples);
+              const [prefix, suffix] = nodeFormat.split("{content}");
               const condition = that
                 ? subQuery
-                : `[?${nodeVar} :block/refs ?node-ref] [?node-ref :node/title "${nodeAbbr}"] (not ${subQuery})`;
+                : `[?${nodeVar} :node/title ?node-title] ${
+                    prefix
+                      ? `[(clojure.string/starts-with? ?node-title  "${prefix}")]`
+                      : ""
+                  } ${
+                    suffix
+                      ? `[(clojure.string/ends-with? ?node-title  "${suffix}")]`
+                      : ""
+                  } (not ${subQuery})`;
               const nodesOnPage = window.roamAlphaAPI.q(
                 makeQuery(nodeVar, condition)
               );
@@ -307,8 +322,8 @@ const SynthesisQuery = ({
       getRelationLabels(
         relations.filter(
           (r) =>
-            r.source === NODE_LABEL_ABBR_BY_TEXT[activeMatch] ||
-            r.destination === NODE_LABEL_ABBR_BY_TEXT[activeMatch]
+            r.source === NODE_TYPE_BY_TEXT[activeMatch] ||
+            r.destination === NODE_TYPE_BY_TEXT[activeMatch]
         )
       ),
     [relations, activeMatch]

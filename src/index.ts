@@ -2,6 +2,7 @@ import {
   addStyle,
   createBlock,
   createHTMLObserver,
+  getBasicTreeByParentUid,
   getChildrenLengthByPageUid,
   getCurrentPageUid,
   getDisplayNameByUid,
@@ -11,7 +12,11 @@ import {
   toConfig,
   updateBlock,
 } from "roam-client";
-import { createConfigObserver, toFlexRegex } from "roamjs-components";
+import {
+  createConfigObserver,
+  getSubTree,
+  toFlexRegex,
+} from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
@@ -59,8 +64,9 @@ addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
   text-decoration: underline;
 }
 
-.roamjs-discourse-config-label {
+.roamjs-discourse-config-format {
   flex-grow: 1;
+  padding-right: 8px;
 }
 
 .roamjs-discourse-edit-relations {
@@ -161,7 +167,51 @@ const { pageUid } = createConfigObserver({
     versioning: true,
   },
 });
-refreshConfigTree();
+
+// Temporary shim
+const configTree = getBasicTreeByParentUid(pageUid);
+if (!configTree.some((t) => toFlexRegex("shimmed").test(t.text))) {
+  const grammar = getSubTree({ tree: configTree, key: "grammar" }).children;
+  const nodes = getSubTree({ tree: grammar, key: "nodes" }).children;
+  const relations = getSubTree({ tree: grammar, key: "relations" }).children;
+  relations.forEach((relation) => {
+    const source = getSubTree({ tree: relation.children, key: "source" });
+    const destination = getSubTree({
+      tree: relation.children,
+      key: "destination",
+    });
+    const sourceNode = nodes.find(
+      (node) => source.children[0]?.text === node.text
+    );
+    const destinationNode = nodes.find(
+      (node) => destination.children[0]?.text === node.text
+    );
+    getSubTree({ tree: relation.children, key: "if" }).children.forEach(
+      (andTree) =>
+        andTree.children.forEach((triple) => {
+          const tripleNode = triple.children?.[0]?.children?.[0];
+          if (tripleNode?.text === source.children[0]?.text) {
+            updateBlock({ uid: tripleNode?.uid, text: "source" });
+          } else if (tripleNode?.text === destination.children[0]?.text) {
+            updateBlock({ uid: tripleNode?.uid, text: "destination" });
+          }
+        })
+    );
+    if (sourceNode) {
+      updateBlock({ uid: source.children[0].uid, text: sourceNode.uid });
+    }
+    if (destinationNode) {
+      updateBlock({ uid: destination.children[0].uid, text: destinationNode.uid });
+    }
+  });
+  nodes.forEach((n) => updateBlock({ uid: n.uid, text: `[[${n.text}]] - {content}` }));
+  createBlock({
+    node: { text: "shimmed" },
+    parentUid: pageUid,
+    order: configTree.length,
+  });
+}
+setTimeout(refreshConfigTree, 1);
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "\\") {
