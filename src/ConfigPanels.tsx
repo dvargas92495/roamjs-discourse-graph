@@ -62,9 +62,7 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
           Format
           <InputGroup
             value={format}
-            onChange={(e) =>
-              setFormat(e.target.value)
-            }
+            onChange={(e) => setFormat(e.target.value)}
             style={{ flexGrow: 1, paddingRight: 8 }}
             placeholder={`Include "{content}" in format`}
           />
@@ -317,10 +315,12 @@ const RelationEditPanel = ({
   editingRelationInfo,
   nodes,
   back,
+  translatorKeys,
 }: {
   editingRelationInfo: TreeNode;
   back: () => void;
   nodes: Record<string, string>;
+  translatorKeys: string[];
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
@@ -856,7 +856,7 @@ const RelationEditPanel = ({
             background: "#eeeeee",
           }}
         >
-          {Object.keys(englishToDatalog)
+          {translatorKeys
             .filter((k) => k !== selectedRelation.relation)
             .map((k) => (
               <MenuItem
@@ -1026,6 +1026,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
       ),
     []
   );
+  const translatorKeys = useMemo(() => Object.keys(englishToDatalog()), []);
   const [relations, setRelations] = useState(refreshRelations);
   const [editingRelation, setEditingRelation] = useState("");
   const [newRelation, setNewRelation] = useState("");
@@ -1061,6 +1062,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
         setEditingRelation("");
         setRelations(refreshRelations());
       }}
+      translatorKeys={translatorKeys}
     />
   ) : (
     <>

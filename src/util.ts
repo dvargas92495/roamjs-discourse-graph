@@ -310,8 +310,36 @@ export const matchNode = ({
   format: string;
   title: string;
 }) => {
-  const [prefix, suffix] = format.split("{content}");
-  return title.startsWith(prefix) && title.endsWith(suffix);
+  const [prefix = "", ...rest] = format.split(/{[\w\d-]*}/);
+  const suffix = rest.slice(-1)[0] || "";
+  const middle = rest.slice(0, rest.length - 1);
+  return (
+    title.startsWith(prefix) &&
+    title.endsWith(suffix) &&
+    middle.every((s) => title.includes(s))
+  );
+};
+
+export const nodeFormatToDatalog = ({
+  nodeFormat = "",
+  freeVar,
+}: {
+  nodeFormat?: string;
+  freeVar: string;
+}) => {
+  const [prefix, ...rest] = nodeFormat.split(/{[\w\d-]*}/g);
+  const suffix = rest.slice(-1)[0] || "";
+  const middle = rest.slice(0, rest.length - 1);
+  const normalizedVar = freeVar.startsWith("?") ? freeVar : `?${freeVar}`;
+  return `${
+    prefix
+      ? `[(clojure.string/starts-with? ${normalizedVar}  "${prefix}")]`
+      : ""
+  } ${
+    suffix ? `[(clojure.string/ends-with? ${normalizedVar} "${suffix}")]` : ""
+  } ${middle
+    .map((m) => `[(clojure.string/includes? ${normalizedVar} "${m}")]`)
+    .join(" ")}`;
 };
 
 export const getNodes = () =>
@@ -387,28 +415,36 @@ export const getRelationTriples = (relations = getRelations()) =>
 
 export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`;
 
-export const englishToDatalog: {
+type DatalogTranslator = {
   [label: string]: (src: string, dest: string) => string;
-} = {
-  "is a": (src, dest) =>
-    `[${freeVar(src)} :block/refs ${freeVar(dest)}-Page] [${freeVar(
-      dest
-    )}-Page :node/title "${dest}"]`,
-  references: (src, dest) => `[${freeVar(src)} :block/refs ${freeVar(dest)}]`,
-  "is in page": (src, dest) => `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
-  "has title": (src, dest) => `[${freeVar(src)} :node/title "${dest}"]`,
-  "has child": (src, dest) =>
-    `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
-  "has parent": (src, dest) =>
-    `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
-  "with text": (src, dest) => `[${freeVar(src)} :block/string "${dest}"]`,
 };
 
-export const triplesToQuery = (t: string[][]): string =>
+export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
+  const formatByType = Object.fromEntries(nodes.map((n) => [n.type, n.format]));
+  return {
+    "is a": (src, dest) =>
+      `[${freeVar(src)} :node/title ${freeVar(dest)}-Title] ${nodeFormatToDatalog({
+        freeVar: `${freeVar(dest)}-Title`,
+        nodeFormat: formatByType[dest],
+      })}`,
+    references: (src, dest) => `[${freeVar(src)} :block/refs ${freeVar(dest)}]`,
+    "is in page": (src, dest) =>
+      `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
+    "has title": (src, dest) => `[${freeVar(src)} :node/title "${dest}"]`,
+    "has child": (src, dest) =>
+      `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
+    "has parent": (src, dest) =>
+      `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
+    "with text": (src, dest) => `[${freeVar(src)} :block/string "${dest}"]`,
+  };
+};
+
+export const triplesToQuery = (
+  t: string[][],
+  translator: DatalogTranslator
+): string =>
   t
-    .map(([src, key, dest]) =>
-      englishToDatalog[key.toLowerCase().trim()](src, dest)
-    )
+    .map(([src, key, dest]) => translator[key.toLowerCase().trim()](src, dest))
     .join(" ");
 
 export const getUserIdentifier = () => {

@@ -21,6 +21,7 @@ import {
 } from "roam-client";
 import { createOverlayRender, MenuItemSelect } from "roamjs-components";
 import {
+  englishToDatalog,
   getNodes,
   getRelations,
   matchNode,
@@ -155,6 +156,7 @@ const ExportDialog = ({
                     onClose();
                   });
                 const allNodes = getNodes();
+                const translator = englishToDatalog(allNodes);
                 const allPages = window.roamAlphaAPI
                   .q(
                     "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
@@ -222,7 +224,8 @@ const ExportDialog = ({
                                   : t[2] === "destination"
                                   ? [t[0], t[1], s.destination]
                                   : t
-                              )
+                              ),
+                              translator
                             )}]`
                           )
                           .map(

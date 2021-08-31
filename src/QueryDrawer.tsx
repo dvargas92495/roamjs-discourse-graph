@@ -49,8 +49,6 @@ type Condition = {
   uid: string;
 };
 
-const NATIVE_RELATONS = Object.keys(englishToDatalog).sort();
-
 const QueryCondition = ({
   con,
   index,
@@ -221,12 +219,13 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     () => results.filter((r) => !clearedResults.has(r.uid)),
     [results, clearedResults]
   );
+  const translator = useMemo(englishToDatalog, []);
   const fireQuery = useCallback(() => {
     try {
       const results = window.roamAlphaAPI
         .q(
           `[:find (pull ?${returnNode} [[:block/string :as "text"] [:node/title :as "text"] :block/uid]) :where ${conditions
-            .map((c) => englishToDatalog[c.relation](c.source, c.target))
+            .map((c) => translator[c.relation](c.source, c.target))
             .join(" ")}]`
         )
         .map((a) => a[0] as RoamBasicNode);
@@ -277,7 +276,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       {conditions.map((con, index) => (
         <QueryCondition
           key={con.uid}
-          relationLabels={NATIVE_RELATONS}
+          relationLabels={Object.keys(translator).sort()}
           con={con}
           index={index}
           conditions={conditions}

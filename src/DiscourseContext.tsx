@@ -1,15 +1,22 @@
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { getRoamUrl, openBlockInSidebar } from "roam-client";
-import { freeVar, getNodes, getRelations, matchNode, triplesToQuery } from "./util";
+import {
+  englishToDatalog,
+  freeVar,
+  getNodes,
+  getRelations,
+  matchNode,
+  triplesToQuery,
+} from "./util";
 
 type Props = { title: string };
 
 const ContextContent = ({ title }: Props) => {
+  const nodes = useMemo(getNodes, []);
   const nodeType = useMemo(
-    () => 
-      getNodes().find(({format}) => matchNode({format, title}))?.type,
-    [title]
+    () => nodes.find(({ format }) => matchNode({ format, title }))?.type,
+    [title, nodes]
   );
   const relations = useMemo(getRelations, []);
   const queryResults = useMemo(() => {
@@ -47,7 +54,8 @@ const ContextContent = ({ title }: Props) => {
                       ...r.triples.filter(
                         (t) => t !== sourceTriple && t !== destinationTriple
                       ),
-                    ]
+                    ],
+                    englishToDatalog(nodes)
                   )}]`
                 ) as [string, string][]
               ),
@@ -81,7 +89,8 @@ const ContextContent = ({ title }: Props) => {
                       ...r.triples.filter(
                         (t) => t !== destinationTriple && t !== sourceTriple
                       ),
-                    ]
+                    ],
+                    englishToDatalog(nodes)
                   )}]`
                 ) as [string, string][]
               ),

@@ -37,6 +37,8 @@ import {
   getRelations,
   getRelationLabels,
   triplesToQuery,
+  nodeFormatToDatalog,
+  englishToDatalog,
 } from "./util";
 import { render as exportRender } from "./ExportDialog";
 import ResizableDrawer from "./ResizableDrawer";
@@ -238,6 +240,7 @@ const SynthesisQuery = ({
     [results, clearedResults]
   );
   const fireQuery = useCallback(() => {
+    const translator = englishToDatalog(NODE_LABELS);
     const makeQuery = (node: string, condition: string) =>
       `[:find ?node-title ?node-uid :where [?${node} :node/title ?node-title] [?${node} :block/uid ?node-uid] ${condition}]`;
     try {
@@ -272,19 +275,13 @@ const SynthesisQuery = ({
                 sourceTriple[2] = predicate;
                 destinationTriple[2] = destination;
               }
-              const subQuery = triplesToQuery(queryTriples);
-              const [prefix, suffix] = nodeFormat.split("{content}");
+              const subQuery = triplesToQuery(queryTriples, translator);
               const condition = that
                 ? subQuery
-                : `[?${nodeVar} :node/title ?node-title] ${
-                    prefix
-                      ? `[(clojure.string/starts-with? ?node-title  "${prefix}")]`
-                      : ""
-                  } ${
-                    suffix
-                      ? `[(clojure.string/ends-with? ?node-title  "${suffix}")]`
-                      : ""
-                  } (not ${subQuery})`;
+                : `[?${nodeVar} :node/title ?node-title] ${nodeFormatToDatalog({
+                    freeVar: "node-title",
+                    nodeFormat,
+                  })} (not ${subQuery})`;
               const nodesOnPage = window.roamAlphaAPI.q(
                 makeQuery(nodeVar, condition)
               );

@@ -18,7 +18,7 @@ import {
   updateBlock,
 } from "roam-client";
 import { getCoordsFromTextarea } from "roamjs-components";
-import { getNodes } from "./util";
+import { getNodes, nodeFormatToDatalog } from "./util";
 
 type Props = {
   textarea: HTMLTextAreaElement;
@@ -45,14 +45,25 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
       );
       setTimeout(() => {
         const text = getTextByBlockUid(blockUid);
-        const referencedPaper = window.roamAlphaAPI
-          .q(
-            `[:find ?t ?u :where [?r :block/uid ?u] [?r :node/title ?t] [?p :block/refs ?r] [?b :block/parents ?p] [?b :block/uid "${blockUid}"]]`
-          )
-          .map((s) => ({ title: s[0] as string, uid: s[1] as string }))
-          .find(({ title }) => title.startsWith("@"))?.title;
-        const suffix = referencedPaper ? ` - [[${referencedPaper}]]` : "";
-        const pagename = format.replace('{content}', `${highlighted}${suffix}`);
+        const pagename = format.replace(/{([\w\d-]*)}/g, (_, val) => {
+          if (/content/i.test(val)) return highlighted;
+          const referencedNode = NODE_LABELS.find(({ text }) =>
+            new RegExp(text, "i").test(val)
+          );
+          if (referencedNode) {
+            const referencedTitle =
+              window.roamAlphaAPI.q(
+                `[:find ?t :where [?b :block/uid "${blockUid}"] [?b :block/parents ?p] [?p :block/refs ?r] [?r :node/title ?t] ${nodeFormatToDatalog(
+                  {
+                    freeVar: "t",
+                    nodeFormat: referencedNode.format,
+                  }
+                )}]`
+              )?.[0]?.[0] || "";
+            return referencedTitle ? `[[${referencedTitle}]]` : "";
+          }
+          return "";
+        });
         const newText = `${text.substring(
           0,
           textarea.selectionStart
@@ -81,10 +92,10 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
               );
               setTimeout(() => {
                 const ta = document.activeElement as HTMLTextAreaElement;
-                const index = ta.value.length - suffix.length;
+                const index = ta.value.length;
                 ta.setSelectionRange(index, index);
               }, 1);
-            }, 1);
+            }, 100);
           }, 1);
         }, 1);
       });
