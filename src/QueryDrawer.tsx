@@ -6,6 +6,10 @@ import {
   H6,
   InputGroup,
   Label,
+  Menu,
+  MenuItem,
+  Popover,
+  PopoverPosition,
   Position,
   Switch,
 } from "@blueprintjs/core";
@@ -33,9 +37,10 @@ import {
   PageInput,
   setInputSetting,
   toFlexRegex,
+  useArrowKeyDown,
 } from "roamjs-components";
 import ResizableDrawer from "./ResizableDrawer";
-import { englishToDatalog } from "./util";
+import { englishToDatalog, getNodes, getRelations } from "./util";
 
 type Props = {
   blockUid: string;
@@ -154,6 +159,12 @@ const QueryCondition = ({
 
 const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
   const tree = useMemo(() => getBasicTreeByParentUid(blockUid), []);
+  const discourseNodes = useMemo(getNodes, []);
+  const nodeFormatByLabel = useMemo(
+    () => Object.fromEntries(discourseNodes.map((n) => [n.text, n.format])),
+    []
+  );
+  const discourseRelations = useMemo(getRelations, []);
   const scratchNode = useMemo(
     () => tree.find((t) => toFlexRegex("scratch").test(t.text)),
     [tree]
@@ -168,12 +179,29 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     () => scratchNode?.children || [],
     [scratchNode]
   );
+  const [isReturnSuggestionsOpen, setIsReturnSuggestionsOpen] = useState(false);
+  const openReturnSuggestions = useCallback(
+    () => setIsReturnSuggestionsOpen(true),
+    [setIsReturnSuggestionsOpen]
+  );
+  const closeReturnSuggestions = useCallback(
+    () => setIsReturnSuggestionsOpen(false),
+    [setIsReturnSuggestionsOpen]
+  );
   const [returnNode, setReturnNode] = useState(
     getSettingValueFromTree({
       tree: scratchNodeChildren,
       key: "return",
     })
   );
+  const returnSuggestions = useMemo(
+    () =>
+      returnNode
+        ? discourseNodes.filter(({ text }) => text.startsWith(returnNode))
+        : [],
+    [discourseNodes, returnNode]
+  );
+
   const conditionsNode = useMemo(
     () =>
       scratchNodeChildren.find((t) => toFlexRegex("conditions").test(t.text)),
@@ -196,7 +224,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       target: "",
       relation: "",
       ...Object.fromEntries(
-        children.map((c) => [c.text, c.children?.[0]?.text])
+        children.map((c) => [c.text.toLowerCase(), c.children?.[0]?.text])
       ),
     }));
   });
@@ -236,8 +264,17 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       setResults([]);
     }
     setShowResults(true);
-  }, [setShowResults, setResults, conditions, returnNode]);
-
+  }, [setShowResults, setResults, conditions, returnNode, nodeFormatByLabel]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { activeIndex, onKeyDown } = useArrowKeyDown({
+    onEnter: (value) => {
+      if (isReturnSuggestionsOpen) {
+        setReturnNode(value.text);
+        closeReturnSuggestions();
+      }
+    },
+    results: returnSuggestions,
+  });
   return (
     <>
       <H6
@@ -252,20 +289,50 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
         >
           Find
         </span>
-        <InputGroup
-          value={returnNode}
-          onChange={(e) => {
-            window.clearTimeout(debounceRef.current);
-            setReturnNode(e.target.value);
-            debounceRef.current = window.setTimeout(() => {
-              setInputSetting({
-                blockUid: scratchNodeUid,
-                value: e.target.value,
-                key: "return",
-              });
-            }, 1000);
-          }}
-          placeholder={"Enter Label..."}
+        <Popover
+          captureDismiss
+          isOpen={isReturnSuggestionsOpen}
+          onOpened={openReturnSuggestions}
+          minimal
+          position={PopoverPosition.BOTTOM_LEFT}
+          content={
+            !!returnSuggestions.length && (
+              <Menu style={{ maxWidth: 400 }}>
+                {returnSuggestions.map((t, i) => (
+                  <MenuItem
+                    text={t.text}
+                    active={activeIndex === i}
+                    key={i}
+                    multiline
+                    onClick={() => {
+                      setReturnNode(t.text);
+                      closeReturnSuggestions();
+                      inputRef.current?.focus();
+                    }}
+                  />
+                ))}
+              </Menu>
+            )
+          }
+          target={
+            <InputGroup
+              value={returnNode}
+              onKeyDown={onKeyDown}
+              onChange={(e) => {
+                window.clearTimeout(debounceRef.current);
+                setReturnNode(e.target.value);
+                setIsReturnSuggestionsOpen(true);
+                debounceRef.current = window.setTimeout(() => {
+                  setInputSetting({
+                    blockUid: scratchNodeUid,
+                    value: e.target.value,
+                    key: "return",
+                  });
+                }, 1000);
+              }}
+              placeholder={"Enter Label..."}
+            />
+          }
         />
         <span
           style={{ minWidth: 92, display: "inline-block", textAlign: "center" }}
@@ -276,7 +343,13 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       {conditions.map((con, index) => (
         <QueryCondition
           key={con.uid}
-          relationLabels={Object.keys(translator).sort()}
+          relationLabels={Array.from(
+            new Set(
+              Object.keys(translator).concat(
+                discourseRelations.flatMap((r) => [r.label, r.complement])
+              )
+            )
+          ).sort()}
           con={con}
           index={index}
           conditions={conditions}
