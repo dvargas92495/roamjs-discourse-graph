@@ -40,7 +40,12 @@ import {
   useArrowKeyDown,
 } from "roamjs-components";
 import ResizableDrawer from "./ResizableDrawer";
-import { englishToDatalog, getNodes, getRelations } from "./util";
+import {
+  englishToDatalog,
+  getNodes,
+  getRelations,
+  triplesToQuery,
+} from "./util";
 
 type Props = {
   blockUid: string;
@@ -124,19 +129,19 @@ const QueryCondition = ({
         }}
       />
       <div style={{ flexGrow: 1 }}>
-        <InputGroup
+        <PageInput
           value={con.target}
-          onChange={(e) => {
+          setValue={(e) => {
             window.clearTimeout(debounceRef.current);
             setConditions(
               conditions.map((c) =>
-                c.uid === con.uid ? { ...con, target: e.target.value } : c
+                c.uid === con.uid ? { ...con, target: e } : c
               )
             );
             debounceRef.current = window.setTimeout(() => {
               setInputSetting({
                 blockUid: con.uid,
-                value: e.target.value,
+                value: e,
                 key: "target",
                 index: 2,
               });
@@ -162,6 +167,10 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
   const discourseNodes = useMemo(getNodes, []);
   const nodeFormatByLabel = useMemo(
     () => Object.fromEntries(discourseNodes.map((n) => [n.text, n.format])),
+    []
+  );
+  const nodeLabelByType = useMemo(
+    () => Object.fromEntries(discourseNodes.map((n) => [n.type, n.text])),
     []
   );
   const discourseRelations = useMemo(getRelations, []);
@@ -249,27 +258,85 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
   );
   const translator = useMemo(englishToDatalog, []);
   const fireQuery = useCallback(() => {
+    const query = `[:find (pull ?${returnNode} [[:block/string :as "text"] [:node/title :as "text"] :block/uid]) :where ${conditions
+      .flatMap((c) => {
+        const native = translator[c.relation];
+        if (native) return native(c.source, c.target);
+        return `(or-join [?${c.source}] ${discourseRelations
+          .filter(
+            (r) =>
+              (r.label === c.relation &&
+                nodeLabelByType[r.source].startsWith(c.source)) ||
+              (nodeLabelByType[r.destination].startsWith(c.target) &&
+                r.complement === c.relation)
+          )
+          .map(({ triples, source, destination, label, complement }) => {
+            const queryTriples = triples.map((t) => t.slice(0));
+            const sourceTriple = queryTriples.find((t) => t[2] === "source");
+            const destinationTriple = queryTriples.find(
+              (t) => t[2] === "destination"
+            );
+            if (!sourceTriple || !destinationTriple) return "";
+            let returnNodeVar = "";
+            if (label === c.relation) {
+              destinationTriple[1] = "Has Title";
+              destinationTriple[2] = c.target;
+              sourceTriple[2] = source;
+              if (nodeLabelByType[source].startsWith(returnNode)) {
+                returnNodeVar = sourceTriple[0];
+              }
+            } else if (complement === c.relation) {
+              sourceTriple[1] = "Has Title";
+              sourceTriple[2] = c.target;
+              destinationTriple[2] = destination;
+              if (nodeLabelByType[destination].startsWith(returnNode)) {
+                returnNodeVar = destinationTriple[0];
+              }
+            }
+            const subQuery = triplesToQuery(queryTriples, translator);
+            const andQuery = `\n  (and ${subQuery.replace(
+              /([\s|\[]\?)/g,
+              `$1${c.uid}-`
+            )})`;
+            return returnNodeVar
+              ? andQuery.replace(
+                  new RegExp(`\\?${c.uid}-${returnNodeVar}`, "g"),
+                  `?${returnNode}`
+                )
+              : andQuery;
+          })}\n)`;
+      })
+      .join("\n")}]`;
     try {
       const results = window.roamAlphaAPI
-        .q(
-          `[:find (pull ?${returnNode} [[:block/string :as "text"] [:node/title :as "text"] :block/uid]) :where ${conditions
-            .map((c) => translator[c.relation](c.source, c.target))
-            .join(" ")}]`
-        )
+        .q(query)
         .map((a) => a[0] as RoamBasicNode);
       setResults(results);
     } catch (e) {
       console.error("Error from Roam:");
       console.error(e.message);
+      console.error("Query from Roam:");
+      console.error(query);
       setResults([]);
     }
     setShowResults(true);
   }, [setShowResults, setResults, conditions, returnNode, nodeFormatByLabel]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const returnNodeOnChange = (value: string) => {
+    window.clearTimeout(debounceRef.current);
+    setReturnNode(value);
+    debounceRef.current = window.setTimeout(() => {
+      setInputSetting({
+        blockUid: scratchNodeUid,
+        value,
+        key: "return",
+      });
+    }, 1000);
+  };
   const { activeIndex, onKeyDown } = useArrowKeyDown({
     onEnter: (value) => {
       if (isReturnSuggestionsOpen) {
-        setReturnNode(value.text);
+        returnNodeOnChange(value.text);
         closeReturnSuggestions();
       }
     },
@@ -319,16 +386,8 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
               value={returnNode}
               onKeyDown={onKeyDown}
               onChange={(e) => {
-                window.clearTimeout(debounceRef.current);
-                setReturnNode(e.target.value);
-                setIsReturnSuggestionsOpen(true);
-                debounceRef.current = window.setTimeout(() => {
-                  setInputSetting({
-                    blockUid: scratchNodeUid,
-                    value: e.target.value,
-                    key: "return",
-                  });
-                }, 1000);
+                returnNodeOnChange(e.target.value);
+                openReturnSuggestions();
               }}
               placeholder={"Enter Label..."}
             />

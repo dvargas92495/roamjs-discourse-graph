@@ -423,7 +423,9 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
   const formatByType = Object.fromEntries(nodes.map((n) => [n.type, n.format]));
   return {
     "is a": (src, dest) =>
-      `[${freeVar(src)} :node/title ${freeVar(dest)}-Title] ${nodeFormatToDatalog({
+      `[${freeVar(src)} :node/title ${freeVar(
+        dest
+      )}-Title] ${nodeFormatToDatalog({
         freeVar: `${freeVar(dest)}-Title`,
         nodeFormat: formatByType[dest],
       })}`,
@@ -431,11 +433,20 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
     "is in page": (src, dest) =>
       `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
     "has title": (src, dest) => `[${freeVar(src)} :node/title "${dest}"]`,
+    "has attribute": (src, dest) =>
+      `[${freeVar(dest)}-Attribute :node/title "${dest}"] [${freeVar(
+        dest
+      )} :block/refs ${freeVar(dest)}-Attribute] [${freeVar(
+        dest
+      )} :block/parents ${freeVar(src)}]`,
     "has child": (src, dest) =>
       `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
     "has parent": (src, dest) =>
       `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
-    "with text": (src, dest) => `[${freeVar(src)} :block/string "${dest}"]`,
+    "with text": (src, dest) =>
+      `[${freeVar(src)} :block/string ${freeVar(
+        src
+      )}-String] [(clojure.string/includes? ${freeVar(src)}-String "${dest}")]`,
   };
 };
 

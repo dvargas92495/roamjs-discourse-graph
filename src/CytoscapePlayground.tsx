@@ -830,9 +830,9 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                             (prev, cur) => {
                               if (
                                 [
+                                  /has attribute/i,
                                   /has child/i,
                                   /references/i,
-                                  ,
                                   /with text/i,
                                 ].some((r) => r.test(cur.relation))
                               ) {
