@@ -27,12 +27,16 @@ import {
   getBasicTreeByParentUid,
   getPageUidByPageTitle,
   getRoamUrl,
+  getTextByBlockUid,
   openBlockInSidebar,
   RoamBasicNode,
+  updateBlock,
 } from "roam-client";
 import {
   createOverlayRender,
   getSettingValueFromTree,
+  getSettingValuesFromTree,
+  getSubTree,
   MenuItemSelect,
   PageInput,
   setInputSetting,
@@ -162,6 +166,126 @@ const QueryCondition = ({
   );
 };
 
+const SavedQuery = ({
+  uid,
+  clearOnClick,
+  onDelete,
+}: {
+  uid: string;
+  clearOnClick: (s: string, t: string) => void;
+  onDelete: () => void;
+}) => {
+  const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
+  const [minimized, setMinimized] = useState(false);
+  const label = useMemo(() => getTextByBlockUid(uid), []);
+  const initialResults = useMemo(
+    () => getSubTree({ tree, key: "results" }).children,
+    []
+  );
+  const query = useMemo(
+    () => getSettingValuesFromTree({ tree, key: "query" }),
+    []
+  );
+  const returnNode = /^Find (.*) Where$/.exec(query[0])?.[1];
+  const [results, setResults] = useState(
+    initialResults.map((r) => ({
+      uid: r.uid,
+      title: r.children?.[0]?.text,
+      pageUid: r.text,
+    }))
+  );
+  const sortedResults = useMemo(() => results, [results]);
+  return (
+    <div
+      style={{
+        border: "1px solid gray",
+        borderRadius: 4,
+        padding: 4,
+        margin: 4,
+      }}
+    >
+      <h4
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          margin: 4,
+        }}
+      >
+        {label}
+        <div>
+          <Button
+            icon={minimized ? "maximize" : "minimize"}
+            onClick={() => setMinimized(!minimized)}
+            active={minimized}
+            minimal
+          />
+          <Button icon={"cross"} onClick={onDelete} minimal />
+        </div>
+      </h4>
+      {!minimized && (
+        <>
+          <div style={{ fontSize: 10 }}>
+            {query.map((q, i) => (
+              <p key={i} style={{ margin: 0 }}>
+                {q}
+              </p>
+            ))}
+          </div>
+          {sortedResults.length ? (
+            <>
+              <i style={{ opacity: 0.8 }}>
+                Found {sortedResults.length} results
+              </i>
+              <ul>
+                {sortedResults.map((r) => (
+                  <li key={r.uid}>
+                    <span
+                      style={{
+                        display: "flex",
+                        width: "100%",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <a
+                        className={"rm-page-ref"}
+                        href={getRoamUrl(r.uid)}
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.shiftKey) {
+                            openBlockInSidebar(r.uid);
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        }}
+                      >
+                        {r.title}
+                      </a>
+                      <Button
+                        icon={"hand-right"}
+                        minimal
+                        onClick={() => {
+                          deleteBlock(r.uid);
+                          setResults(
+                            results.filter((res) => res.uid !== r.uid)
+                          );
+                          clearOnClick?.(r.title, returnNode);
+                        }}
+                      />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <div>No Results</div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
   const tree = useMemo(() => getBasicTreeByParentUid(blockUid), []);
   const discourseNodes = useMemo(getNodes, []);
@@ -237,40 +361,27 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       ),
     }));
   });
-  const pinnedNode = useMemo(
-    () => scratchNodeChildren.find((t) => toFlexRegex("pinned").test(t.text)),
-    [scratchNodeChildren]
-  );
-  const [pinnedNodeUid, setPinnedNodeUid] = useState(pinnedNode?.uid);
-  const pinnedNodeChildren = useMemo(
-    () => pinnedNode?.children || [],
-    [pinnedNode]
-  );
   const debounceRef = useRef(0);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<RoamBasicNode["children"]>([]);
-  const [clearedResults, setClearedResults] = useState(
-    () => new Set(pinnedNodeChildren.map((t) => t.text))
-  );
-  const filteredResults = useMemo(
-    () => results.filter((r) => !clearedResults.has(r.uid)),
-    [results, clearedResults]
-  );
   const translator = useMemo(englishToDatalog, []);
   const fireQuery = useCallback(() => {
-    const query = `[:find (pull ?${returnNode} [[:block/string :as "text"] [:node/title :as "text"] :block/uid]) :where ${conditions
+    const where = conditions
       .flatMap((c) => {
         const native = translator[c.relation];
         if (native) return native(c.source, c.target);
-        return `(or-join [?${c.source}] ${discourseRelations
-          .filter(
-            (r) =>
-              (r.label === c.relation &&
-                nodeLabelByType[r.source].startsWith(c.source)) ||
-              (nodeLabelByType[r.destination].startsWith(c.target) &&
-                r.complement === c.relation)
-          )
-          .map(({ triples, source, destination, label, complement }) => {
+        const filteredRelations = discourseRelations.filter(
+          (r) =>
+            (r.label === c.relation &&
+              (nodeLabelByType[r.source].startsWith(c.source) ||
+                nodeLabelByType[r.destination].startsWith(c.target))) ||
+            ((nodeLabelByType[r.destination].startsWith(c.source) ||
+              nodeLabelByType[r.source].startsWith(c.target)) &&
+              r.complement === c.relation)
+        );
+        if (!filteredRelations.length) return "";
+        return `(or-join [?${c.source}] ${filteredRelations.map(
+          ({ triples, source, destination, label, complement }) => {
             const queryTriples = triples.map((t) => t.slice(0));
             const sourceTriple = queryTriples.find((t) => t[2] === "source");
             const destinationTriple = queryTriples.find(
@@ -304,13 +415,15 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                   `?${returnNode}`
                 )
               : andQuery;
-          })}\n)`;
+          }
+        )}\n)`;
       })
-      .join("\n")}]`;
+      .join("\n");
+    const query = `[:find (pull ?${returnNode} [[:block/string :as "text"] [:node/title :as "text"] :block/uid]) :where ${where}]`;
     try {
-      const results = window.roamAlphaAPI
-        .q(query)
-        .map((a) => a[0] as RoamBasicNode);
+      const results = where
+        ? window.roamAlphaAPI.q(query).map((a) => a[0] as RoamBasicNode)
+        : [];
       setResults(results);
     } catch (e) {
       console.error("Error from Roam:");
@@ -342,6 +455,18 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     },
     results: returnSuggestions,
   });
+  const [savedQueries, setSavedQueries] = useState<string[]>(
+    tree.filter((t) => !toFlexRegex("scratch").test(t.text)).map((t) => t.uid)
+  );
+  const [savedQueryLabel, setSavedQueryLabel] = useState(
+    `Query ${
+      savedQueries.reduce(
+        (prev, cur) =>
+          prev < Number(cur.split(" ")[1]) ? Number(cur.split(" ")[1]) : prev,
+        0
+      ) + 1
+    }`
+  );
   return (
     <>
       <H6
@@ -438,7 +563,6 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           text={"Query"}
           onClick={() => {
             fireQuery();
-            setClearedResults(new Set());
           }}
           intent={"primary"}
           disabled={
@@ -460,7 +584,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                 onClick={() =>
                   exportRender({
                     fromQuery: {
-                      results: filteredResults.map(({ text, uid }) => ({
+                      results: results.map(({ text, uid }) => ({
                         title: text,
                         uid,
                       })),
@@ -478,22 +602,53 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
               <Button
                 icon={"pin"}
                 onClick={() => {
-                  if (pinnedNodeUid) {
-                    deleteBlock(pinnedNodeUid);
-                    setPinnedNodeUid("");
-                    setClearedResults(new Set());
-                  } else {
-                    setPinnedNodeUid(
-                      createBlock({
-                        node: { text: "pinned" },
-                        parentUid: scratchNodeUid,
-                        order: 2,
-                      })
+                  const newSavedUid = createBlock({
+                    node: {
+                      text: savedQueryLabel,
+                      children: [
+                        {
+                          text: "results",
+                          children: results.map((r) => ({
+                            text: r.uid,
+                            children: [{ text: r.text }],
+                          })),
+                        },
+                        {
+                          text: "query",
+                          children: [
+                            { text: `Find ${returnNode} Where` },
+                            ...conditions.map((c) => ({
+                              text: `${c.source} ${c.relation} ${c.target}`,
+                            })),
+                          ],
+                        },
+                      ],
+                    },
+                    parentUid: blockUid,
+                  });
+                  conditions.forEach((c) => deleteBlock(c.uid));
+                  setInputSetting({
+                    blockUid: scratchNodeUid,
+                    value: "",
+                    key: "return",
+                  });
+
+                  setTimeout(() => {
+                    setSavedQueryLabel(
+                      // temporary
+                      savedQueryLabel
+                        .split(" ")
+                        .map((s) => (s === "Query" ? s : `${Number(s) + 1}`))
+                        .join(" ")
                     );
-                  }
+                    setReturnNode("");
+                    setConditions([]);
+                    setSavedQueries([...savedQueries, newSavedUid]);
+                    setShowResults(false);
+                    setResults([]);
+                  }, 1);
                 }}
                 minimal
-                active={!!pinnedNodeUid}
               />
               <Button
                 icon={"cross"}
@@ -505,13 +660,11 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
               />
             </div>
           </H3>
-          {filteredResults.length ? (
+          {results.length ? (
             <>
-              <i style={{ opacity: 0.8 }}>
-                Found {filteredResults.length} results
-              </i>
+              <i style={{ opacity: 0.8 }}>Found {results.length} results</i>
               <ul>
-                {filteredResults.map((r) => (
+                {results.map((r) => (
                   <li key={r.uid}>
                     <span
                       style={{
@@ -534,23 +687,6 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                       >
                         {r.text}
                       </a>
-                      {pinnedNodeUid && (
-                        <Button
-                          icon={"hand-right"}
-                          minimal
-                          onClick={() => {
-                            createBlock({
-                              parentUid: pinnedNodeUid,
-                              node: { text: r.uid },
-                              order: clearedResults.size,
-                            });
-                            setClearedResults(
-                              new Set([...clearedResults, r.uid])
-                            );
-                            clearOnClick?.(r.text, returnNode);
-                          }}
-                        />
-                      )}
                     </span>
                   </li>
                 ))}
@@ -559,6 +695,23 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           ) : (
             <div>No Results</div>
           )}
+        </>
+      )}
+      {!!savedQueries.length && (
+        <>
+          <hr />
+          <H3>Saved Queries</H3>
+          {savedQueries.map((sq) => (
+            <SavedQuery
+              uid={sq}
+              key={sq}
+              clearOnClick={clearOnClick}
+              onDelete={() => {
+                setSavedQueries(savedQueries.filter((s) => s !== sq));
+                deleteBlock(sq);
+              }}
+            />
+          ))}
         </>
       )}
     </>
