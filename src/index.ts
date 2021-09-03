@@ -20,7 +20,7 @@ import {
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
-import { render as queryRender } from "./QueryDrawer";
+import { render as queryRender, SEARCH_HIGHLIGHT } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
@@ -116,6 +116,28 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-condition-relation {
   min-width: 160px;
+}
+
+.roamjs-discourse-results-sort button {
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+.roamjs-discourse-results-sort button,
+.roamjs-discourse-results-sort .bp3-menu {
+  font-size: 10px;
+  padding: 0 4px;
+  width: 88px;
+  max-width: 88px;
+  min-width: 88px;
+}
+
+.roamjs-discourse-results-sort .bp3-button-text {
+  margin-right: 2;
+}
+
+.roamjs-discourse-hightlighted-result {
+  background: #FFFF00;
 }`);
 
 const CONFIG = toConfig("discourse-graph");

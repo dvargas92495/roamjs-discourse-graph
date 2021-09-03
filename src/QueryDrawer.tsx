@@ -1,17 +1,12 @@
 import {
   Button,
-  Classes,
-  Drawer,
   H3,
   H6,
   InputGroup,
-  Label,
   Menu,
   MenuItem,
   Popover,
   PopoverPosition,
-  Position,
-  Switch,
 } from "@blueprintjs/core";
 import { render as exportRender } from "./ExportDialog";
 import React, {
@@ -29,8 +24,6 @@ import {
   getRoamUrl,
   getTextByBlockUid,
   openBlockInSidebar,
-  RoamBasicNode,
-  updateBlock,
 } from "roam-client";
 import {
   createOverlayRender,
@@ -50,6 +43,9 @@ import {
   getRelations,
   triplesToQuery,
 } from "./util";
+import fuzzy from "fuzzy";
+//@ts-ignore
+window.fuzzy = fuzzy;
 
 type Props = {
   blockUid: string;
@@ -166,6 +162,26 @@ const QueryCondition = ({
   );
 };
 
+type SearchResult = {
+  text: string;
+  pageUid: string;
+  time: number;
+};
+
+const SORT_OPTIONS: {
+  label: string;
+  fcn: (a: SearchResult, b: SearchResult) => number;
+}[] = [
+  { label: "TITLE A->Z", fcn: (a, b) => a.text.localeCompare(b.text) },
+  { label: "TITLE Z->A", fcn: (a, b) => b.text.localeCompare(a.text) },
+  { label: "EARLIEST", fcn: (a, b) => a.time - b.time },
+  { label: "LATEST", fcn: (a, b) => b.time - a.time },
+];
+const SORT_FCN_BY_LABEL = Object.fromEntries(
+  SORT_OPTIONS.map(({ label, fcn }) => [label, fcn])
+);
+export const SEARCH_HIGHLIGHT = "#C26313";
+
 const SavedQuery = ({
   uid,
   clearOnClick,
@@ -187,14 +203,39 @@ const SavedQuery = ({
     []
   );
   const returnNode = /^Find (.*) Where$/.exec(query[0])?.[1];
-  const [results, setResults] = useState(
+  const [activeSort, setActiveSort] = useState(SORT_OPTIONS[0].label);
+  const [results, setResults] = useState<(SearchResult & { uid: string })[]>(
     initialResults.map((r) => ({
       uid: r.uid,
-      title: r.children?.[0]?.text,
+      text: r.children?.[0]?.text,
+      time: Number(r.children?.[1]?.text) || 0,
       pageUid: r.text,
     }))
   );
-  const sortedResults = useMemo(() => results, [results]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const sortedResults = useMemo(() => {
+    const sorted = results.sort(SORT_FCN_BY_LABEL[activeSort]);
+    return searchTerm
+      ? sorted.map((s) => ({
+          ...s,
+          text:
+            fuzzy.match(searchTerm, s.text, {
+              pre: "<span>",
+              post: "<span>",
+            })?.rendered || s.text,
+          hit: fuzzy.test(searchTerm, s.text),
+        }))
+      : sorted.map((s) => ({ ...s, hit: true }));
+  }, [results, activeSort, searchTerm]);
+  const searchHit = sortedResults.some((s) => s.hit);
+  useEffect(() => {
+    const el = document.querySelector<HTMLSpanElement>(
+      ".roamjs-discourse-hightlighted-result"
+    );
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [searchTerm]);
   return (
     <div
       style={{
@@ -214,6 +255,14 @@ const SavedQuery = ({
       >
         {label}
         <div>
+          <MenuItemSelect
+            popoverProps={{ portalClassName: "roamjs-discourse-results-sort" }}
+            ButtonProps={{ rightIcon: "sort" }}
+            activeItem={activeSort}
+            items={SORT_OPTIONS.map(({ label }) => label)}
+            onItemSelect={(e) => setActiveSort(e)}
+            className={"roamjs-discourse-results-sort"}
+          />
           <Button
             icon={minimized ? "maximize" : "minimize"}
             onClick={() => setMinimized(!minimized)}
@@ -224,7 +273,32 @@ const SavedQuery = ({
         </div>
       </h4>
       {!minimized && (
-        <>
+        <div
+          tabIndex={-1}
+          style={{ position: "relative", outline: "none" }}
+          onKeyDown={(e) => {
+            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+              if (e.key === "Backspace") {
+                setSearchTerm(searchTerm.slice(0, -1));
+              } else if (e.key.length === 1) {
+                setSearchTerm(`${searchTerm}${e.key.toLowerCase()}`);
+                if (e.key === " ") e.preventDefault();
+              }
+            }
+          }}
+        >
+          <span
+            style={{
+              background: SEARCH_HIGHLIGHT,
+              color: "white",
+              position: "absolute",
+              top: 4,
+              right: 4,
+              outline: searchHit ? "unset" : "2px solid darkred",
+            }}
+          >
+            {searchTerm}
+          </span>
           <div style={{ fontSize: 10 }}>
             {query.map((q, i) => (
               <p key={i} style={{ margin: 0 }}>
@@ -239,13 +313,14 @@ const SavedQuery = ({
               </i>
               <ul>
                 {sortedResults.map((r) => (
-                  <li key={r.uid}>
+                  <li key={r.pageUid}>
                     <span
                       style={{
                         display: "flex",
                         width: "100%",
                         justifyContent: "space-between",
                         alignItems: "center",
+                        overflow: "hidden",
                       }}
                     >
                       <a
@@ -259,7 +334,18 @@ const SavedQuery = ({
                           }
                         }}
                       >
-                        {r.title}
+                        {r.text.split("<span>").map((s, i) => (
+                          <span
+                            key={i}
+                            className={
+                              i % 2 === 0
+                                ? ""
+                                : "roamjs-discourse-hightlighted-result"
+                            }
+                          >
+                            {s}
+                          </span>
+                        ))}
                       </a>
                       <Button
                         icon={"hand-right"}
@@ -269,7 +355,7 @@ const SavedQuery = ({
                           setResults(
                             results.filter((res) => res.uid !== r.uid)
                           );
-                          clearOnClick?.(r.title, returnNode);
+                          clearOnClick?.(r.text, returnNode);
                         }}
                       />
                     </span>
@@ -280,7 +366,7 @@ const SavedQuery = ({
           ) : (
             <div>No Results</div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -363,7 +449,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
   });
   const debounceRef = useRef(0);
   const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<RoamBasicNode["children"]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const translator = useMemo(englishToDatalog, []);
   const fireQuery = useCallback(() => {
     const where = conditions
@@ -419,10 +505,15 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
         )}\n)`;
       })
       .join("\n");
-    const query = `[:find (pull ?${returnNode} [[:block/string :as "text"] [:node/title :as "text"] :block/uid]) :where ${where}]`;
+    const query = `[:find (pull ?${returnNode} [
+      [:block/string :as "text"] 
+      [:node/title :as "text"] 
+      [:block/uid :as "pageUid"] 
+      :create/time
+    ]) :where ${where}]`;
     try {
       const results = where
-        ? window.roamAlphaAPI.q(query).map((a) => a[0] as RoamBasicNode)
+        ? window.roamAlphaAPI.q(query).map((a) => a[0] as SearchResult)
         : [];
       setResults(results);
     } catch (e) {
@@ -584,9 +675,9 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                 onClick={() =>
                   exportRender({
                     fromQuery: {
-                      results: results.map(({ text, uid }) => ({
+                      results: results.map(({ text, pageUid }) => ({
                         title: text,
-                        uid,
+                        uid: pageUid,
                       })),
                       conditions: conditions.map((c) => ({
                         predicate: {
@@ -609,8 +700,11 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                         {
                           text: "results",
                           children: results.map((r) => ({
-                            text: r.uid,
-                            children: [{ text: r.text }],
+                            text: r.pageUid,
+                            children: [
+                              { text: r.text },
+                              { text: r.time.toString() },
+                            ],
                           })),
                         },
                         {
@@ -665,7 +759,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
               <i style={{ opacity: 0.8 }}>Found {results.length} results</i>
               <ul>
                 {results.map((r) => (
-                  <li key={r.uid}>
+                  <li key={r.pageUid}>
                     <span
                       style={{
                         display: "flex",
@@ -676,10 +770,10 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                     >
                       <a
                         className={"rm-page-ref"}
-                        href={getRoamUrl(r.uid)}
+                        href={getRoamUrl(r.pageUid)}
                         onClick={(e) => {
                           if (e.ctrlKey || e.shiftKey) {
-                            openBlockInSidebar(r.uid);
+                            openBlockInSidebar(r.pageUid);
                             e.preventDefault();
                             e.stopPropagation();
                           }
