@@ -734,11 +734,11 @@ const RelationEditPanel = ({
               setSource(e);
               (cyRef.current.nodes("#source") as NodeSingular).data(
                 "node",
-                nodes[e].label
+                nodes[e]?.label
               );
             }}
             items={Object.keys(nodes)}
-            transformItem={(u) => nodes[u].label}
+            transformItem={(u) => nodes[u]?.label}
             ButtonProps={{ style: { color: "darkblue" } }}
           />
         </Label>
@@ -751,11 +751,11 @@ const RelationEditPanel = ({
               setDestination(e);
               (cyRef.current.nodes("#destination") as NodeSingular).data(
                 "node",
-                nodes[e].label
+                nodes[e]?.label
               );
             }}
             items={Object.keys(nodes)}
-            transformItem={(u) => nodes[u].label}
+            transformItem={(u) => nodes[u]?.label}
             ButtonProps={{ style: { color: "darkred" } }}
           />
         </Label>
@@ -911,7 +911,10 @@ const RelationEditPanel = ({
           <Button
             minimal
             icon={isPreview ? "edit" : "eye-open"}
-            onClick={() => setIsPreview(!isPreview)}
+            onClick={() => {
+              if (!isPreview) saveCyToElementRef(tab)
+              setIsPreview(!isPreview);
+            }}
             disabled={loading}
           />
         </div>
@@ -1119,7 +1122,8 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
                   {rel.text}
                 </span>
                 <span style={{ fontSize: 10 }}>
-                  ({nodes[rel.source].label}) {"=>"} ({nodes[rel.destination].label})
+                  ({nodes[rel.source]?.label}) {"=>"} (
+                  {nodes[rel.destination]?.label})
                 </span>
               </span>
               <span>

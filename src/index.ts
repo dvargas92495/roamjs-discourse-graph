@@ -20,7 +20,7 @@ import {
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
-import { render as queryRender, SEARCH_HIGHLIGHT } from "./QueryDrawer";
+import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
@@ -28,6 +28,7 @@ import { render as notificationRender } from "./NotificationIcon";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  getNodes,
   getQueriesUid,
   getQueryUid,
   getSubscribedBlocks,
@@ -223,10 +224,15 @@ if (!configTree.some((t) => toFlexRegex("shimmed").test(t.text))) {
       updateBlock({ uid: source.children[0].uid, text: sourceNode.uid });
     }
     if (destinationNode) {
-      updateBlock({ uid: destination.children[0].uid, text: destinationNode.uid });
+      updateBlock({
+        uid: destination.children[0].uid,
+        text: destinationNode.uid,
+      });
     }
   });
-  nodes.forEach((n) => updateBlock({ uid: n.uid, text: `[[${n.text}]] - {content}` }));
+  nodes.forEach((n) =>
+    updateBlock({ uid: n.uid, text: `[[${n.text}]] - {content}` })
+  );
   createBlock({
     node: { text: "shimmed" },
     parentUid: pageUid,
@@ -373,7 +379,13 @@ createHTMLObserver({
   callback: (d: HTMLDivElement) => {
     const title = elToTitle(getPageTitleByHtmlElement(d));
     if (
-      NODE_TITLE_REGEX.test(title) &&
+      getNodes().some((n) =>
+        new RegExp(
+          `^${n.format
+            .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
+            .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`
+        ).test(title)
+      ) &&
       !d.getAttribute("data-roamjs-discourse-context")
     ) {
       d.setAttribute("data-roamjs-discourse-context", "true");
