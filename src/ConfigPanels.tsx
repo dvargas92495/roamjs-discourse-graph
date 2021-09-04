@@ -157,7 +157,13 @@ const DEFAULT_SELECTED_RELATION = {
 
 type Triple = { source: string; target: string; relation: string };
 
-const RelationEditPreview = ({ elements }: { elements: Triple[] }) => {
+const RelationEditPreview = ({
+  elements,
+  nodeFormatByLabel,
+}: {
+  elements: Triple[];
+  nodeFormatByLabel: Record<string, string>;
+}) => {
   const relationToTitle = (source: string) => {
     const rel = elements.find(
       (h) =>
@@ -168,7 +174,10 @@ const RelationEditPreview = ({ elements }: { elements: Triple[] }) => {
       target: "",
     };
     return /is a/i.test(rel.relation)
-      ? `[[${rel.target}]] - This is a ${rel.target} page.`
+      ? nodeFormatByLabel[rel.target].replace(
+          "{content}",
+          `This is a ${rel.target} page.`
+        )
       : /has title/i.test(rel.relation)
       ? rel.target
       : source;
@@ -319,9 +328,16 @@ const RelationEditPanel = ({
 }: {
   editingRelationInfo: TreeNode;
   back: () => void;
-  nodes: Record<string, string>;
+  nodes: Record<string, { label: string; format: string }>;
   translatorKeys: string[];
 }) => {
+  const nodeFormatsByLabel = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(nodes).map(({ label, format }) => [label, format])
+      ),
+    [nodes]
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
   const cyRef = useRef<cytoscape.Core>(null);
@@ -718,11 +734,11 @@ const RelationEditPanel = ({
               setSource(e);
               (cyRef.current.nodes("#source") as NodeSingular).data(
                 "node",
-                nodes[e]
+                nodes[e].label
               );
             }}
             items={Object.keys(nodes)}
-            transformItem={(u) => nodes[u]}
+            transformItem={(u) => nodes[u].label}
             ButtonProps={{ style: { color: "darkblue" } }}
           />
         </Label>
@@ -735,11 +751,11 @@ const RelationEditPanel = ({
               setDestination(e);
               (cyRef.current.nodes("#destination") as NodeSingular).data(
                 "node",
-                nodes[e]
+                nodes[e].label
               );
             }}
             items={Object.keys(nodes)}
-            transformItem={(u) => nodes[u]}
+            transformItem={(u) => nodes[u].label}
             ButtonProps={{ style: { color: "darkred" } }}
           />
         </Label>
@@ -846,6 +862,7 @@ const RelationEditPanel = ({
                   )?.data as { node: string }
                 )?.node,
               }))}
+            nodeFormatByLabel={nodeFormatsByLabel}
           />
         )}
         <Menu
@@ -1022,7 +1039,10 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
             key: "grammar",
           }).children,
           key: "nodes",
-        }).children.map((n) => [n.uid, n.children[0].text])
+        }).children.map((n) => [
+          n.uid,
+          { label: n.children[0].text, format: n.text },
+        ])
       ),
     []
   );
@@ -1099,7 +1119,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
                   {rel.text}
                 </span>
                 <span style={{ fontSize: 10 }}>
-                  ({nodes[rel.source]}) {"=>"} ({nodes[rel.destination]})
+                  ({nodes[rel.source].label}) {"=>"} ({nodes[rel.destination].label})
                 </span>
               </span>
               <span>
