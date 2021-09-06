@@ -1,21 +1,16 @@
-import { Button, InputGroup, Label } from "@blueprintjs/core";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Button, Label } from "@blueprintjs/core";
+import React, { useMemo, useRef, useState } from "react";
 import {
   createBlock,
   deleteBlock,
-  getCurrentUserDisplayName,
-  getCurrentUserEmail,
-  getCurrentUserUid,
-  getFirstChildTextByBlockUid,
+  getBasicTreeByParentUid,
   getPageUidByPageTitle,
   getRoamUrl,
-  getShallowTreeByParentUid,
 } from "roam-client";
 import {
   BlockInput,
   MenuItemSelect,
   PageInput,
-  toFlexRegex,
 } from "roamjs-components";
 import { getUserIdentifier, Panel } from "./util";
 
@@ -34,10 +29,10 @@ const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
   const [nodes, setNodes] = useState(
     uid
       ? () =>
-          getShallowTreeByParentUid(uid).map((n) => ({
+          getBasicTreeByParentUid(uid).map((n) => ({
             uid: n.uid,
             type: n.text,
-            value: getFirstChildTextByBlockUid(n.uid),
+            value: n.children?.[0]?.text,
           }))
       : []
   );

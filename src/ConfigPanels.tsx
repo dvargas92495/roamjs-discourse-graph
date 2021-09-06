@@ -12,6 +12,7 @@ import {
   Tab,
   Tabs,
 } from "@blueprintjs/core";
+import { BUTTON } from "@blueprintjs/core/lib/esm/common/classes";
 import cytoscape, { NodeSingular } from "cytoscape";
 import React, {
   useCallback,
@@ -28,7 +29,6 @@ import {
   getPageUidByPageTitle,
   getShallowTreeByParentUid,
   getTreeByBlockUid,
-  getTreeByPageName,
   TreeNode,
 } from "roam-client";
 import {
@@ -42,7 +42,14 @@ import { englishToDatalog, Panel } from "./util";
 
 export const NodeConfigPanel: Panel = ({ uid }) => {
   const [nodes, setNodes] = useState(() =>
-    uid ? getShallowTreeByParentUid(uid) : []
+    uid
+      ? getBasicTreeByParentUid(uid).map((n) => ({
+          format: n.text,
+          uid: n.uid,
+          label: n.children?.[0]?.text,
+          shortcut: n.children?.[1]?.text,
+        }))
+      : []
   );
   const [format, setFormat] = useState("");
   const [label, setLabel] = useState("");
@@ -95,7 +102,7 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
             },
           });
           setTimeout(() => {
-            setNodes([...nodes, { text: format, uid: valueUid }]);
+            setNodes([...nodes, { format, uid: valueUid, label, shortcut }]);
             setFormat("");
             setLabel("");
             setShortcut("");
@@ -109,14 +116,12 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
         }}
       >
         {nodes.map((n) => {
-          const data = getShallowTreeByParentUid(n.uid);
-          const [{ text: label }, { text: shortcut }] = data;
           return (
             <li
               key={n.uid}
               style={{ border: "1px dashed #80808080", padding: 4 }}
             >
-              <H6 style={{ margin: 0 }}>{n.text}</H6>
+              <H6 style={{ margin: 0 }}>{n.label}</H6>
               <div
                 style={{
                   display: "flex",
@@ -125,10 +130,10 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
                 }}
               >
                 <span style={{ display: "inline-block", minWidth: 200 }}>
-                  <b>Label: </b> {label}
+                  <b>Format: </b> {n.format}
                 </span>
                 <span>
-                  <b>Shortcut: </b> {shortcut}
+                  <b>Shortcut: </b> {n.shortcut}
                 </span>
                 <Button
                   icon={"trash"}
@@ -912,7 +917,7 @@ const RelationEditPanel = ({
             minimal
             icon={isPreview ? "edit" : "eye-open"}
             onClick={() => {
-              if (!isPreview) saveCyToElementRef(tab)
+              if (!isPreview) saveCyToElementRef(tab);
               setIsPreview(!isPreview);
             }}
             disabled={loading}
@@ -1012,20 +1017,15 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
   const refreshRelations = useCallback(
     () =>
       uid
-        ? getShallowTreeByParentUid(uid).map((n) => {
-            const fieldTree = getShallowTreeByParentUid(n.uid);
+        ? getBasicTreeByParentUid(uid).map((n) => {
+            const { children: fieldTree, ...node } = n;
             return {
-              ...n,
-              source:
-                getFirstChildTextByBlockUid(
-                  fieldTree.find((t) => toFlexRegex("source").test(t.text))
-                    ?.uid || ""
-                ) || "?",
-              destination:
-                getFirstChildTextByBlockUid(
-                  fieldTree.find((t) => toFlexRegex("destination").test(t.text))
-                    ?.uid || ""
-                ) || "?",
+              ...node,
+              source: fieldTree.find((t) => toFlexRegex("source").test(t.text))
+                ?.children?.[0]?.text,
+              destination: fieldTree.find((t) =>
+                toFlexRegex("destination").test(t.text)
+              )?.children?.[0]?.text,
             };
           })
         : [],
