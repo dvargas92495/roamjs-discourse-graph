@@ -27,6 +27,7 @@ import {
   getTextByBlockUid,
   openBlockInSidebar,
   toRoamDateUid,
+  updateBlock,
 } from "roam-client";
 import {
   createOverlayRender,
@@ -168,7 +169,8 @@ const QueryCondition = ({
 type SearchResult = {
   text: string;
   pageUid: string;
-  time: number;
+  createdTime: number;
+  editedTime: number;
 };
 
 const SORT_OPTIONS: {
@@ -177,8 +179,10 @@ const SORT_OPTIONS: {
 }[] = [
   { label: "TITLE A->Z", fcn: (a, b) => a.text.localeCompare(b.text) },
   { label: "TITLE Z->A", fcn: (a, b) => b.text.localeCompare(a.text) },
-  { label: "EARLIEST", fcn: (a, b) => a.time - b.time },
-  { label: "LATEST", fcn: (a, b) => b.time - a.time },
+  { label: "YOUNGEST", fcn: (a, b) => a.createdTime - b.createdTime },
+  { label: "OLDEST", fcn: (a, b) => b.createdTime - a.createdTime },
+  { label: "EARLIEST", fcn: (a, b) => a.editedTime - b.editedTime },
+  { label: "LATEST", fcn: (a, b) => b.editedTime - a.editedTime },
 ];
 const SORT_FCN_BY_LABEL = Object.fromEntries(
   SORT_OPTIONS.map(({ label, fcn }) => [label, fcn])
@@ -200,15 +204,24 @@ const SavedQuery = ({
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const [minimized, setMinimized] = useState(false);
-  const label = useMemo(() => getTextByBlockUid(uid), []);
+  const [label, setLabel] = useState(() => getTextByBlockUid(uid));
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
   const results = useMemo(
     () =>
-      getSubTree({ tree, key: "results" }).children.map((r) => ({
-        uid: r.uid,
-        text: r.children?.[0]?.text,
-        time: Number(r.children?.[1]?.text) || 0,
-        pageUid: r.text,
-      })),
+      window.roamAlphaAPI
+        .q(
+          `[:find ?u (pull ?p [
+      [:node/title :as "text"]
+      [:create/time :as "createdTime"]
+      [:edit/time :as "editedTime"]
+    ]) (pull ?c [:block/uid]) :where [?b :block/uid "${
+      getSubTree({ tree, key: "results" })?.uid
+    }"] [?b :block/children ?c] [?c :block/string ?u] [?p :block/uid ?u]]`
+        )
+        .map(
+          (r) =>
+            ({ pageUid: r[0], ...r[1], ...r[2] } as SearchResult & { uid: string })
+        ),
     []
   );
   const query = useMemo(
@@ -253,7 +266,33 @@ const SavedQuery = ({
           margin: 4,
         }}
       >
-        {label}
+        {isEditingLabel ? (
+          <InputGroup
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                updateBlock({ uid, text: label });
+                setIsEditingLabel(false);
+              }
+            }}
+            autoFocus
+            rightElement={
+              <Button
+                minimal
+                icon={"confirm"}
+                onClick={() => {
+                  updateBlock({ uid, text: label });
+                  setIsEditingLabel(false);
+                }}
+              />
+            }
+          />
+        ) : (
+          <span tabIndex={-1} onClick={() => setIsEditingLabel(true)}>
+            {label}
+          </span>
+        )}
         <div>
           <MenuItemSelect
             popoverProps={{ portalClassName: "roamjs-discourse-results-sort" }}
@@ -588,8 +627,9 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     const query = `[:find (pull ?${returnNode} [
       [:block/string :as "text"] 
       [:node/title :as "text"] 
-      [:block/uid :as "pageUid"] 
-      :create/time
+      [:block/uid :as "pageUid"]
+      [:create/time :as "createdTime"]
+      [:edit/time :as "editedTime"]
     ]) :where ${where}]`;
     try {
       const results = where
@@ -783,7 +823,8 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
                             text: r.pageUid,
                             children: [
                               { text: r.text },
-                              { text: r.time.toString() },
+                              { text: r.createdTime.toString() },
+                              { text: r.editedTime.toString() },
                             ],
                           })),
                         },
