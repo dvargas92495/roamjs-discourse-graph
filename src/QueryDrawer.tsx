@@ -391,6 +391,7 @@ const SavedQueriesContainer = ({
             [?e :block/string "elements"] 
             [?e :block/children ?c]]`
             )
+            .filter(a => a.length && a[0])
             .map((a) => a[0].string)
         );
       }
@@ -402,6 +403,7 @@ const SavedQueriesContainer = ({
             [?b :block/page ?p] 
             [?b :block/refs ?r]]`
           )
+          .filter(a => a.length && a[0])
           .map((a) => a[0].title)
       );
     },
