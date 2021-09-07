@@ -20,10 +20,13 @@ import {
   createBlock,
   deleteBlock,
   getBasicTreeByParentUid,
+  getCurrentPageUid,
+  getPageTitleByPageUid,
   getPageUidByPageTitle,
   getRoamUrl,
   getTextByBlockUid,
   openBlockInSidebar,
+  toRoamDateUid,
 } from "roam-client";
 import {
   createOverlayRender,
@@ -44,8 +47,6 @@ import {
   triplesToQuery,
 } from "./util";
 import fuzzy from "fuzzy";
-//@ts-ignore
-window.fuzzy = fuzzy;
 
 type Props = {
   blockUid: string;
@@ -186,16 +187,26 @@ const SavedQuery = ({
   uid,
   clearOnClick,
   onDelete,
+  resultsReferenced,
+  setResultsReferenced,
 }: {
   uid: string;
   clearOnClick: (s: string, t: string) => void;
   onDelete: () => void;
+  resultsReferenced: Set<string>;
+  setResultsReferenced: (s: Set<string>) => void;
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const [minimized, setMinimized] = useState(false);
   const label = useMemo(() => getTextByBlockUid(uid), []);
-  const initialResults = useMemo(
-    () => getSubTree({ tree, key: "results" }).children,
+  const results = useMemo(
+    () =>
+      getSubTree({ tree, key: "results" }).children.map((r) => ({
+        uid: r.uid,
+        text: r.children?.[0]?.text,
+        time: Number(r.children?.[1]?.text) || 0,
+        pageUid: r.text,
+      })),
     []
   );
   const query = useMemo(
@@ -204,38 +215,25 @@ const SavedQuery = ({
   );
   const returnNode = /^Find (.*) Where$/.exec(query[0])?.[1];
   const [activeSort, setActiveSort] = useState(SORT_OPTIONS[0].label);
-  const [results, setResults] = useState<(SearchResult & { uid: string })[]>(
-    initialResults.map((r) => ({
-      uid: r.uid,
-      text: r.children?.[0]?.text,
-      time: Number(r.children?.[1]?.text) || 0,
-      pageUid: r.text,
-    }))
-  );
   const [searchTerm, setSearchTerm] = useState("");
   const sortedResults = useMemo(() => {
-    const sorted = results.sort(SORT_FCN_BY_LABEL[activeSort]);
+    const sorted = results
+      .filter((r) => !resultsReferenced.has(r.text))
+      .sort(SORT_FCN_BY_LABEL[activeSort]);
     return searchTerm
-      ? sorted.map((s) => ({
-          ...s,
-          text:
-            fuzzy.match(searchTerm, s.text, {
-              pre: "<span>",
-              post: "<span>",
-            })?.rendered || s.text,
-          hit: fuzzy.test(searchTerm, s.text),
-        }))
-      : sorted.map((s) => ({ ...s, hit: true }));
-  }, [results, activeSort, searchTerm]);
-  const searchHit = sortedResults.some((s) => s.hit);
-  useEffect(() => {
-    const el = document.querySelector<HTMLSpanElement>(
-      ".roamjs-discourse-hightlighted-result"
-    );
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [searchTerm]);
+      ? sorted
+          .map((s) => ({
+            ...s,
+            text:
+              fuzzy.match(searchTerm, s.text, {
+                pre: "<span>",
+                post: "<span>",
+              })?.rendered || s.text,
+            hit: fuzzy.test(searchTerm, s.text),
+          }))
+          .filter((s) => s.hit)
+      : sorted;
+  }, [results, activeSort, searchTerm, resultsReferenced]);
   return (
     <div
       style={{
@@ -294,7 +292,7 @@ const SavedQuery = ({
               position: "absolute",
               top: 4,
               right: 4,
-              outline: searchHit ? "unset" : "2px solid darkred",
+              outline: sortedResults.length ? "unset" : "2px solid darkred",
             }}
           >
             {searchTerm}
@@ -351,9 +349,8 @@ const SavedQuery = ({
                         icon={"hand-right"}
                         minimal
                         onClick={() => {
-                          deleteBlock(r.uid);
-                          setResults(
-                            results.filter((res) => res.uid !== r.uid)
+                          setResultsReferenced(
+                            new Set([...Array.from(resultsReferenced), r.text])
                           );
                           clearOnClick?.(r.text, returnNode);
                         }}
@@ -369,6 +366,81 @@ const SavedQuery = ({
         </div>
       )}
     </div>
+  );
+};
+
+const SavedQueriesContainer = ({
+  savedQueries,
+  setSavedQueries,
+  clearOnClick,
+}: {
+  savedQueries: string[];
+  setSavedQueries: (s: string[]) => void;
+  clearOnClick: (s: string, t: string) => void;
+}) => {
+  const refreshResultsReferenced = useCallback(
+    (pageUid = getCurrentPageUid()) => {
+      const title = getPageTitleByPageUid(pageUid);
+      if (title.startsWith("Playground")) {
+        return new Set(
+          window.roamAlphaAPI
+            .q(
+              `[:find (pull ?c [:block/string]) :where 
+            [?p :block/uid "${pageUid}"] 
+            [?e :block/page ?p] 
+            [?e :block/string "elements"] 
+            [?e :block/children ?c]]`
+            )
+            .map((a) => a[0].string)
+        );
+      }
+      return new Set(
+        window.roamAlphaAPI
+          .q(
+            `[:find (pull ?r [:node/title]) :where 
+            [?p :block/uid "${pageUid}"] 
+            [?b :block/page ?p] 
+            [?b :block/refs ?r]]`
+          )
+          .map((a) => a[0].title)
+      );
+    },
+    []
+  );
+  const [resultsReferenced, setResultsReferenced] = useState(
+    refreshResultsReferenced
+  );
+  const hashChangeListener = useCallback(
+    (e: HashChangeEvent) =>
+      setResultsReferenced(
+        refreshResultsReferenced(
+          e.newURL.match(/\/page\/(.*)$/)?.[1] || toRoamDateUid(new Date())
+        )
+      ),
+    [refreshResultsReferenced, setResultsReferenced]
+  );
+  useEffect(() => {
+    window.addEventListener("hashchange", hashChangeListener);
+    return () => window.removeEventListener("hashchange", hashChangeListener);
+  }, [hashChangeListener]);
+  return (
+    <>
+      <hr />
+      <H3>Saved Queries</H3>
+      {savedQueries.map((sq) => (
+        <SavedQuery
+          uid={sq}
+          key={sq}
+          clearOnClick={clearOnClick}
+          onDelete={() => {
+            setSavedQueries(savedQueries.filter((s) => s !== sq));
+            deleteBlock(sq);
+          }}
+          resultsReferenced={resultsReferenced}
+          setResultsReferenced={setResultsReferenced}
+        />
+      ))}
+    </>
   );
 };
 
@@ -792,21 +864,11 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
         </>
       )}
       {!!savedQueries.length && (
-        <>
-          <hr />
-          <H3>Saved Queries</H3>
-          {savedQueries.map((sq) => (
-            <SavedQuery
-              uid={sq}
-              key={sq}
-              clearOnClick={clearOnClick}
-              onDelete={() => {
-                setSavedQueries(savedQueries.filter((s) => s !== sq));
-                deleteBlock(sq);
-              }}
-            />
-          ))}
-        </>
+        <SavedQueriesContainer
+          savedQueries={savedQueries}
+          setSavedQueries={setSavedQueries}
+          clearOnClick={clearOnClick}
+        />
       )}
     </>
   );
