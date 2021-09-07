@@ -60,6 +60,8 @@ type Condition = {
   uid: string;
 };
 
+const ANY_REGEX = /Has Any Relation To/i;
+
 const QueryCondition = ({
   con,
   index,
@@ -117,7 +119,7 @@ const QueryCondition = ({
             )
           );
         }}
-        items={relationLabels}
+        items={relationLabels.concat(ANY_REGEX.source)}
         emptyValueText={"Choose relationship"}
         ButtonProps={{
           style: {
@@ -307,7 +309,7 @@ const SavedQuery = ({
           {sortedResults.length ? (
             <>
               <i style={{ opacity: 0.8 }}>
-                Found {sortedResults.length} results
+                Showing {sortedResults.length} of {results.length} results
               </i>
               <ul>
                 {sortedResults.map((r) => (
@@ -391,7 +393,7 @@ const SavedQueriesContainer = ({
             [?e :block/string "elements"] 
             [?e :block/children ?c]]`
             )
-            .filter(a => a.length && a[0])
+            .filter((a) => a.length && a[0])
             .map((a) => a[0].string)
         );
       }
@@ -403,7 +405,7 @@ const SavedQueriesContainer = ({
             [?b :block/page ?p] 
             [?b :block/refs ?r]]`
           )
-          .filter(a => a.length && a[0])
+          .filter((a) => a.length && a[0])
           .map((a) => a[0].title)
       );
     },
@@ -530,18 +532,22 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       .flatMap((c) => {
         const native = translator[c.relation];
         if (native) return native(c.source, c.target);
-        const filteredRelations = discourseRelations.filter(
-          (r) =>
-            (r.label === c.relation &&
-              (nodeLabelByType[r.source].startsWith(c.source) ||
-                nodeLabelByType[r.destination].startsWith(c.target))) ||
-            ((nodeLabelByType[r.destination].startsWith(c.source) ||
-              nodeLabelByType[r.source].startsWith(c.target)) &&
-              r.complement === c.relation)
-        );
+        const filteredRelations = discourseRelations
+          .map((r) =>
+            (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
+            (nodeLabelByType[r.source].startsWith(c.source) ||
+              nodeLabelByType[r.destination].startsWith(c.target))
+              ? { ...r, forward: true }
+              : (nodeLabelByType[r.destination].startsWith(c.source) ||
+                  nodeLabelByType[r.source].startsWith(c.target)) &&
+                (r.complement === c.relation || ANY_REGEX.test(c.relation))
+              ? { ...r, forward: false }
+              : undefined
+          )
+          .filter((r) => !!r);
         if (!filteredRelations.length) return "";
         return `(or-join [?${c.source}] ${filteredRelations.map(
-          ({ triples, source, destination, label, complement }) => {
+          ({ triples, source, destination, forward }) => {
             const queryTriples = triples.map((t) => t.slice(0));
             const sourceTriple = queryTriples.find((t) => t[2] === "source");
             const destinationTriple = queryTriples.find(
@@ -549,14 +555,14 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
             );
             if (!sourceTriple || !destinationTriple) return "";
             let returnNodeVar = "";
-            if (label === c.relation) {
+            if (forward) {
               destinationTriple[1] = "Has Title";
               destinationTriple[2] = c.target;
               sourceTriple[2] = source;
               if (nodeLabelByType[source].startsWith(returnNode)) {
                 returnNodeVar = sourceTriple[0];
               }
-            } else if (complement === c.relation) {
+            } else {
               sourceTriple[1] = "Has Title";
               sourceTriple[2] = c.target;
               destinationTriple[2] = destination;
