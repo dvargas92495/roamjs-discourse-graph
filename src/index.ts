@@ -29,12 +29,12 @@ import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
   getNodes,
+  getPageMetadata,
   getQueriesUid,
   getQueryUid,
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
-  NODE_TITLE_REGEX,
   refreshConfigTree,
 } from "./util";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
@@ -287,44 +287,37 @@ createHTMLObserver({
   className: "rm-title-display",
   callback: (h1: HTMLHeadingElement) => {
     const title = elToTitle(h1);
-    const [createdTime, uid] = (window.roamAlphaAPI.q(
-      `[:find ?ct ?uid :where [?cu :user/uid ?uid] [?p :create/user ?cu] [?p :create/time ?ct] [?p :node/title "${title}"]]`
-    )[0] as [number, string]) || [0, ""];
-    if (uid) {
-      const displayName = getDisplayNameByUid(uid);
-      const container = document.createElement("div");
-      const oldMarginBottom = getComputedStyle(h1).marginBottom;
-      container.style.marginTop = `${
-        4 - Number(oldMarginBottom.replace("px", "")) / 2
-      }px`;
-      container.style.marginBottom = oldMarginBottom;
-      const label = document.createElement("i");
-      label.innerText = `Created by ${displayName || "Anonymous"} on ${new Date(
-        createdTime
-      ).toLocaleDateString()}`;
-      container.appendChild(label);
-      if (h1.parentElement.lastChild === h1) {
-        h1.parentElement.appendChild(container);
-      } else {
-        h1.parentElement.insertBefore(container, h1.nextSibling);
-      }
-      if (title.startsWith("Playground")) {
-        const children = document.querySelector<HTMLDivElement>(
-          ".roam-article .rm-block-children"
-        );
-        if (!children.hasAttribute("data-roamjs-discourse-playground")) {
-          children.setAttribute("data-roamjs-discourse-playground", "true");
-          children.style.display = "none";
-          const p = document.createElement("div");
-          children.parentElement.appendChild(p);
-          p.style.height = "500px";
-          cyRender({
-            p,
-            title,
-            previewEnabled: isFlagEnabled("preview"),
-            globalRefs,
-          });
-        }
+    const { displayName, date } = getPageMetadata(title);
+    const container = document.createElement("div");
+    const oldMarginBottom = getComputedStyle(h1).marginBottom;
+    container.style.marginTop = `${
+      4 - Number(oldMarginBottom.replace("px", "")) / 2
+    }px`;
+    container.style.marginBottom = oldMarginBottom;
+    const label = document.createElement("i");
+    label.innerText = `Created by ${displayName || "Anonymous"} on ${date}`;
+    container.appendChild(label);
+    if (h1.parentElement.lastChild === h1) {
+      h1.parentElement.appendChild(container);
+    } else {
+      h1.parentElement.insertBefore(container, h1.nextSibling);
+    }
+    if (title.startsWith("Playground") && !!h1.closest('.roam-article')) {
+      const children = document.querySelector<HTMLDivElement>(
+        ".roam-article .rm-block-children"
+      );
+      if (!children.hasAttribute("data-roamjs-discourse-playground")) {
+        children.setAttribute("data-roamjs-discourse-playground", "true");
+        children.style.display = "none";
+        const p = document.createElement("div");
+        children.parentElement.appendChild(p);
+        p.style.height = "500px";
+        cyRender({
+          p,
+          title,
+          previewEnabled: isFlagEnabled("preview"),
+          globalRefs,
+        });
       }
     }
   },

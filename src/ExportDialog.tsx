@@ -21,7 +21,9 @@ import {
 import { createOverlayRender, MenuItemSelect } from "roamjs-components";
 import {
   englishToDatalog,
+  getDiscourseContextResults,
   getNodes,
+  getPageMetadata,
   getRelations,
   matchNode,
   NODE_TITLE_REGEX,
@@ -171,20 +173,21 @@ const ExportDialog = ({
                       )
                     );
                 if (activeExportType === "CSV (neo4j)") {
-                  const nodeHeader = "uid:ID,label:LABEL,title\n";
+                  const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
                   const nodeData = pageData
                     .map(({ title, uid }) => {
                       const value = title.replace(
                         new RegExp(`^\\[\\[\\w*\\]\\] - `),
                         ""
                       );
+                      const { displayName, date } = getPageMetadata(title);
                       return `${uid},${(
                         allNodes.find(({ format }) =>
                           matchNode({ format, title })
                         )?.text || ""
                       ).toUpperCase()},${
                         value.includes(",") ? `"${value}"` : value
-                      }`;
+                      },${displayName},"${date}"`;
                     })
                     .join("\n");
                   zip.file(
@@ -241,10 +244,24 @@ const ExportDialog = ({
                 } else if (activeExportType === "Markdown") {
                   const pages = pageData.map(({ title, uid }) => {
                     const v = getPageViewType(title) || "bullet";
+                    const { date, displayName } = getPageMetadata(title);
                     const treeNode = getTreeByBlockUid(uid);
-                    const content = treeNode.children
+                    const discourseResults = getDiscourseContextResults(
+                      title,
+                      allNodes
+                    );
+                    const content = `---\nauthor: ${displayName}\ndate: ${date}\n---\n\n${treeNode.children
                       .map((c) => toMarkdown({ c, v, i: 0 }))
-                      .join("\n");
+                      .join("\n")}\n${
+                      discourseResults.length
+                        ? `\n###### Discourse Context\n\n${discourseResults.flatMap(
+                            (r) =>
+                              Object.values(r.results).map(
+                                (t) => `- **${r.label}:** ${t}`
+                              ).join('\n')
+                          )}`
+                        : ""
+                    }`;
                     const uids = new Set(collectUids(treeNode));
                     return { title, content, uids };
                   });

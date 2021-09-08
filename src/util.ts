@@ -464,3 +464,115 @@ export const getPixelValue = (
   el: HTMLElement,
   field: "width" | "paddingLeft"
 ) => Number((getComputedStyle(el)[field] || "0px").replace(/px$/, ""));
+
+export const getPageMetadata = (title: string) => {
+  const results = window.roamAlphaAPI.q(
+    `[:find (pull ?p [:create/time]) (pull ?cu [:user/uid]) :where [?p :node/title "${title}"] [?p :create/user ?cu]]`
+  ) as [[{ time: number }, { uid: string }]];
+  if (results.length) {
+    const [[{ time: createdTime }, { uid }]] = results;
+    const displayName = getDisplayNameByUid(uid);
+    const date = new Date(createdTime).toLocaleDateString();
+    return { displayName, date };
+  }
+  return { displayName: "Unknown", date: new Date().toLocaleDateString() };
+};
+
+export const getDiscourseContextResults = (
+  title: string,
+  nodes = getNodes(),
+  relations = getRelations()
+) => {
+  const nodeType = nodes.find(({ format }) =>
+    matchNode({ format, title })
+  )?.type;
+  try {
+    const rawResults = [
+      ...relations
+        .filter((r) => r.source === nodeType)
+        .map((r) => ({
+          r,
+          destinationTriple: r.triples.find(
+            (t) => t[2] === "destination" || t[2] === r.destination
+          ),
+          sourceTriple: r.triples.find(
+            (t) => t[2] === "source" || t[2] === r.source
+          ),
+        }))
+        .filter(
+          ({ sourceTriple, destinationTriple }) =>
+            !!sourceTriple && !!destinationTriple
+        )
+        .map(({ r, destinationTriple, sourceTriple }) => {
+          const lastPlaceholder = freeVar(destinationTriple[0]);
+          return {
+            label: r.label,
+            results: Object.fromEntries(
+              window.roamAlphaAPI.q(
+                `[:find ?u ?t :where [${lastPlaceholder} :block/uid ?u] [${lastPlaceholder} :node/title ?t] ${triplesToQuery(
+                  [
+                    [sourceTriple[0], "Has Title", title],
+                    [destinationTriple[0], destinationTriple[1], r.destination],
+                    ...r.triples.filter(
+                      (t) => t !== sourceTriple && t !== destinationTriple
+                    ),
+                  ],
+                  englishToDatalog(nodes)
+                )}]`
+              ) as [string, string][]
+            ),
+          };
+        }),
+      ...relations
+        .filter((r) => r.destination === nodeType)
+        .map((r) => ({
+          r,
+          sourceTriple: r.triples.find(
+            (t) => t[2] === "source" || t[2] === r.source
+          ),
+          destinationTriple: r.triples.find(
+            (t) => t[2] === "destination" || t[2] === r.destination
+          ),
+        }))
+        .filter(
+          ({ sourceTriple, destinationTriple }) =>
+            !!sourceTriple && !!destinationTriple
+        )
+        .map(({ r, sourceTriple, destinationTriple }) => {
+          const firstPlaceholder = freeVar(sourceTriple[0]);
+          return {
+            label: r.complement,
+            results: Object.fromEntries(
+              window.roamAlphaAPI.q(
+                `[:find ?u ?t :where [${firstPlaceholder} :block/uid ?u] [${firstPlaceholder} :node/title ?t] ${triplesToQuery(
+                  [
+                    [destinationTriple[0], "Has Title", title],
+                    [sourceTriple[0], sourceTriple[1], r.source],
+                    ...r.triples.filter(
+                      (t) => t !== destinationTriple && t !== sourceTriple
+                    ),
+                  ],
+                  englishToDatalog(nodes)
+                )}]`
+              ) as [string, string][]
+            ),
+          };
+        }),
+    ];
+    const groupedResults = Object.fromEntries(
+      rawResults.map((r) => [r.label, {} as Record<string, string>])
+    );
+    rawResults.forEach((r) =>
+      Object.entries(r.results).forEach(
+        ([k, v]) => (groupedResults[r.label][k] = v)
+      )
+    );
+    return Object.entries(groupedResults).map(([label, results]) => ({
+      label,
+      results,
+    }));
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+};
