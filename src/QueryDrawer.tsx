@@ -205,7 +205,10 @@ const SavedQuery = ({
   resultsReferenced: Set<string>;
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string[]) => void;
-  parseQuery: (s: string[]) => {returnNode: string, conditionNodes: Omit<Condition, 'uid'>[]};
+  parseQuery: (s: string[]) => {
+    returnNode: string;
+    conditionNodes: Omit<Condition, "uid">[];
+  };
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const [minimized, setMinimized] = useState(false);
@@ -461,13 +464,16 @@ const SavedQueriesContainer = ({
   setSavedQueries,
   clearOnClick,
   editSavedQuery,
-  parseQuery
+  parseQuery,
 }: {
   savedQueries: string[];
   setSavedQueries: (s: string[]) => void;
   clearOnClick: (s: string, t: string) => void;
   editSavedQuery: (s: string[]) => void;
-  parseQuery: (s: string[]) => {returnNode: string, conditionNodes: Omit<Condition, 'uid'>[]};
+  parseQuery: (s: string[]) => {
+    returnNode: string;
+    conditionNodes: Omit<Condition, "uid">[];
+  };
 }) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
@@ -544,11 +550,18 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
   const discourseNodes = useMemo(getNodes, []);
   const nodeFormatByLabel = useMemo(
     () => Object.fromEntries(discourseNodes.map((n) => [n.text, n.format])),
-    []
+    [discourseNodes]
   );
   const nodeLabelByType = useMemo(
     () => Object.fromEntries(discourseNodes.map((n) => [n.type, n.text])),
-    []
+    [discourseNodes]
+  );
+  const nodeTypeByLabel = useMemo(
+    () =>
+      Object.fromEntries(
+        discourseNodes.map((n) => [n.text.toLowerCase(), n.type])
+      ),
+    [discourseNodes]
   );
   const discourseRelations = useMemo(getRelations, []);
   const scratchNode = useMemo(
@@ -622,15 +635,17 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     const where = conditions
       .flatMap((c) => {
         const native = translator[c.relation];
-        if (native) return native(c.source, c.target);
+        const conditionTarget =
+          nodeTypeByLabel[c.target.toLowerCase()] || c.target;
+        if (native) return native(c.source, conditionTarget);
         const filteredRelations = discourseRelations
           .map((r) =>
             (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
             (nodeLabelByType[r.source].startsWith(c.source) ||
-              nodeLabelByType[r.destination].startsWith(c.target))
+              r.destination === conditionTarget)
               ? { ...r, forward: true }
               : (nodeLabelByType[r.destination].startsWith(c.source) ||
-                  nodeLabelByType[r.source].startsWith(c.target)) &&
+                  r.source === conditionTarget) &&
                 (r.complement === c.relation || ANY_REGEX.test(c.relation))
               ? { ...r, forward: false }
               : undefined
@@ -648,14 +663,14 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
             let returnNodeVar = "";
             if (forward) {
               destinationTriple[1] = "Has Title";
-              destinationTriple[2] = c.target;
+              destinationTriple[2] = conditionTarget;
               sourceTriple[2] = source;
               if (nodeLabelByType[source].startsWith(returnNode)) {
                 returnNodeVar = sourceTriple[0];
               }
             } else {
               sourceTriple[1] = "Has Title";
-              sourceTriple[2] = c.target;
+              sourceTriple[2] = conditionTarget;
               destinationTriple[2] = destination;
               if (nodeLabelByType[destination].startsWith(returnNode)) {
                 returnNodeVar = destinationTriple[0];

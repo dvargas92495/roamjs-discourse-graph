@@ -4,13 +4,10 @@ import {
   getCurrentUserDisplayName,
   getCurrentUserUid,
   getDisplayNameByUid,
-  getPageTitleByPageUid,
   getPageUidByPageTitle,
-  getTreeByPageName,
   InputTextNode,
   RoamBasicNode,
   TextNode,
-  TreeNode,
 } from "roam-client";
 import { getSettingValueFromTree, toFlexRegex } from "roamjs-components";
 
