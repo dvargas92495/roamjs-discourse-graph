@@ -53,7 +53,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
           if (referencedNode) {
             const referencedTitle =
               window.roamAlphaAPI.q(
-                `[:find ?t :where [?b :block/uid "${blockUid}"] [?b :block/parents ?p] [?p :block/refs ?r] [?r :node/title ?t] ${nodeFormatToDatalog(
+                `[:find ?t :where [?b :block/uid "${blockUid}"] (or-join [?b ?r] (and [?b :block/parents ?p] [?p :block/refs ?r]) (and [?b :block/page ?r])) [?r :node/title ?t] ${nodeFormatToDatalog(
                   {
                     freeVar: "t",
                     nodeFormat: referencedNode.format,
