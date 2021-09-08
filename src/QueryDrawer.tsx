@@ -197,6 +197,7 @@ const SavedQuery = ({
   resultsReferenced,
   setResultsReferenced,
   editSavedQuery,
+  parseQuery,
 }: {
   uid: string;
   clearOnClick: (s: string, t: string) => void;
@@ -204,6 +205,7 @@ const SavedQuery = ({
   resultsReferenced: Set<string>;
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string[]) => void;
+  parseQuery: (s: string[]) => {returnNode: string, conditionNodes: Omit<Condition, 'uid'>[]};
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const [minimized, setMinimized] = useState(false);
@@ -306,6 +308,27 @@ const SavedQuery = ({
             items={SORT_OPTIONS.map(({ label }) => label)}
             onItemSelect={(e) => setActiveSort(e)}
             className={"roamjs-discourse-results-sort"}
+          />
+          <Button
+            icon={"export"}
+            minimal
+            onClick={() =>
+              exportRender({
+                fromQuery: {
+                  results: results.map(({ text, pageUid }) => ({
+                    title: text,
+                    uid: pageUid,
+                  })),
+                  conditions: parseQuery(query).conditionNodes.map((c) => ({
+                    predicate: {
+                      title: c.target,
+                      uid: getPageUidByPageTitle(c.target),
+                    },
+                    relation: c.relation,
+                  })),
+                },
+              })
+            }
           />
           <Button
             icon={minimized ? "maximize" : "minimize"}
@@ -438,11 +461,13 @@ const SavedQueriesContainer = ({
   setSavedQueries,
   clearOnClick,
   editSavedQuery,
+  parseQuery
 }: {
   savedQueries: string[];
   setSavedQueries: (s: string[]) => void;
   clearOnClick: (s: string, t: string) => void;
   editSavedQuery: (s: string[]) => void;
+  parseQuery: (s: string[]) => {returnNode: string, conditionNodes: Omit<Condition, 'uid'>[]};
 }) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
@@ -507,6 +532,7 @@ const SavedQueriesContainer = ({
           resultsReferenced={resultsReferenced}
           setResultsReferenced={setResultsReferenced}
           editSavedQuery={editSavedQuery}
+          parseQuery={parseQuery}
         />
       ))}
     </>
@@ -717,16 +743,12 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
         .concat(ANY_REGEX.source),
     [translator, discourseRelations]
   );
-  const editSavedQuery = useCallback(
+
+  const parseQuery = useCallback(
     (q: string[]) => {
       const [findWhere, ...conditions] = q;
-      const value = findWhere.split(" ")[1];
-      setInputSetting({
-        blockUid: scratchNodeUid,
-        value,
-        key: "return",
-      });
-      const conditionNodes = conditions.map((c, order) => {
+      const returnNode = findWhere.split(" ")[1];
+      const conditionNodes = conditions.map((c) => {
         const [source, rest] = c.split(/ (.+)/);
         const relation = relationLabels.find((l) => rest.startsWith(l));
         const target = rest.substring(relation.length + 1);
@@ -734,23 +756,44 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           source,
           relation,
           target,
-          uid: createBlock({
-            parentUid: conditionsNodeUid,
-            order,
-            node: {
-              text: `${order}`,
-              children: [
-                { text: "source", children: [{ text: source }] },
-                { text: "relation", children: [{ text: relation }] },
-                { text: "target", children: [{ text: target }] },
-              ],
-            },
-          }),
         };
       });
+      return { returnNode, conditionNodes };
+    },
+    [relationLabels]
+  );
+  const editSavedQuery = useCallback(
+    (q: string[]) => {
+      const { returnNode: value, conditionNodes } = parseQuery(q);
+      setInputSetting({
+        blockUid: scratchNodeUid,
+        value,
+        key: "return",
+      });
+      const conditionNodesWithUids = conditionNodes.map(
+        ({ source, relation, target }, order) => {
+          return {
+            source,
+            relation,
+            target,
+            uid: createBlock({
+              parentUid: conditionsNodeUid,
+              order,
+              node: {
+                text: `${order}`,
+                children: [
+                  { text: "source", children: [{ text: source }] },
+                  { text: "relation", children: [{ text: relation }] },
+                  { text: "target", children: [{ text: target }] },
+                ],
+              },
+            }),
+          };
+        }
+      );
       setTimeout(() => {
         setReturnNode(value);
-        setConditions(conditionNodes);
+        setConditions(conditionNodesWithUids);
       }, 1);
     },
     [relationLabels, setReturnNode, setConditions]
@@ -861,27 +904,6 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
             Results
             <div>
               <Button
-                icon={"export"}
-                minimal
-                onClick={() =>
-                  exportRender({
-                    fromQuery: {
-                      results: results.map(({ text, pageUid }) => ({
-                        title: text,
-                        uid: pageUid,
-                      })),
-                      conditions: conditions.map((c) => ({
-                        predicate: {
-                          title: c.target,
-                          uid: getPageUidByPageTitle(c.target),
-                        },
-                        relation: c.relation,
-                      })),
-                    },
-                  })
-                }
-              />
-              <Button
                 icon={"pin"}
                 onClick={() => {
                   const newSavedUid = createBlock({
@@ -989,6 +1011,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           setSavedQueries={setSavedQueries}
           clearOnClick={clearOnClick}
           editSavedQuery={editSavedQuery}
+          parseQuery={parseQuery}
         />
       )}
     </>

@@ -12,7 +12,6 @@ import React, { useState } from "react";
 import {
   BLOCK_REF_REGEX,
   getGraph,
-  getPageTitlesAndUidsDirectlyReferencingPage,
   getPageViewType,
   getTextByBlockUid,
   getTreeByBlockUid,
