@@ -2,6 +2,7 @@ import {
   Button,
   H3,
   H6,
+  Icon,
   InputGroup,
   Menu,
   MenuItem,
@@ -120,7 +121,7 @@ const QueryCondition = ({
             )
           );
         }}
-        items={relationLabels.concat(ANY_REGEX.source)}
+        items={relationLabels}
         emptyValueText={"Choose relationship"}
         ButtonProps={{
           style: {
@@ -195,12 +196,14 @@ const SavedQuery = ({
   onDelete,
   resultsReferenced,
   setResultsReferenced,
+  editSavedQuery,
 }: {
   uid: string;
   clearOnClick: (s: string, t: string) => void;
   onDelete: () => void;
   resultsReferenced: Set<string>;
   setResultsReferenced: (s: Set<string>) => void;
+  editSavedQuery: (s: string[]) => void;
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const [minimized, setMinimized] = useState(false);
@@ -220,7 +223,9 @@ const SavedQuery = ({
         )
         .map(
           (r) =>
-            ({ pageUid: r[0], ...r[1], ...r[2] } as SearchResult & { uid: string })
+            ({ pageUid: r[0], ...r[1], ...r[2] } as SearchResult & {
+              uid: string;
+            })
         ),
     []
   );
@@ -338,7 +343,25 @@ const SavedQuery = ({
           >
             {searchTerm}
           </span>
-          <div style={{ fontSize: 10 }}>
+          <div style={{ fontSize: 10, position: "relative" }}>
+            <Button
+              icon={<Icon icon={"edit"} iconSize={12} />}
+              minimal
+              style={{
+                height: 12,
+                width: 12,
+                minHeight: 12,
+                minWidth: 12,
+                padding: 2,
+                position: "absolute",
+                top: 0,
+                right: 8,
+              }}
+              onClick={() => {
+                editSavedQuery(query);
+                onDelete();
+              }}
+            />
             {query.map((q, i) => (
               <p key={i} style={{ margin: 0 }}>
                 {q}
@@ -414,10 +437,12 @@ const SavedQueriesContainer = ({
   savedQueries,
   setSavedQueries,
   clearOnClick,
+  editSavedQuery,
 }: {
   savedQueries: string[];
   setSavedQueries: (s: string[]) => void;
   clearOnClick: (s: string, t: string) => void;
+  editSavedQuery: (s: string[]) => void;
 }) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
@@ -481,6 +506,7 @@ const SavedQueriesContainer = ({
           }}
           resultsReferenced={resultsReferenced}
           setResultsReferenced={setResultsReferenced}
+          editSavedQuery={editSavedQuery}
         />
       ))}
     </>
@@ -678,6 +704,57 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       ) + 1
     }`
   );
+  const relationLabels = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          Object.keys(translator).concat(
+            discourseRelations.flatMap((r) => [r.label, r.complement])
+          )
+        )
+      )
+        .sort()
+        .concat(ANY_REGEX.source),
+    [translator, discourseRelations]
+  );
+  const editSavedQuery = useCallback(
+    (q: string[]) => {
+      const [findWhere, ...conditions] = q;
+      const value = findWhere.split(" ")[1];
+      setInputSetting({
+        blockUid: scratchNodeUid,
+        value,
+        key: "return",
+      });
+      const conditionNodes = conditions.map((c, order) => {
+        const [source, rest] = c.split(/ (.+)/);
+        const relation = relationLabels.find((l) => rest.startsWith(l));
+        const target = rest.substring(relation.length + 1);
+        return {
+          source,
+          relation,
+          target,
+          uid: createBlock({
+            parentUid: conditionsNodeUid,
+            order,
+            node: {
+              text: `${order}`,
+              children: [
+                { text: "source", children: [{ text: source }] },
+                { text: "relation", children: [{ text: relation }] },
+                { text: "target", children: [{ text: target }] },
+              ],
+            },
+          }),
+        };
+      });
+      setTimeout(() => {
+        setReturnNode(value);
+        setConditions(conditionNodes);
+      }, 1);
+    },
+    [relationLabels, setReturnNode, setConditions]
+  );
   return (
     <>
       <H6
@@ -738,13 +815,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       {conditions.map((con, index) => (
         <QueryCondition
           key={con.uid}
-          relationLabels={Array.from(
-            new Set(
-              Object.keys(translator).concat(
-                discourseRelations.flatMap((r) => [r.label, r.complement])
-              )
-            )
-          ).sort()}
+          relationLabels={relationLabels}
           con={con}
           index={index}
           conditions={conditions}
@@ -917,6 +988,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           savedQueries={savedQueries}
           setSavedQueries={setSavedQueries}
           clearOnClick={clearOnClick}
+          editSavedQuery={editSavedQuery}
         />
       )}
     </>
