@@ -8,6 +8,8 @@ import {
   getDisplayNameByUid,
   getPageTitleByHtmlElement,
   getPageTitleByPageUid,
+  getPageTitlesAndBlockUidsReferencingPage,
+  getPageUidByPageTitle,
   getTextByBlockUid,
   toConfig,
   updateBlock,
@@ -28,6 +30,7 @@ import { render as notificationRender } from "./NotificationIcon";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  getNodeReferenceChildren,
   getNodes,
   getPageMetadata,
   getQueriesUid,
@@ -35,6 +38,7 @@ import {
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
+  isNodeTitle,
   refreshConfigTree,
 } from "./util";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
@@ -295,14 +299,14 @@ createHTMLObserver({
     }px`;
     container.style.marginBottom = oldMarginBottom;
     const label = document.createElement("i");
-    label.innerText = `Created by ${displayName || "Anonymous"} on ${date}`;
+    label.innerText = `Created by ${displayName || "Anonymous"} on ${date.toLocaleString()}`;
     container.appendChild(label);
     if (h1.parentElement.lastChild === h1) {
       h1.parentElement.appendChild(container);
     } else {
       h1.parentElement.insertBefore(container, h1.nextSibling);
     }
-    if (title.startsWith("Playground") && !!h1.closest('.roam-article')) {
+    if (title.startsWith("Playground") && !!h1.closest(".roam-article")) {
       const children = document.querySelector<HTMLDivElement>(
         ".roam-article .rm-block-children"
       );
@@ -372,13 +376,7 @@ createHTMLObserver({
   callback: (d: HTMLDivElement) => {
     const title = elToTitle(getPageTitleByHtmlElement(d));
     if (
-      getNodes().some((n) =>
-        new RegExp(
-          `^${n.format
-            .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
-            .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`
-        ).test(title)
-      ) &&
+      isNodeTitle(title) &&
       !d.getAttribute("data-roamjs-discourse-context")
     ) {
       d.setAttribute("data-roamjs-discourse-context", "true");
@@ -387,6 +385,23 @@ createHTMLObserver({
         const p = document.createElement("div");
         parent.parentElement.insertBefore(p, parent);
         contextRender({ p, title: elToTitle(getPageTitleByHtmlElement(d)) });
+      }
+    }
+  },
+});
+
+createHTMLObserver({
+  className: "rm-sidebar-window",
+  tag: "div",
+  callback: (d) => {
+    const label = d.querySelector<HTMLSpanElement>(".window-headers div span");
+    if (label.innerText.startsWith("Outline")) {
+      const title = elToTitle(
+        d.querySelector<HTMLHeadingElement>(".rm-title-display")
+      );
+      if (isNodeTitle(title)) {
+        const container = getNodeReferenceChildren(title);
+        d.appendChild(container);
       }
     }
   },

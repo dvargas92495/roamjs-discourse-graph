@@ -4,6 +4,7 @@ import {
   getCurrentUserDisplayName,
   getCurrentUserUid,
   getDisplayNameByUid,
+  getPageTitlesAndBlockUidsReferencingPage,
   getPageUidByPageTitle,
   InputTextNode,
   RoamBasicNode,
@@ -45,8 +46,6 @@ export const getQueriesUid = () =>
 
 export const isFlagEnabled = (flag: string) =>
   treeRef.tree.some((t) => toFlexRegex(flag).test(t.text));
-
-export const NODE_TITLE_REGEX = new RegExp(`^\\[\\[(\\w*)\\]\\] - `);
 
 export const DEFAULT_NODE_VALUES: InputTextNode[] = [
   {
@@ -317,6 +316,29 @@ export const matchNode = ({
   );
 };
 
+export const isNodeTitle = (title: string) =>
+  getNodes().some((n) =>
+    new RegExp(
+      `^${n.format
+        .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
+        .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`
+    ).test(title)
+  );
+
+export const getNodeReferenceChildren = (title: string) => {
+  const container = document.createElement("div");
+  getPageTitlesAndBlockUidsReferencingPage(title).forEach(({ title, uid }) => {
+    const section = document.createElement("div");
+    const heading = document.createElement("h6");
+    heading.innerText = title;
+    const el = document.createElement("div");
+    section.appendChild(heading).appendChild(el);
+    window.roamAlphaAPI.ui.components.renderBlock({ el, uid });
+    container.appendChild(section);
+  });
+  return container;
+};
+
 export const nodeFormatToDatalog = ({
   nodeFormat = "",
   freeVar,
@@ -467,15 +489,19 @@ export const getPixelValue = (
 
 export const getPageMetadata = (title: string) => {
   const results = window.roamAlphaAPI.q(
-    `[:find (pull ?p [:create/time]) (pull ?cu [:user/uid]) :where [?p :node/title "${title}"] [?p :create/user ?cu]]`
-  ) as [[{ time: number }, { uid: string }]];
+    `[:find (pull ?p [:create/time :block/uid]) (pull ?cu [:user/uid]) :where [?p :node/title "${title}"] [?p :create/user ?cu]]`
+  ) as [[{ time: number; uid: string }, { uid: string }]];
   if (results.length) {
-    const [[{ time: createdTime }, { uid }]] = results;
+    const [[{ time: createdTime, uid: id }, { uid }]] = results;
     const displayName = getDisplayNameByUid(uid);
-    const date = new Date(createdTime).toLocaleDateString();
-    return { displayName, date };
+    const date = new Date(createdTime);
+    return { displayName, date, id };
   }
-  return { displayName: "Unknown", date: new Date().toLocaleDateString() };
+  return {
+    displayName: "Unknown",
+    date: new Date(),
+    id: "",
+  };
 };
 
 export const getDiscourseContextResults = (

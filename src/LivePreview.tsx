@@ -8,6 +8,8 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 import { getChildrenLengthByPageUid, getPageUidByPageTitle } from "roam-client";
+import { useSubTree } from "roamjs-components";
+import { getNodeReferenceChildren, isNodeTitle } from "./util";
 
 const sizes = [300, 400, 500, 600];
 
@@ -22,6 +24,7 @@ const TooltipContent = ({
 }) => {
   const uid = useMemo(() => getPageUidByPageTitle(tag), [tag]);
   const numChildren = useMemo(() => getChildrenLengthByPageUid(uid), [uid]);
+  const [isEmpty, setIsEmpty] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [sizeIndex, setSizeIndex] = useState(0);
   const size = useMemo(() => sizes[sizeIndex % sizes.length], [sizeIndex]);
@@ -29,6 +32,7 @@ const TooltipContent = ({
     document
       .getElementById("roamjs-discourse-live-preview-container")
       ?.remove?.();
+      let newIsEmpty = true;
     if (numChildren) {
       const el = document.createElement("div");
       el.id = "roamjs-discourse-live-preview-container";
@@ -38,15 +42,22 @@ const TooltipContent = ({
       });
       containerRef.current.appendChild(el);
       containerRef.current.parentElement.style.padding = "0";
+      newIsEmpty = false;
     }
-  }, [uid, containerRef, numChildren]);
+    if (isNodeTitle(tag)) {
+      const refs = getNodeReferenceChildren(tag);
+      containerRef.current.appendChild(refs);
+      newIsEmpty = newIsEmpty && !refs.childElementCount
+    }
+    setIsEmpty(newIsEmpty)
+  }, [uid, containerRef, numChildren, tag, setIsEmpty]);
   return (
     <div
       style={{ position: "relative" }}
       onMouseEnter={(e) => open(e.ctrlKey)}
       onMouseLeave={close}
     >
-      {!!numChildren && (
+      {!isEmpty && (
         <Button
           minimal
           style={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}
@@ -58,12 +69,12 @@ const TooltipContent = ({
         ref={containerRef}
         className={"roamjs-discourse-live-preview"}
         style={{
-          paddingTop: numChildren ? 16 : 0,
+          paddingTop: !isEmpty ? 16 : 0,
           maxWidth: size,
           maxHeight: size,
         }}
       >
-        {!numChildren && <span>Page <i>{tag}</i> is empty.</span>}
+        {isEmpty && <span>Page <i>{tag}</i> is empty.</span>}
       </div>
     </div>
   );

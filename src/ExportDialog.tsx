@@ -13,6 +13,7 @@ import {
   BLOCK_REF_REGEX,
   getGraph,
   getPageViewType,
+  getRoamUrl,
   getTextByBlockUid,
   getTreeByBlockUid,
   TreeNode,
@@ -26,7 +27,6 @@ import {
   getPageMetadata,
   getRelations,
   matchNode,
-  NODE_TITLE_REGEX,
   triplesToQuery,
 } from "./util";
 import format from "date-fns/format";
@@ -56,25 +56,23 @@ const collectUids = (t: TreeNode): string[] => [
   ...t.children.flatMap(collectUids),
 ];
 
-const titleToFilename = (t: string) =>
-  `${t
-    .replace(NODE_TITLE_REGEX, "$1 - ")
-    .replace(/[<>:"/\\|?*]/, "")
-    .replace(/ /g, "_")}.md`;
+const normalize = (t: string) => `${t.replace(/[<>:"/\\|?*[]]/g, "")}.md`;
 
-const NODE_REF_REGEX = new RegExp(
-  `\\[\\[(${NODE_TITLE_REGEX.source}(.*?)(?:(?:\\s-\\s)?\\[\\[(.*?)\\]\\])?)\\]\\]`,
-  "g"
-);
+const titleToFilename = (t: string) => {
+  const name = normalize(t);
+  return name.length > 64
+    ? `${name.substring(0, 31)}...${name.slice(-30)}`
+    : name;
+};
 
 const toMarkdown = ({
   c,
-  i,
-  v,
+  i = 0,
+  v = "bullet",
 }: {
   c: TreeNode;
-  i: number;
-  v: ViewType;
+  i?: number;
+  v?: ViewType;
 }): string =>
   `${"".padStart(i * 4, " ")}${viewTypeToPrefix[v]}${
     c.heading ? `${"".padStart(c.heading, "#")} ` : ""
@@ -83,11 +81,7 @@ const toMarkdown = ({
       const reference = getTextByBlockUid(blockUid);
       return reference || blockUid;
     })
-    .replace(
-      NODE_REF_REGEX,
-      (_, title, __, content) => `[${content}](./${titleToFilename(title)})`
-    )
-    .trim()}${c.children
+    .trim()}${(c.children || [])
     .filter((nested) => !!nested.text || nested.children.length)
     .map(
       (nested) =>
@@ -187,7 +181,7 @@ const ExportDialog = ({
                         )?.text || ""
                       ).toUpperCase()},${
                         value.includes(",") ? `"${value}"` : value
-                      },${displayName},"${date}"`;
+                      },${displayName},"${date.toLocaleString()}"`;
                     })
                     .join("\n");
                   zip.file(
@@ -244,22 +238,35 @@ const ExportDialog = ({
                 } else if (activeExportType === "Markdown") {
                   const pages = pageData.map(({ title, uid }) => {
                     const v = getPageViewType(title) || "bullet";
-                    const { date, displayName } = getPageMetadata(title);
+                    const { date, displayName, id } = getPageMetadata(title);
                     const treeNode = getTreeByBlockUid(uid);
                     const discourseResults = getDiscourseContextResults(
                       title,
                       allNodes
                     );
-                    const content = `---\nauthor: ${displayName}\ndate: ${date}\n---\n\n${treeNode.children
+                    const referenceResults = window.roamAlphaAPI.q(
+                      `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                    );
+                    const content = `---\ntitle: ${title}\nurl: ${getRoamUrl(
+                      id
+                    )}\nauthor: ${displayName}\ndate: ${format(
+                      date,
+                      "yyyy-MM-dd"
+                    )}\n---\n\n${treeNode.children
                       .map((c) => toMarkdown({ c, v, i: 0 }))
                       .join("\n")}\n${
                       discourseResults.length
                         ? `\n###### Discourse Context\n\n${discourseResults.flatMap(
                             (r) =>
-                              Object.values(r.results).map(
-                                (t) => `- **${r.label}:** ${t}`
-                              ).join('\n')
-                          )}`
+                              Object.values(r.results)
+                                .map((t) => `- **${r.label}:** [[${t}]]`)
+                          ).join('\n')}\n`
+                        : ""
+                    }${
+                      referenceResults.length
+                        ? `\n###### References\n\n${referenceResults.map(
+                            (r) => `${r[0].title}\n\n${toMarkdown({ c: r[1] })}`
+                          ).join('\n')}\n`
                         : ""
                     }`;
                     const uids = new Set(collectUids(treeNode));
