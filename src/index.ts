@@ -395,7 +395,7 @@ createHTMLObserver({
   tag: "div",
   callback: (d) => {
     const label = d.querySelector<HTMLSpanElement>(".window-headers div span");
-    if (label.innerText.startsWith("Outline")) {
+    if (label && label.innerText.startsWith("Outline")) {
       const title = elToTitle(
         d.querySelector<HTMLHeadingElement>(".rm-title-display")
       );

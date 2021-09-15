@@ -413,10 +413,10 @@ const SavedQuery = ({
                     >
                       <a
                         className={"rm-page-ref"}
-                        href={getRoamUrl(r.uid)}
+                        href={getRoamUrl(r.pageUid)}
                         onClick={(e) => {
                           if (e.ctrlKey || e.shiftKey) {
-                            openBlockInSidebar(r.uid);
+                            openBlockInSidebar(r.pageUid);
                             e.preventDefault();
                             e.stopPropagation();
                           }
