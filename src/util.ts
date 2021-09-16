@@ -468,9 +468,11 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
     "has parent": (src, dest) =>
       `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
     "with text": (src, dest) =>
-      `[${freeVar(src)} :block/string ${freeVar(
+      `(or [${freeVar(src)} :block/string ${freeVar(
         src
-      )}-String] [(clojure.string/includes? ${freeVar(src)}-String "${dest}")]`,
+      )}-String] [${freeVar(src)} :node/title ${freeVar(
+        src
+      )}-String]) [(clojure.string/includes? ${freeVar(src)}-String "${dest}")]`,
   };
 };
 

@@ -173,7 +173,7 @@ const RelationEditPreview = ({
     const rel = elements.find(
       (h) =>
         h.source === source &&
-        [/is a/i, /has title/i].some((r) => r.test(h.relation))
+        [/is a/i, /has title/i, /with text/i].some((r) => r.test(h.relation))
     ) || {
       relation: "",
       target: "",
@@ -184,6 +184,8 @@ const RelationEditPreview = ({
           `This is a ${rel.target} page.`
         )
       : /has title/i.test(rel.relation)
+      ? rel.target
+      : /with text/i.test(rel.relation)
       ? rel.target
       : source;
   };

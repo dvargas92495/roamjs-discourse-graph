@@ -646,7 +646,27 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
         const native = translator[c.relation];
         const conditionTarget =
           nodeTypeByLabel[c.target.toLowerCase()] || c.target;
-        if (native) return native(c.source, conditionTarget);
+        if (native) {
+          const [prefix, nativeSource] = nodeTypeByLabel[c.source.toLowerCase()]
+            ? [
+                translator["is a"](
+                  c.source,
+                  nodeTypeByLabel[c.source.toLowerCase()]
+                ),
+                c.source,
+              ]
+            : ["", c.source];
+          const [suffix, nativeTarget] = nodeTypeByLabel[c.target.toLowerCase()]
+            ? [
+                translator["is a"](
+                  c.target,
+                  nodeTypeByLabel[c.target.toLowerCase()]
+                ),
+                c.target,
+              ]
+            : ["", c.target];
+          return `${prefix}${native(nativeSource, nativeTarget)}${suffix}`;
+        }
         const filteredRelations = discourseRelations
           .map((r) =>
             (r.label === c.relation || ANY_REGEX.test(c.relation)) &&

@@ -740,7 +740,10 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                     const relationToTitle = (source: string) =>
                       triples.find(
                         (h) =>
-                          h.source === source && /has title/i.test(h.relation)
+                          h.source === source &&
+                          [/has title/i, /with text/i].some((r) =>
+                            r.test(h.relation)
+                          )
                       )?.target;
                     const blockReferences = new Set<{
                       uid: string;
