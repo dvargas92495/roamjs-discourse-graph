@@ -5,11 +5,8 @@ import {
   getBasicTreeByParentUid,
   getChildrenLengthByPageUid,
   getCurrentPageUid,
-  getDisplayNameByUid,
   getPageTitleByHtmlElement,
   getPageTitleByPageUid,
-  getPageTitlesAndBlockUidsReferencingPage,
-  getPageUidByPageTitle,
   getTextByBlockUid,
   toConfig,
   updateBlock,
@@ -21,6 +18,7 @@ import {
 } from "roamjs-components";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
+import { render as importRender } from "./ImportDialog";
 import { render as synthesisRender } from "./SynthesisQuery";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
@@ -31,7 +29,6 @@ import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
   getNodeReferenceChildren,
-  getNodes,
   getPageMetadata,
   getQueriesUid,
   getQueryUid,
@@ -264,6 +261,11 @@ window.roamAlphaAPI.ui.commandPalette.addCommand({
   callback: () => exportRender({}),
 });
 
+window.roamAlphaAPI.ui.commandPalette.addCommand({
+  label: "Import Discourse Graph",
+  callback: () => importRender({}),
+});
+
 const elToTitle = (e: Node): string => {
   if (e.nodeName === "#text") {
     return e.nodeValue;
@@ -299,7 +301,9 @@ createHTMLObserver({
     }px`;
     container.style.marginBottom = oldMarginBottom;
     const label = document.createElement("i");
-    label.innerText = `Created by ${displayName || "Anonymous"} on ${date.toLocaleString()}`;
+    label.innerText = `Created by ${
+      displayName || "Anonymous"
+    } on ${date.toLocaleString()}`;
     container.appendChild(label);
     if (h1.parentElement.lastChild === h1) {
       h1.parentElement.appendChild(container);

@@ -11,6 +11,7 @@ import {
 import React, { useState } from "react";
 import {
   BLOCK_REF_REGEX,
+  getFullTreeByParentUid,
   getGraph,
   getPageViewType,
   getRoamUrl,
@@ -43,7 +44,7 @@ type Props = {
   };
 };
 
-const EXPORT_TYPES = ["CSV (neo4j)", "Markdown"] as const;
+const EXPORT_TYPES = ["CSV (neo4j)", "Markdown", "JSON"] as const;
 
 const viewTypeToPrefix = {
   bullet: "- ",
@@ -166,6 +167,45 @@ const ExportDialog = ({
                         matchNode({ format, title })
                       )
                     );
+                const getRelationData = (relations = getRelations()) =>
+                  fromQuery
+                    ? fromQuery.conditions.flatMap((c) =>
+                        fromQuery.results.map((s) => ({
+                          source: s.uid,
+                          target: c.predicate.uid,
+                          label: c.relation,
+                        }))
+                      )
+                    : relations.flatMap((s) =>
+                        window.roamAlphaAPI
+                          .q(
+                            `[:find ?source-uid ?dest-uid :where [?${
+                              s.triples.find(
+                                (t) => t[2] === "source" || t[2] === s.source
+                              )[0]
+                            } :block/uid ?source-uid] [?${
+                              s.triples.find(
+                                (t) =>
+                                  t[2] === "destination" ||
+                                  t[2] === s.destination
+                              )[0]
+                            } :block/uid ?dest-uid] ${triplesToQuery(
+                              s.triples.map((t) =>
+                                t[2] === "source"
+                                  ? [t[0], t[1], s.source]
+                                  : t[2] === "destination"
+                                  ? [t[0], t[1], s.destination]
+                                  : t
+                              ),
+                              translator
+                            )}]`
+                          )
+                          .map(([source, target]) => ({
+                            source,
+                            target,
+                            label: s.label,
+                          }))
+                      );
                 if (activeExportType === "CSV (neo4j)") {
                   const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
                   const nodeData = pageData
@@ -191,50 +231,15 @@ const ExportDialog = ({
 
                   const relationHeader =
                     "start:START_ID,end:END_ID,label:TYPE\n";
-                  const relationData = fromQuery
-                    ? fromQuery.conditions.flatMap((c) =>
-                        fromQuery.results.map(
-                          (s) =>
-                            `${s.uid},${
-                              c.predicate.uid
-                            },${c.relation.toUpperCase()}`
-                        )
-                      )
-                    : getRelations().flatMap((s) =>
-                        window.roamAlphaAPI
-                          .q(
-                            `[:find ?source-uid ?dest-uid :where [?${
-                              s.triples.find(
-                                (t) => t[2] === "source" || t[2] === s.source
-                              )[0]
-                            } :block/uid ?source-uid] [?${
-                              s.triples.find(
-                                (t) =>
-                                  t[2] === "destination" ||
-                                  t[2] === s.destination
-                              )[0]
-                            } :block/uid ?dest-uid] ${triplesToQuery(
-                              s.triples.map((t) =>
-                                t[2] === "source"
-                                  ? [t[0], t[1], s.source]
-                                  : t[2] === "destination"
-                                  ? [t[0], t[1], s.destination]
-                                  : t
-                              ),
-                              translator
-                            )}]`
-                          )
-                          .map(
-                            ([start, end]) =>
-                              `${start},${end},${s.label.toUpperCase()}`
-                          )
-                      );
+                  const relationData = getRelationData().map(
+                    ({ source, target, label }) =>
+                      `${source},${target},${label.toUpperCase()}`
+                  );
                   const relations = relationData.join("\n");
                   zip.file(
                     `${filename.replace(/\.csv/, "")}_relations.csv`,
                     `${relationHeader}${relations}`
                   );
-                  finish();
                 } else if (activeExportType === "Markdown") {
                   const pages = pageData.map(({ title, uid }) => {
                     const v = getPageViewType(title) || "bullet";
@@ -244,9 +249,11 @@ const ExportDialog = ({
                       title,
                       allNodes
                     );
-                    const referenceResults = window.roamAlphaAPI.q(
-                      `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
-                    );
+                    const referenceResults = window.roamAlphaAPI
+                      .q(
+                        `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                      )
+                      .filter(([, { children = [] }]) => !!children.length);
                     const content = `---\ntitle: ${title}\nurl: ${getRoamUrl(
                       id
                     )}\nauthor: ${displayName}\ndate: ${format(
@@ -256,28 +263,60 @@ const ExportDialog = ({
                       .map((c) => toMarkdown({ c, v, i: 0 }))
                       .join("\n")}\n${
                       discourseResults.length
-                        ? `\n###### Discourse Context\n\n${discourseResults.flatMap(
-                            (r) =>
-                              Object.values(r.results)
-                                .map((t) => `- **${r.label}:** [[${t}]]`)
-                          ).join('\n')}\n`
+                        ? `\n###### Discourse Context\n\n${discourseResults
+                            .flatMap((r) =>
+                              Object.values(r.results).map(
+                                (t) => `- **${r.label}:** [[${t}]]`
+                              )
+                            )
+                            .join("\n")}\n`
                         : ""
                     }${
                       referenceResults.length
-                        ? `\n###### References\n\n${referenceResults.map(
-                            (r) => `${r[0].title}\n\n${toMarkdown({ c: r[1] })}`
-                          ).join('\n')}\n`
+                        ? `\n###### References\n\n${referenceResults
+                            .map(
+                              (r) =>
+                                `${r[0].title}\n\n${toMarkdown({ c: r[1] })}`
+                            )
+                            .join("\n")}\n`
                         : ""
                     }`;
                     const uids = new Set(collectUids(treeNode));
                     return { title, content, uids };
                   });
-                  Promise.all(
-                    pages.map(({ title, content }) =>
-                      zip.file(titleToFilename(title), content)
-                    )
-                  ).then(finish);
+                  pages.forEach(({ title, content }) =>
+                    zip.file(titleToFilename(title), content)
+                  );
+                } else {
+                  const allRelations = getRelations();
+                  const nodeLabelByType = Object.fromEntries(
+                    allNodes.map((a) => [a.type, a.text])
+                  );
+                  const grammar = allRelations.map(
+                    ({ label, destination, source }) => ({
+                      label,
+                      destination: nodeLabelByType[destination],
+                      source: nodeLabelByType[source],
+                    })
+                  );
+                  const nodes = pageData.map(({ title, uid }) => {
+                    const { date, displayName } = getPageMetadata(title);
+                    const { children } = getFullTreeByParentUid(uid);
+                    return {
+                      uid,
+                      title,
+                      children,
+                      date: date.toJSON(),
+                      createdBy: displayName,
+                    };
+                  });
+                  const relations = getRelationData();
+                  zip.file(
+                    `${filename.replace(/\.json$/, "")}.json`,
+                    JSON.stringify({ grammar, nodes, relations })
+                  );
                 }
+                finish();
               }, 1);
             }}
           />
