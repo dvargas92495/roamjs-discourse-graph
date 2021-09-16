@@ -22,16 +22,19 @@ import {
   getAllPageNames,
   getBasicTreeByParentUid,
   getPageUidByPageTitle,
-  getTextByBlockUid,
-  getTreeByBlockUid,
   InputTextNode,
   openBlockInSidebar,
   RoamBasicNode,
-  TreeNode,
   updateBlock,
 } from "roam-client";
-import { renderToast, setInputSetting, toFlexRegex } from "roamjs-components";
+import {
+  getSettingValueFromTree,
+  renderToast,
+  setInputSetting,
+  toFlexRegex,
+} from "roamjs-components";
 import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
+import { render as exportRender } from "./ExportDialog";
 import { getNodes, getRelations, getRelationTriples } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
@@ -621,8 +624,14 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
           )}
           <Tooltip content={"Generate Roam Blocks"} position={Position.BOTTOM}>
             <Button
-              style={{ marginLeft: 8 }}
-              icon={"export"}
+              style={{ marginLeft: 8, maxWidth: 30 }}
+              icon={
+                <img
+                  src={"https://roamresearch.com/favicon.ico"}
+                  height={16}
+                  width={16}
+                />
+              }
               onClick={() => {
                 const elementsTree = getBasicTreeByParentUid(elementsUid);
                 const relationData = getRelations();
@@ -859,6 +868,61 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                       );
                     }
                   });
+              }}
+            />
+          </Tooltip>
+          <Tooltip content={"Export"} position={Position.BOTTOM}>
+            <Button
+              style={{ marginLeft: 8 }}
+              icon={"export"}
+              onClick={() => {
+                const elementsTree = getBasicTreeByParentUid(elementsUid);
+                const elementTextByUid = Object.fromEntries(
+                  elementsTree.map(({ uid, text }) => [uid, text])
+                );
+                const nodesOrRelations = elementsTree.map((n) => {
+                  const sourceUid = getSettingValueFromTree({
+                    tree: n.children,
+                    key: "source",
+                  });
+                  const targetUid = getSettingValueFromTree({
+                    tree: n.children,
+                    key: "target",
+                  });
+                  if (sourceUid && targetUid) {
+                    return {
+                      source: elementTextByUid[sourceUid],
+                      target: elementTextByUid[targetUid],
+                      relation: n.text,
+                    };
+                  }
+                  return { node: n.text };
+                });
+                const nodes = nodesOrRelations
+                  .filter((n) => !!n.node)
+                  .map((n) => n.node as string);
+                const nodeUids = Object.fromEntries(
+                  nodes.map((n) => [
+                    n,
+                    getPageUidByPageTitle(n) ||
+                      window.roamAlphaAPI.util.generateUID(),
+                  ])
+                );
+                exportRender({
+                  fromQuery: {
+                    nodes: nodes.map((title) => ({
+                      title,
+                      uid: nodeUids[title],
+                    })),
+                    relations: nodesOrRelations
+                      .filter((n) => !n.node)
+                      .map((n) => ({
+                        source: nodeUids[n.source],
+                        target: nodeUids[n.target],
+                        label: n.relation,
+                      })),
+                  },
+                });
               }}
             />
           </Tooltip>

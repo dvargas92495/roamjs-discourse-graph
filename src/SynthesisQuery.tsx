@@ -390,23 +390,32 @@ const SynthesisQuery = ({
               <Button
                 icon={"export"}
                 minimal
-                onClick={() =>
+                onClick={() => {
+                  const cons = conditions.map((c) => ({
+                    predicate: {
+                      title: c.predicate,
+                      uid: getPageUidByPageTitle(c.predicate),
+                    },
+                    relation: c.relation,
+                  }));
                   exportRender({
                     fromQuery: {
-                      results: filteredResults.map(({ text, uid }) => ({
-                        title: text,
-                        uid,
-                      })),
-                      conditions: conditions.map((c) => ({
-                        predicate: {
-                          title: c.predicate,
-                          uid: getPageUidByPageTitle(c.predicate),
-                        },
-                        relation: c.relation,
-                      })),
+                      nodes: filteredResults
+                        .map(({ text, uid }) => ({
+                          title: text,
+                          uid,
+                        }))
+                        .concat(cons.map((c) => c.predicate)),
+                      relations: cons.flatMap((c) =>
+                        results.map((s) => ({
+                          source: s.uid,
+                          target: c.predicate.uid,
+                          label: c.relation,
+                        }))
+                      ),
                     },
-                  })
-                }
+                  });
+                }}
               />
               <Button
                 icon={"pin"}

@@ -315,23 +315,32 @@ const SavedQuery = ({
           <Button
             icon={"export"}
             minimal
-            onClick={() =>
+            onClick={() => {
+              const conditions = parseQuery(query).conditionNodes.map((c) => ({
+                predicate: {
+                  title: c.target,
+                  uid: getPageUidByPageTitle(c.target),
+                },
+                relation: c.relation,
+              }));
               exportRender({
                 fromQuery: {
-                  results: results.map(({ text, pageUid }) => ({
-                    title: text,
-                    uid: pageUid,
-                  })),
-                  conditions: parseQuery(query).conditionNodes.map((c) => ({
-                    predicate: {
-                      title: c.target,
-                      uid: getPageUidByPageTitle(c.target),
-                    },
-                    relation: c.relation,
-                  })),
+                  nodes: results
+                    .map(({ text, pageUid }) => ({
+                      title: text,
+                      uid: pageUid,
+                    }))
+                    .concat(conditions.map((c) => c.predicate)),
+                  relations: conditions.flatMap((c) =>
+                    results.map((s) => ({
+                      source: s.uid,
+                      target: c.predicate.uid,
+                      label: c.relation,
+                    }))
+                  ),
                 },
-              })
-            }
+              });
+            }}
           />
           <Button
             icon={minimized ? "maximize" : "minimize"}

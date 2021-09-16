@@ -36,10 +36,11 @@ import JSZip from "jszip";
 
 type Props = {
   fromQuery?: {
-    results: { title: string; uid: string }[];
-    conditions: {
-      predicate: { title: string; uid: string };
-      relation: string;
+    nodes: { title: string; uid: string }[];
+    relations: {
+      target: string;
+      source: string;
+      label: string;
     }[];
   };
 };
@@ -128,12 +129,7 @@ const ExportDialog = ({
             onChange={(e) => setFilename(e.target.value)}
           />
         </Label>
-        {fromQuery && (
-          <span>
-            Exporting {fromQuery.results.length + fromQuery.conditions.length}{" "}
-            Pages
-          </span>
-        )}
+        {fromQuery && <span>Exporting {fromQuery.nodes.length} Pages</span>}
       </div>
       <div className={Classes.DIALOG_FOOTER}>
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
@@ -158,54 +154,42 @@ const ExportDialog = ({
                     "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
                   )
                   .map(([title, uid]) => ({ title, uid }));
-                const pageData = fromQuery
-                  ? fromQuery.results.concat(
-                      ...fromQuery.conditions.map((c) => c.predicate)
-                    )
-                  : allNodes.flatMap(({ format }) =>
-                      allPages.filter(({ title }) =>
-                        matchNode({ format, title })
-                      )
-                    );
+                const pageData =
+                  fromQuery?.nodes ||
+                  allNodes.flatMap(({ format }) =>
+                    allPages.filter(({ title }) => matchNode({ format, title }))
+                  );
                 const getRelationData = (relations = getRelations()) =>
-                  fromQuery
-                    ? fromQuery.conditions.flatMap((c) =>
-                        fromQuery.results.map((s) => ({
-                          source: s.uid,
-                          target: c.predicate.uid,
-                          label: c.relation,
-                        }))
+                  fromQuery?.relations ||
+                  relations.flatMap((s) =>
+                    window.roamAlphaAPI
+                      .q(
+                        `[:find ?source-uid ?dest-uid :where [?${
+                          s.triples.find(
+                            (t) => t[2] === "source" || t[2] === s.source
+                          )[0]
+                        } :block/uid ?source-uid] [?${
+                          s.triples.find(
+                            (t) =>
+                              t[2] === "destination" || t[2] === s.destination
+                          )[0]
+                        } :block/uid ?dest-uid] ${triplesToQuery(
+                          s.triples.map((t) =>
+                            t[2] === "source"
+                              ? [t[0], t[1], s.source]
+                              : t[2] === "destination"
+                              ? [t[0], t[1], s.destination]
+                              : t
+                          ),
+                          translator
+                        )}]`
                       )
-                    : relations.flatMap((s) =>
-                        window.roamAlphaAPI
-                          .q(
-                            `[:find ?source-uid ?dest-uid :where [?${
-                              s.triples.find(
-                                (t) => t[2] === "source" || t[2] === s.source
-                              )[0]
-                            } :block/uid ?source-uid] [?${
-                              s.triples.find(
-                                (t) =>
-                                  t[2] === "destination" ||
-                                  t[2] === s.destination
-                              )[0]
-                            } :block/uid ?dest-uid] ${triplesToQuery(
-                              s.triples.map((t) =>
-                                t[2] === "source"
-                                  ? [t[0], t[1], s.source]
-                                  : t[2] === "destination"
-                                  ? [t[0], t[1], s.destination]
-                                  : t
-                              ),
-                              translator
-                            )}]`
-                          )
-                          .map(([source, target]) => ({
-                            source,
-                            target,
-                            label: s.label,
-                          }))
-                      );
+                      .map(([source, target]) => ({
+                        source,
+                        target,
+                        label: s.label,
+                      }))
+                  );
                 if (activeExportType === "CSV (neo4j)") {
                   const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
                   const nodeData = pageData
