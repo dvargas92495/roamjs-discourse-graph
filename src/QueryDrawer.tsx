@@ -644,28 +644,20 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     const where = conditions
       .flatMap((c) => {
         const native = translator[c.relation];
-        const conditionTarget =
-          nodeTypeByLabel[c.target.toLowerCase()] || c.target;
+        const targetType = nodeTypeByLabel[c.target.toLowerCase()];
+        const conditionTarget = targetType || c.target;
         if (native) {
-          const [prefix, nativeSource] = nodeTypeByLabel[c.source.toLowerCase()]
-            ? [
-                translator["is a"](
-                  c.source,
-                  nodeTypeByLabel[c.source.toLowerCase()]
-                ),
-                c.source,
-              ]
-            : ["", c.source];
-          const [suffix, nativeTarget] = nodeTypeByLabel[c.target.toLowerCase()]
-            ? [
-                translator["is a"](
-                  c.target,
-                  nodeTypeByLabel[c.target.toLowerCase()]
-                ),
-                c.target,
-              ]
-            : ["", c.target];
-          return `${prefix}${native(nativeSource, nativeTarget)}${suffix}`;
+          if (/is a/.test(c.relation)) {
+            return native(c.source, targetType);
+          }
+          const sourceType = nodeTypeByLabel[c.source.toLowerCase()];
+          const prefix = sourceType
+            ? translator["is a"](c.source, sourceType)
+            : "";
+          const suffix = targetType
+            ? translator["is a"](c.target, targetType)
+            : "";
+          return `${prefix}${native(c.source, c.target)}${suffix}`;
         }
         const filteredRelations = discourseRelations
           .map((r) =>
