@@ -786,14 +786,15 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                         ...triples
                           .filter(
                             (c) =>
-                              /has child/i.test(c.relation) &&
-                              c.source === source
+                              [/has child/i, /has descendant/i].some((r) =>
+                                r.test(c.relation)
+                              ) && c.source === source
                           )
                           .map((c) => toBlock(c.target)),
                         ...triples
                           .filter(
                             (c) =>
-                              /has parent/i.test(c.relation) &&
+                              /has ancestor/i.test(c.relation) &&
                               c.target === source
                           )
                           .map((c) => toBlock(c.source)),
@@ -846,6 +847,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                                   /has child/i,
                                   /references/i,
                                   /with text/i,
+                                  /has descendant/i,
                                 ].some((r) => r.test(cur.relation))
                               ) {
                                 if (!prev.leaves.has(cur.source)) {
@@ -853,7 +855,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                                 }
                                 prev.leaves.add(cur.target);
                                 prev.roots.delete(cur.target);
-                              } else if (/has parent/i.test(cur.relation)) {
+                              } else if (/has ancestor/i.test(cur.relation)) {
                                 if (!prev.leaves.has(cur.target)) {
                                   prev.roots.add(cur.target);
                                 }

@@ -238,13 +238,18 @@ const RelationEditPreview = ({
       <div className={"rm-block-children"}>
         <div className="rm-multibar"></div>
         {elements
-          .filter((c) => /has child/i.test(c.relation) && c.source === b.source)
+          .filter(
+            (c) =>
+              [/has child/i, /has descendant/i].some((r) =>
+                r.test(c.relation)
+              ) && c.source === b.source
+          )
           .map((c, i) => (
             <Block source={c.target} key={i} />
           ))}
         {elements
           .filter(
-            (c) => /has parent/i.test(c.relation) && c.target === b.source
+            (c) => /has ancestor/i.test(c.relation) && c.target === b.source
           )
           .map((c, i) => (
             <Block source={c.source} key={i} />
@@ -300,16 +305,19 @@ const RelationEditPreview = ({
             elements.reduce(
               (prev, cur) => {
                 if (
-                  [/has child/i, /references/i, /with text/i].some((r) =>
-                    r.test(cur.relation)
-                  )
+                  [
+                    /has child/i,
+                    /references/i,
+                    /with text/i,
+                    /has descendant/i,
+                  ].some((r) => r.test(cur.relation))
                 ) {
                   if (!prev.leaves.has(cur.source)) {
                     prev.roots.add(cur.source);
                   }
                   prev.leaves.add(cur.target);
                   prev.roots.delete(cur.target);
-                } else if (/has parent/i.test(cur.relation)) {
+                } else if (/has ancestor/i.test(cur.relation)) {
                   if (!prev.leaves.has(cur.target)) {
                     prev.roots.add(cur.target);
                   }

@@ -465,14 +465,18 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
       )} :block/parents ${freeVar(src)}]`,
     "has child": (src, dest) =>
       `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
-    "has parent": (src, dest) =>
+    "has ancestor": (src, dest) =>
       `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
+    "has descendant": (src, dest) =>
+      `[${freeVar(dest)} :block/parents ${freeVar(src)}]`,
     "with text": (src, dest) =>
-      `(or [${freeVar(src)} :block/string ${freeVar(
+      `(or [${freeVar(src)} :block/string ${freeVar(src)}-String] [${freeVar(
         src
-      )}-String] [${freeVar(src)} :node/title ${freeVar(
+      )} :node/title ${freeVar(
         src
-      )}-String]) [(clojure.string/includes? ${freeVar(src)}-String "${dest}")]`,
+      )}-String]) [(clojure.string/includes? ${freeVar(
+        src
+      )}-String "${dest}")]`,
   };
 };
 
