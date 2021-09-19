@@ -8,6 +8,7 @@ import {
   getPageTitleByHtmlElement,
   getPageTitleByPageUid,
   getTextByBlockUid,
+  runExtension,
   toConfig,
   updateBlock,
 } from "roam-client";
@@ -145,348 +146,358 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
 
-const { pageUid } = createConfigObserver({
-  title: CONFIG,
-  config: {
-    tabs: [
-      { id: "preview", fields: [], toggleable: true },
-      {
-        id: "grammar",
-        fields: [
-          {
-            title: "nodes",
-            type: "custom",
-            description: "The types of nodes in your discourse graph",
-            defaultValue: DEFAULT_NODE_VALUES,
-            options: {
-              component: NodeConfigPanel,
+runExtension("discourse-graph", () => {
+  const { pageUid } = createConfigObserver({
+    title: CONFIG,
+    config: {
+      tabs: [
+        { id: "preview", fields: [], toggleable: true },
+        {
+          id: "grammar",
+          fields: [
+            {
+              title: "nodes",
+              type: "custom",
+              description: "The types of nodes in your discourse graph",
+              defaultValue: DEFAULT_NODE_VALUES,
+              options: {
+                component: NodeConfigPanel,
+              },
             },
-          },
-          {
-            title: "relations",
-            type: "custom",
-            description: "The types of relations in your discourse graph",
-            defaultValue: DEFAULT_RELATION_VALUES,
-            options: {
-              component: RelationConfigPanel,
+            {
+              title: "relations",
+              type: "custom",
+              description: "The types of relations in your discourse graph",
+              defaultValue: DEFAULT_RELATION_VALUES,
+              options: {
+                component: RelationConfigPanel,
+              },
             },
-          },
-        ],
-      },
-      {
-        id: "subscriptions",
-        fields: [
-          {
-            title: user,
-            type: "custom",
-            description:
-              "Subscription User Settings to notify you of latest changes",
-            options: {
-              component: SubscriptionConfigPanel,
+          ],
+        },
+        {
+          id: "subscriptions",
+          fields: [
+            {
+              title: user,
+              type: "custom",
+              description:
+                "Subscription User Settings to notify you of latest changes",
+              options: {
+                component: SubscriptionConfigPanel,
+              },
             },
-          },
-        ],
-      },
-    ],
-    versioning: true,
-  },
-});
+          ],
+        },
+        { id: "render references", fields: [], toggleable: true },
+      ],
+      versioning: true,
+    },
+  });
 
-// Temporary shim
-const configTree = getBasicTreeByParentUid(pageUid);
-if (!configTree.some((t) => toFlexRegex("shimmed").test(t.text))) {
-  const grammar = getSubTree({ tree: configTree, key: "grammar" }).children;
-  const nodes = getSubTree({ tree: grammar, key: "nodes" }).children;
-  const relations = getSubTree({ tree: grammar, key: "relations" }).children;
-  relations.forEach((relation) => {
-    const source = getSubTree({ tree: relation.children, key: "source" });
-    const destination = getSubTree({
-      tree: relation.children,
-      key: "destination",
-    });
-    const sourceNode = nodes.find(
-      (node) => source.children[0]?.text === node.text
-    );
-    const destinationNode = nodes.find(
-      (node) => destination.children[0]?.text === node.text
-    );
-    getSubTree({ tree: relation.children, key: "if" }).children.forEach(
-      (andTree) =>
-        andTree.children.forEach((triple) => {
-          const tripleNode = triple.children?.[0]?.children?.[0];
-          if (tripleNode?.text === source.children[0]?.text) {
-            updateBlock({ uid: tripleNode?.uid, text: "source" });
-          } else if (tripleNode?.text === destination.children[0]?.text) {
-            updateBlock({ uid: tripleNode?.uid, text: "destination" });
-          }
-        })
-    );
-    if (sourceNode) {
-      updateBlock({ uid: source.children[0].uid, text: sourceNode.uid });
-    }
-    if (destinationNode) {
-      updateBlock({
-        uid: destination.children[0].uid,
-        text: destinationNode.uid,
+  // Temporary shim
+  const configTree = getBasicTreeByParentUid(pageUid);
+  if (!configTree.some((t) => toFlexRegex("shimmed").test(t.text))) {
+    const grammar = getSubTree({ tree: configTree, key: "grammar" }).children;
+    const nodes = getSubTree({ tree: grammar, key: "nodes" }).children;
+    const relations = getSubTree({ tree: grammar, key: "relations" }).children;
+    relations.forEach((relation) => {
+      const source = getSubTree({ tree: relation.children, key: "source" });
+      const destination = getSubTree({
+        tree: relation.children,
+        key: "destination",
       });
-    }
-  });
-  nodes.forEach((n) =>
-    updateBlock({ uid: n.uid, text: `[[${n.text}]] - {content}` })
-  );
-  createBlock({
-    node: { text: "shimmed" },
-    parentUid: pageUid,
-    order: configTree.length,
-  });
-}
-setTimeout(refreshConfigTree, 1);
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "\\") {
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName === "TEXTAREA" &&
-      target.classList.contains("rm-block-input")
-    ) {
-      render({ textarea: target as HTMLTextAreaElement });
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }
-});
-
-window.roamAlphaAPI.ui.commandPalette.addCommand({
-  label: "Export Discourse Graph",
-  callback: () => exportRender({}),
-});
-
-window.roamAlphaAPI.ui.commandPalette.addCommand({
-  label: "Import Discourse Graph",
-  callback: () => importRender({}),
-});
-
-const elToTitle = (e: Node): string => {
-  if (e.nodeName === "#text") {
-    return e.nodeValue;
-  } else if (
-    e.nodeName === "SPAN" &&
-    (e as HTMLSpanElement).classList.contains("rm-page-ref__brackets")
-  ) {
-    return "";
-  } else if (
-    e.nodeName === "SPAN" &&
-    (e as HTMLSpanElement).classList.contains("rm-page-ref")
-  ) {
-    return `[[${Array.from(e.childNodes).map(elToTitle).join("")}]]`;
-  } else {
-    return Array.from(e.childNodes).map(elToTitle).join("");
-  }
-};
-
-const globalRefs: { [key: string]: (...args: string[]) => void } = {
-  clearOnClick: () => {},
-};
-
-createHTMLObserver({
-  tag: "H1",
-  className: "rm-title-display",
-  callback: (h1: HTMLHeadingElement) => {
-    const title = elToTitle(h1);
-    const { displayName, date } = getPageMetadata(title);
-    const container = document.createElement("div");
-    const oldMarginBottom = getComputedStyle(h1).marginBottom;
-    container.style.marginTop = `${
-      4 - Number(oldMarginBottom.replace("px", "")) / 2
-    }px`;
-    container.style.marginBottom = oldMarginBottom;
-    const label = document.createElement("i");
-    label.innerText = `Created by ${
-      displayName || "Anonymous"
-    } on ${date.toLocaleString()}`;
-    container.appendChild(label);
-    if (h1.parentElement.lastChild === h1) {
-      h1.parentElement.appendChild(container);
-    } else {
-      h1.parentElement.insertBefore(container, h1.nextSibling);
-    }
-    if (title.startsWith("Playground") && !!h1.closest(".roam-article")) {
-      const children = document.querySelector<HTMLDivElement>(
-        ".roam-article .rm-block-children"
+      const sourceNode = nodes.find(
+        (node) => source.children[0]?.text === node.text
       );
-      if (!children.hasAttribute("data-roamjs-discourse-playground")) {
-        children.setAttribute("data-roamjs-discourse-playground", "true");
-        children.style.display = "none";
-        const p = document.createElement("div");
-        children.parentElement.appendChild(p);
-        p.style.height = "500px";
-        cyRender({
-          p,
-          title,
-          previewEnabled: isFlagEnabled("preview"),
-          globalRefs,
+      const destinationNode = nodes.find(
+        (node) => destination.children[0]?.text === node.text
+      );
+      getSubTree({ tree: relation.children, key: "if" }).children.forEach(
+        (andTree) =>
+          andTree.children.forEach((triple) => {
+            const tripleNode = triple.children?.[0]?.children?.[0];
+            if (tripleNode?.text === source.children[0]?.text) {
+              updateBlock({ uid: tripleNode?.uid, text: "source" });
+            } else if (tripleNode?.text === destination.children[0]?.text) {
+              updateBlock({ uid: tripleNode?.uid, text: "destination" });
+            }
+          })
+      );
+      if (sourceNode) {
+        updateBlock({ uid: source.children[0].uid, text: sourceNode.uid });
+      }
+      if (destinationNode) {
+        updateBlock({
+          uid: destination.children[0].uid,
+          text: destinationNode.uid,
         });
       }
-    }
-  },
-});
-
-const clearOnClick = (tag: string, nodeType: string) => {
-  const uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
-  const text = `[[${tag}]]`;
-  if (uid) {
-    const currentText = getTextByBlockUid(uid);
-    setTimeout(
-      () =>
-        updateBlock({
-          text: `${currentText} ${text}`,
-          uid,
-        }),
-      1
+    });
+    nodes.forEach((n) =>
+      updateBlock({ uid: n.uid, text: `[[${n.text}]] - {content}` })
     );
-  } else {
-    const parentUid = getCurrentPageUid();
-    const pageTitle = getPageTitleByPageUid(parentUid);
-    if (pageTitle.startsWith("Playground")) {
-      globalRefs.clearOnClick(tag, nodeType);
-    } else {
-      const order = getChildrenLengthByPageUid(parentUid);
-      createBlock({ parentUid, node: { text }, order });
-    }
-  }
-};
-
-window.roamAlphaAPI.ui.commandPalette.addCommand({
-  label: "Open Query Drawer",
-  callback: () =>
-    synthesisRender({
-      blockUid: getQueryUid(),
-      clearOnClick,
-    }),
-});
-
-window.roamAlphaAPI.ui.commandPalette.addCommand({
-  label: "Open Queries Drawer",
-  callback: () =>
-    queryRender({
-      blockUid: getQueriesUid(),
-      clearOnClick,
-    }),
-});
-
-createHTMLObserver({
-  tag: "DIV",
-  className: "rm-reference-main",
-  callback: (d: HTMLDivElement) => {
-    const title = elToTitle(getPageTitleByHtmlElement(d));
-    if (
-      isNodeTitle(title) &&
-      !d.getAttribute("data-roamjs-discourse-context")
-    ) {
-      d.setAttribute("data-roamjs-discourse-context", "true");
-      const parent = d.querySelector("div.rm-reference-container");
-      if (parent) {
-        const p = document.createElement("div");
-        parent.parentElement.insertBefore(p, parent);
-        contextRender({ p, title: elToTitle(getPageTitleByHtmlElement(d)) });
-      }
-    }
-  },
-});
-
-createHTMLObserver({
-  className: "rm-sidebar-window",
-  tag: "div",
-  callback: (d) => {
-    const label = d.querySelector<HTMLSpanElement>(".window-headers div span");
-    if (label && label.innerText.startsWith("Outline")) {
-      const title = elToTitle(
-        d.querySelector<HTMLHeadingElement>(".rm-title-display")
-      );
-      if (isNodeTitle(title)) {
-        const container = getNodeReferenceChildren(title);
-        d.appendChild(container);
-      }
-    }
-  },
-});
-
-setTimeout(() => {
-  if (isFlagEnabled("preview")) {
-    createHTMLObserver({
-      useBody: true,
-      tag: "SPAN",
-      className: "rm-page-ref",
-      callback: (s: HTMLSpanElement) => {
-        const tag =
-          s.getAttribute("data-tag") ||
-          s.parentElement.getAttribute("data-link-title");
-        if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
-          s.setAttribute("data-roamjs-discourse-augment-tag", "true");
-          const parent = document.createElement("span");
-          previewRender({
-            parent,
-            tag,
-            registerMouseEvents: ({ open, close }) => {
-              s.addEventListener("mouseenter", (e) => open(e.ctrlKey));
-              s.addEventListener("mouseleave", close);
-            },
-          });
-          s.appendChild(parent);
-        }
-      },
+    createBlock({
+      node: { text: "shimmed" },
+      parentUid: pageUid,
+      order: configTree.length,
     });
   }
-}, 1);
+  setTimeout(refreshConfigTree, 1);
 
-const showNotificationIcon = (url: string) => {
-  const subscribedBlocks = getSubscribedBlocks();
-  const subscribedUids = new Set(
-    subscribedBlocks.map((t) => t.children[0]?.children?.[0]?.text)
-  );
-  const uid = url.match(/\/page\/(.*)$/)?.[1] || "";
-  if (uid && subscribedUids.has(uid)) {
-    const article = document.querySelector<HTMLDivElement>(".roam-article");
-    const articleStyle = getComputedStyle(article);
-    const span = document.createElement("span");
-    span.style.position = "absolute";
-    span.style.top = articleStyle.paddingTop;
-    span.style.left = articleStyle.paddingLeft;
-    span.id = "roamjs-discourse-notification-icon";
-    setTimeout(() => {
-      article.insertBefore(span, article.firstElementChild);
-      const notificationBlock = (
-        subscribedBlocks.find((t) => toFlexRegex(user).test(t.text)).children ||
-        []
-      ).find((t) => t.children[0].text === uid);
-      const defaultTimestamp = new Date().valueOf();
-      notificationRender({
-        p: span,
-        parentUid: uid,
-        timestamp:
-          Number(notificationBlock.children[1]?.text) || defaultTimestamp,
-        configUid:
-          notificationBlock.children[1]?.uid ||
-          createBlock({
-            node: { text: `${defaultTimestamp}` },
-            parentUid: notificationBlock.uid,
-            order: 1,
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "\\") {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "TEXTAREA" &&
+        target.classList.contains("rm-block-input")
+      ) {
+        render({ textarea: target as HTMLTextAreaElement });
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  });
+
+  window.roamAlphaAPI.ui.commandPalette.addCommand({
+    label: "Export Discourse Graph",
+    callback: () => exportRender({}),
+  });
+
+  window.roamAlphaAPI.ui.commandPalette.addCommand({
+    label: "Import Discourse Graph",
+    callback: () => importRender({}),
+  });
+
+  const elToTitle = (e: Node): string => {
+    if (e.nodeName === "#text") {
+      return e.nodeValue;
+    } else if (
+      e.nodeName === "SPAN" &&
+      (e as HTMLSpanElement).classList.contains("rm-page-ref__brackets")
+    ) {
+      return "";
+    } else if (
+      e.nodeName === "SPAN" &&
+      (e as HTMLSpanElement).classList.contains("rm-page-ref")
+    ) {
+      return `[[${Array.from(e.childNodes).map(elToTitle).join("")}]]`;
+    } else {
+      return Array.from(e.childNodes).map(elToTitle).join("");
+    }
+  };
+
+  const globalRefs: { [key: string]: (...args: string[]) => void } = {
+    clearOnClick: () => {},
+  };
+
+  createHTMLObserver({
+    tag: "H1",
+    className: "rm-title-display",
+    callback: (h1: HTMLHeadingElement) => {
+      const title = elToTitle(h1);
+      const { displayName, date } = getPageMetadata(title);
+      const container = document.createElement("div");
+      const oldMarginBottom = getComputedStyle(h1).marginBottom;
+      container.style.marginTop = `${
+        4 - Number(oldMarginBottom.replace("px", "")) / 2
+      }px`;
+      container.style.marginBottom = oldMarginBottom;
+      const label = document.createElement("i");
+      label.innerText = `Created by ${
+        displayName || "Anonymous"
+      } on ${date.toLocaleString()}`;
+      container.appendChild(label);
+      if (h1.parentElement.lastChild === h1) {
+        h1.parentElement.appendChild(container);
+      } else {
+        h1.parentElement.insertBefore(container, h1.nextSibling);
+      }
+      if (title.startsWith("Playground") && !!h1.closest(".roam-article")) {
+        const children = document.querySelector<HTMLDivElement>(
+          ".roam-article .rm-block-children"
+        );
+        if (!children.hasAttribute("data-roamjs-discourse-playground")) {
+          children.setAttribute("data-roamjs-discourse-playground", "true");
+          children.style.display = "none";
+          const p = document.createElement("div");
+          children.parentElement.appendChild(p);
+          p.style.height = "500px";
+          cyRender({
+            p,
+            title,
+            previewEnabled: isFlagEnabled("preview"),
+            globalRefs,
+          });
+        }
+      }
+    },
+  });
+
+  const clearOnClick = (tag: string, nodeType: string) => {
+    const uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
+    const text = `[[${tag}]]`;
+    if (uid) {
+      const currentText = getTextByBlockUid(uid);
+      setTimeout(
+        () =>
+          updateBlock({
+            text: `${currentText} ${text}`,
+            uid,
           }),
-      });
-    }, 1000);
-  }
-};
+        1
+      );
+    } else {
+      const parentUid = getCurrentPageUid();
+      const pageTitle = getPageTitleByPageUid(parentUid);
+      if (pageTitle.startsWith("Playground")) {
+        globalRefs.clearOnClick(tag, nodeType);
+      } else {
+        const order = getChildrenLengthByPageUid(parentUid);
+        createBlock({ parentUid, node: { text }, order });
+      }
+    }
+  };
 
-window.addEventListener("hashchange", (e) => {
-  if (e.oldURL.endsWith(pageUid)) {
-    refreshConfigTree();
-  }
-  const oldIcon = document.getElementById("roamjs-discourse-notification-icon");
-  if (oldIcon) {
-    ReactDOM.unmountComponentAtNode(oldIcon);
-    oldIcon.remove();
-    refreshConfigTree();
-  }
-  showNotificationIcon(e.newURL);
+  window.roamAlphaAPI.ui.commandPalette.addCommand({
+    label: "Open Query Drawer",
+    callback: () =>
+      synthesisRender({
+        blockUid: getQueryUid(),
+        clearOnClick,
+      }),
+  });
+
+  window.roamAlphaAPI.ui.commandPalette.addCommand({
+    label: "Open Queries Drawer",
+    callback: () =>
+      queryRender({
+        blockUid: getQueriesUid(),
+        clearOnClick,
+      }),
+  });
+
+  createHTMLObserver({
+    tag: "DIV",
+    className: "rm-reference-main",
+    callback: (d: HTMLDivElement) => {
+      const title = elToTitle(getPageTitleByHtmlElement(d));
+      if (
+        isNodeTitle(title) &&
+        !d.getAttribute("data-roamjs-discourse-context")
+      ) {
+        d.setAttribute("data-roamjs-discourse-context", "true");
+        const parent = d.querySelector("div.rm-reference-container");
+        if (parent) {
+          const p = document.createElement("div");
+          parent.parentElement.insertBefore(p, parent);
+          contextRender({ p, title: elToTitle(getPageTitleByHtmlElement(d)) });
+        }
+      }
+    },
+  });
+  setTimeout(() => {
+    if (isFlagEnabled("render references")) {
+      createHTMLObserver({
+        className: "rm-sidebar-window",
+        tag: "div",
+        callback: (d) => {
+          const label = d.querySelector<HTMLSpanElement>(
+            ".window-headers div span"
+          );
+          if (label && label.innerText.startsWith("Outline")) {
+            const title = elToTitle(
+              d.querySelector<HTMLHeadingElement>(".rm-title-display")
+            );
+            if (isNodeTitle(title)) {
+              const container = getNodeReferenceChildren(title);
+              d.appendChild(container);
+            }
+          }
+        },
+      });
+    }
+  });
+
+  setTimeout(() => {
+    if (isFlagEnabled("preview")) {
+      createHTMLObserver({
+        useBody: true,
+        tag: "SPAN",
+        className: "rm-page-ref",
+        callback: (s: HTMLSpanElement) => {
+          const tag =
+            s.getAttribute("data-tag") ||
+            s.parentElement.getAttribute("data-link-title");
+          if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
+            s.setAttribute("data-roamjs-discourse-augment-tag", "true");
+            const parent = document.createElement("span");
+            previewRender({
+              parent,
+              tag,
+              registerMouseEvents: ({ open, close }) => {
+                s.addEventListener("mouseenter", (e) => open(e.ctrlKey));
+                s.addEventListener("mouseleave", close);
+              },
+            });
+            s.appendChild(parent);
+          }
+        },
+      });
+    }
+  }, 1);
+
+  const showNotificationIcon = (url: string) => {
+    const subscribedBlocks = getSubscribedBlocks();
+    const subscribedUids = new Set(
+      subscribedBlocks.map((t) => t.children[0]?.children?.[0]?.text)
+    );
+    const uid = url.match(/\/page\/(.*)$/)?.[1] || "";
+    if (uid && subscribedUids.has(uid)) {
+      const article = document.querySelector<HTMLDivElement>(".roam-article");
+      const articleStyle = getComputedStyle(article);
+      const span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.top = articleStyle.paddingTop;
+      span.style.left = articleStyle.paddingLeft;
+      span.id = "roamjs-discourse-notification-icon";
+      setTimeout(() => {
+        article.insertBefore(span, article.firstElementChild);
+        const notificationBlock = (
+          subscribedBlocks.find((t) => toFlexRegex(user).test(t.text))
+            .children || []
+        ).find((t) => t.children[0].text === uid);
+        const defaultTimestamp = new Date().valueOf();
+        notificationRender({
+          p: span,
+          parentUid: uid,
+          timestamp:
+            Number(notificationBlock.children[1]?.text) || defaultTimestamp,
+          configUid:
+            notificationBlock.children[1]?.uid ||
+            createBlock({
+              node: { text: `${defaultTimestamp}` },
+              parentUid: notificationBlock.uid,
+              order: 1,
+            }),
+        });
+      }, 1000);
+    }
+  };
+
+  window.addEventListener("hashchange", (e) => {
+    if (e.oldURL.endsWith(pageUid)) {
+      refreshConfigTree();
+    }
+    const oldIcon = document.getElementById(
+      "roamjs-discourse-notification-icon"
+    );
+    if (oldIcon) {
+      ReactDOM.unmountComponentAtNode(oldIcon);
+      oldIcon.remove();
+      refreshConfigTree();
+    }
+    showNotificationIcon(e.newURL);
+  });
+  showNotificationIcon(window.location.hash);
 });
-showNotificationIcon(window.location.hash);

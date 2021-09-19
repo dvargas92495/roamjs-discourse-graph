@@ -27,6 +27,7 @@ import {
   getNodes,
   getPageMetadata,
   getRelations,
+  isFlagEnabled,
   matchNode,
   triplesToQuery,
 } from "./util";
@@ -233,11 +234,13 @@ const ExportDialog = ({
                       title,
                       allNodes
                     );
-                    const referenceResults = window.roamAlphaAPI
-                      .q(
-                        `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
-                      )
-                      .filter(([, { children = [] }]) => !!children.length);
+                    const referenceResults = isFlagEnabled("render references")
+                      ? window.roamAlphaAPI
+                          .q(
+                            `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                          )
+                          .filter(([, { children = [] }]) => !!children.length)
+                      : [];
                     const content = `---\ntitle: ${title}\nurl: ${getRoamUrl(
                       id
                     )}\nauthor: ${displayName}\ndate: ${format(

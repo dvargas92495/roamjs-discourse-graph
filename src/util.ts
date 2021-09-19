@@ -4,13 +4,13 @@ import {
   getCurrentUserDisplayName,
   getCurrentUserUid,
   getDisplayNameByUid,
-  getPageTitlesAndBlockUidsReferencingPage,
   getPageUidByPageTitle,
   InputTextNode,
   RoamBasicNode,
   TextNode,
 } from "roam-client";
 import { getSettingValueFromTree, toFlexRegex } from "roamjs-components";
+import { render as referenceRender } from "./ReferenceContext";
 
 export type Panel = (props: {
   uid: string;
@@ -327,20 +327,10 @@ export const isNodeTitle = (title: string) =>
 
 export const getNodeReferenceChildren = (title: string) => {
   const container = document.createElement("div");
-  window.roamAlphaAPI
-    .q(
-      `[:find (pull ?pr [:node/title]) (pull ?r [:block/uid :block/children]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
-    )
-    .filter(([, { children = [] }]) => !!children.length)
-    .forEach(([{ title }, { uid }]) => {
-      const section = document.createElement("div");
-      const heading = document.createElement("h6");
-      heading.innerText = title;
-      const el = document.createElement("div");
-      section.appendChild(heading).appendChild(el);
-      window.roamAlphaAPI.ui.components.renderBlock({ el, uid });
-      container.appendChild(section);
-    });
+  referenceRender({
+    title,
+    container,
+  });
   return container;
 };
 
