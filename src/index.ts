@@ -117,8 +117,12 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
   position: relative;
 }
 
+.roamjs-discourse-condition-source {
+  min-width: 120px;
+}
+
 .roamjs-discourse-condition-relation {
-  min-width: 160px;
+  min-width: 168px;
 }
 
 .roamjs-discourse-results-sort button {

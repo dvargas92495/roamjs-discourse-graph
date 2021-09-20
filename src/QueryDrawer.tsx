@@ -84,7 +84,7 @@ const QueryCondition = ({
     <div style={{ display: "flex", margin: "8px 0", alignItems: "baseline" }}>
       <MenuItemSelect
         popoverProps={{
-          className: "roamjs-discourse-condition-relation",
+          className: "roamjs-discourse-condition-source",
         }}
         activeItem={con.source}
         items={Array.from(
@@ -125,8 +125,8 @@ const QueryCondition = ({
         emptyValueText={"Choose relationship"}
         ButtonProps={{
           style: {
-            minWidth: 144,
-            width: 144,
+            minWidth: 152,
+            width: 152,
             margin: "0 8px",
             display: "flex",
             justifyContent: "space-between",
@@ -844,16 +844,25 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
         }}
       >
         <span
-          style={{ minWidth: 92, display: "inline-block", textAlign: "center" }}
+          style={{
+            minWidth: 120,
+            display: "inline-block",
+            textAlign: "center",
+          }}
         >
           Find
         </span>
         <Popover
+          popoverClassName={"roamjs-discourse-condition-relation"}
           captureDismiss
           isOpen={isReturnSuggestionsOpen}
           onOpened={openReturnSuggestions}
           minimal
           position={PopoverPosition.BOTTOM_LEFT}
+          modifiers={{
+            flip: { enabled: false },
+            preventOverflow: { enabled: false },
+          }}
           content={
             !!returnSuggestions.length && (
               <Menu style={{ maxWidth: 400 }}>
@@ -876,17 +885,25 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           target={
             <InputGroup
               value={returnNode}
-              onKeyDown={onKeyDown}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  closeReturnSuggestions();
+                  e.stopPropagation();
+                } else {
+                  onKeyDown(e);
+                }
+              }}
               onChange={(e) => {
                 returnNodeOnChange(e.target.value);
                 openReturnSuggestions();
               }}
               placeholder={"Enter Label..."}
+              style={{ marginLeft: 8, width: 152 }}
             />
           }
         />
         <span
-          style={{ minWidth: 92, display: "inline-block", textAlign: "center" }}
+          style={{ flexGrow: 1, display: "inline-block", textAlign: "center" }}
         >
           Where
         </span>
