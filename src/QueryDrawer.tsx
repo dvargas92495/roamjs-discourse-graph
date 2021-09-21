@@ -46,6 +46,7 @@ import {
   englishToDatalog,
   getNodes,
   getRelations,
+  matchNode,
   triplesToQuery,
 } from "./util";
 import fuzzy from "fuzzy";
@@ -561,6 +562,10 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
     () => Object.fromEntries(discourseNodes.map((n) => [n.text, n.format])),
     [discourseNodes]
   );
+  const nodeFormatByType = useMemo(
+    () => Object.fromEntries(discourseNodes.map((n) => [n.type, n.format])),
+    [discourseNodes]
+  );
   const nodeLabelByType = useMemo(
     () => Object.fromEntries(discourseNodes.map((n) => [n.type, n.text])),
     [discourseNodes]
@@ -663,10 +668,18 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           .map((r) =>
             (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
             (nodeLabelByType[r.source].startsWith(c.source) ||
-              r.destination === conditionTarget)
+              r.destination === conditionTarget ||
+              matchNode({
+                format: nodeFormatByType[r.destination],
+                title: conditionTarget,
+              }))
               ? { ...r, forward: true }
               : (nodeLabelByType[r.destination].startsWith(c.source) ||
-                  r.source === conditionTarget) &&
+                  r.source === conditionTarget ||
+                  matchNode({
+                    format: nodeFormatByType[r.source],
+                    title: conditionTarget,
+                  })) &&
                 (r.complement === c.relation || ANY_REGEX.test(c.relation))
               ? { ...r, forward: false }
               : undefined
@@ -681,33 +694,27 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
               (t) => t[2] === "destination"
             );
             if (!sourceTriple || !destinationTriple) return "";
-            let returnNodeVar = "";
+            let sourceNodeVar = "";
             if (forward) {
               destinationTriple[1] = "Has Title";
               destinationTriple[2] = conditionTarget;
               sourceTriple[2] = source;
-              if (nodeLabelByType[source].startsWith(returnNode)) {
-                returnNodeVar = sourceTriple[0];
-              }
+              sourceNodeVar = sourceTriple[0];
             } else {
               sourceTriple[1] = "Has Title";
               sourceTriple[2] = conditionTarget;
               destinationTriple[2] = destination;
-              if (nodeLabelByType[destination].startsWith(returnNode)) {
-                returnNodeVar = destinationTriple[0];
-              }
+              sourceNodeVar = destinationTriple[0];
             }
             const subQuery = triplesToQuery(queryTriples, translator);
             const andQuery = `\n  (and ${subQuery.replace(
               /([\s|\[]\?)/g,
               `$1${c.uid}-`
             )})`;
-            return returnNodeVar
-              ? andQuery.replace(
-                  new RegExp(`\\?${c.uid}-${returnNodeVar}`, "g"),
-                  `?${returnNode}`
-                )
-              : andQuery;
+            return andQuery.replace(
+              new RegExp(`\\?${c.uid}-${sourceNodeVar}`, "g"),
+              `?${c.source}`
+            );
           }
         )}\n)`;
       })
