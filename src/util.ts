@@ -6,6 +6,7 @@ import {
   getDisplayNameByUid,
   getPageUidByPageTitle,
   InputTextNode,
+  normalizePageTitle,
   RoamBasicNode,
   TextNode,
 } from "roam-client";
@@ -446,7 +447,8 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
     references: (src, dest) => `[${freeVar(src)} :block/refs ${freeVar(dest)}]`,
     "is in page": (src, dest) =>
       `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
-    "has title": (src, dest) => `[${freeVar(src)} :node/title "${dest}"]`,
+    "has title": (src, dest) =>
+      `[${freeVar(src)} :node/title "${normalizePageTitle(dest)}"]`,
     "has attribute": (src, dest) =>
       `[${freeVar(dest)}-Attribute :node/title "${dest}"] [${freeVar(
         dest
@@ -466,7 +468,7 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
         src
       )}-String]) [(clojure.string/includes? ${freeVar(
         src
-      )}-String "${dest}")]`,
+      )}-String "${normalizePageTitle(dest)}")]`,
   };
 };
 
@@ -490,7 +492,9 @@ export const getPixelValue = (
 
 export const getPageMetadata = (title: string) => {
   const results = window.roamAlphaAPI.q(
-    `[:find (pull ?p [:create/time :block/uid]) (pull ?cu [:user/uid]) :where [?p :node/title "${title}"] [?p :create/user ?cu]]`
+    `[:find (pull ?p [:create/time :block/uid]) (pull ?cu [:user/uid]) :where [?p :node/title "${normalizePageTitle(
+      title
+    )}"] [?p :create/user ?cu]]`
   ) as [[{ time: number; uid: string }, { uid: string }]];
   if (results.length) {
     const [[{ time: createdTime, uid: id }, { uid }]] = results;
@@ -535,18 +539,27 @@ export const getDiscourseContextResults = (
           return {
             label: r.label,
             results: Object.fromEntries(
-              window.roamAlphaAPI.q(
-                `[:find ?u ?t :where [${lastPlaceholder} :block/uid ?u] [${lastPlaceholder} :node/title ?t] ${triplesToQuery(
-                  [
-                    [sourceTriple[0], "Has Title", title],
-                    [destinationTriple[0], destinationTriple[1], r.destination],
-                    ...r.triples.filter(
-                      (t) => t !== sourceTriple && t !== destinationTriple
-                    ),
-                  ],
-                  englishToDatalog(nodes)
-                )}]`
-              ) as [string, string][]
+              window.roamAlphaAPI
+                .q(
+                  `[:find (pull ${lastPlaceholder} [:block/uid :node/title]) :where ${triplesToQuery(
+                    [
+                      [sourceTriple[0], "Has Title", title],
+                      [
+                        destinationTriple[0],
+                        destinationTriple[1],
+                        r.destination,
+                      ],
+                      ...r.triples.filter(
+                        (t) => t !== sourceTriple && t !== destinationTriple
+                      ),
+                    ],
+                    englishToDatalog(nodes)
+                  )}]`
+                )
+                .map(([{ uid, title }]: [Record<string, string>]) => [
+                  uid,
+                  title,
+                ])
             ),
           };
         }),
@@ -570,18 +583,23 @@ export const getDiscourseContextResults = (
           return {
             label: r.complement,
             results: Object.fromEntries(
-              window.roamAlphaAPI.q(
-                `[:find ?u ?t :where [${firstPlaceholder} :block/uid ?u] [${firstPlaceholder} :node/title ?t] ${triplesToQuery(
-                  [
-                    [destinationTriple[0], "Has Title", title],
-                    [sourceTriple[0], sourceTriple[1], r.source],
-                    ...r.triples.filter(
-                      (t) => t !== destinationTriple && t !== sourceTriple
-                    ),
-                  ],
-                  englishToDatalog(nodes)
-                )}]`
-              ) as [string, string][]
+              window.roamAlphaAPI
+                .q(
+                  `[:find (pull ${firstPlaceholder} [:block/uid :node/title]) :where ${triplesToQuery(
+                    [
+                      [destinationTriple[0], "Has Title", title],
+                      [sourceTriple[0], sourceTriple[1], r.source],
+                      ...r.triples.filter(
+                        (t) => t !== destinationTriple && t !== sourceTriple
+                      ),
+                    ],
+                    englishToDatalog(nodes)
+                  )}]`
+                )
+                .map(([{ uid, title }]: [Record<string, string>]) => [
+                  uid,
+                  title,
+                ])
             ),
           };
         }),

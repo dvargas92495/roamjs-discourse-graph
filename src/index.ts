@@ -20,7 +20,6 @@ import {
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
-import { render as synthesisRender } from "./SynthesisQuery";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
@@ -365,15 +364,6 @@ runExtension("discourse-graph", () => {
 
   window.roamAlphaAPI.ui.commandPalette.addCommand({
     label: "Open Query Drawer",
-    callback: () =>
-      synthesisRender({
-        blockUid: getQueryUid(),
-        clearOnClick,
-      }),
-  });
-
-  window.roamAlphaAPI.ui.commandPalette.addCommand({
-    label: "Open Queries Drawer",
     callback: () =>
       queryRender({
         blockUid: getQueriesUid(),

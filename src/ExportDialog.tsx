@@ -5,6 +5,7 @@ import {
   InputGroup,
   Intent,
   Label,
+  ProgressBar,
   Spinner,
   SpinnerSize,
 } from "@blueprintjs/core";
@@ -17,6 +18,7 @@ import {
   getRoamUrl,
   getTextByBlockUid,
   getTreeByBlockUid,
+  normalizePageTitle,
   TreeNode,
   ViewType,
 } from "roam-client";
@@ -85,7 +87,7 @@ const toMarkdown = ({
       return reference || blockUid;
     })
     .trim()}${(c.children || [])
-    .filter((nested) => !!nested.text || nested.children.length)
+    .filter((nested) => !!nested.text || !!nested.children?.length)
     .map(
       (nested) =>
         `\n\n${toMarkdown({ c: nested, i: i + 1, v: c.viewType || v })}`
@@ -141,171 +143,186 @@ const ExportDialog = ({
             intent={Intent.PRIMARY}
             onClick={() => {
               setLoading(true);
-              setTimeout(() => {
-                const zip = new JSZip();
-                const finish = () =>
-                  zip.generateAsync({ type: "blob" }).then((content) => {
-                    download(content, `${filename}.zip`, "application/zip");
-                    onClose();
-                  });
-                const allNodes = getNodes();
-                const translator = englishToDatalog(allNodes);
-                const allPages = window.roamAlphaAPI
-                  .q(
-                    "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
-                  )
-                  .map(([title, uid]) => ({ title, uid }));
-                const pageData =
-                  fromQuery?.nodes ||
-                  allNodes.flatMap(({ format }) =>
-                    allPages.filter(({ title }) => matchNode({ format, title }))
-                  );
-                const getRelationData = (relations = getRelations()) =>
-                  fromQuery?.relations ||
-                  relations.flatMap((s) =>
-                    window.roamAlphaAPI
-                      .q(
-                        `[:find ?source-uid ?dest-uid :where [?${
-                          s.triples.find(
-                            (t) => t[2] === "source" || t[2] === s.source
-                          )[0]
-                        } :block/uid ?source-uid] [?${
-                          s.triples.find(
-                            (t) =>
-                              t[2] === "destination" || t[2] === s.destination
-                          )[0]
-                        } :block/uid ?dest-uid] ${triplesToQuery(
-                          s.triples.map((t) =>
-                            t[2] === "source"
-                              ? [t[0], t[1], s.source]
-                              : t[2] === "destination"
-                              ? [t[0], t[1], s.destination]
-                              : t
-                          ),
-                          translator
-                        )}]`
+              setError("");
+              setTimeout(async () => {
+                try {
+                  const zip = new JSZip();
+                  const finish = () =>
+                    zip.generateAsync({ type: "blob" }).then((content) => {
+                      download(content, `${filename}.zip`, "application/zip");
+                      onClose();
+                    });
+                  const allNodes = getNodes();
+                  const translator = englishToDatalog(allNodes);
+                  const allPages = window.roamAlphaAPI
+                    .q(
+                      "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
+                    )
+                    .map(([title, uid]) => ({ title, uid }));
+                  const pageData =
+                    fromQuery?.nodes ||
+                    allNodes.flatMap(({ format }) =>
+                      allPages.filter(({ title }) =>
+                        matchNode({ format, title })
                       )
-                      .map(([source, target]) => ({
-                        source,
-                        target,
-                        label: s.label,
-                      }))
-                  );
-                if (activeExportType === "CSV (neo4j)") {
-                  const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
-                  const nodeData = pageData
-                    .map(({ title, uid }) => {
-                      const value = title.replace(
-                        new RegExp(`^\\[\\[\\w*\\]\\] - `),
-                        ""
-                      );
-                      const { displayName, date } = getPageMetadata(title);
-                      return `${uid},${(
-                        allNodes.find(({ format }) =>
-                          matchNode({ format, title })
-                        )?.text || ""
-                      ).toUpperCase()},${
-                        value.includes(",") ? `"${value}"` : value
-                      },${displayName},"${date.toLocaleString()}"`;
-                    })
-                    .join("\n");
-                  zip.file(
-                    `${filename.replace(/\.csv/, "")}_nodes.csv`,
-                    `${nodeHeader}${nodeData}`
-                  );
-
-                  const relationHeader =
-                    "start:START_ID,end:END_ID,label:TYPE\n";
-                  const relationData = getRelationData().map(
-                    ({ source, target, label }) =>
-                      `${source},${target},${label.toUpperCase()}`
-                  );
-                  const relations = relationData.join("\n");
-                  zip.file(
-                    `${filename.replace(/\.csv/, "")}_relations.csv`,
-                    `${relationHeader}${relations}`
-                  );
-                } else if (activeExportType === "Markdown") {
-                  const pages = pageData.map(({ title, uid }) => {
-                    const v = getPageViewType(title) || "bullet";
-                    const { date, displayName, id } = getPageMetadata(title);
-                    const treeNode = getTreeByBlockUid(uid);
-                    const discourseResults = getDiscourseContextResults(
-                      title,
-                      allNodes
                     );
-                    const referenceResults = isFlagEnabled("render references")
-                      ? window.roamAlphaAPI
-                          .q(
-                            `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
-                          )
-                          .filter(([, { children = [] }]) => !!children.length)
-                      : [];
-                    const content = `---\ntitle: ${title}\nurl: ${getRoamUrl(
-                      id
-                    )}\nauthor: ${displayName}\ndate: ${format(
-                      date,
-                      "yyyy-MM-dd"
-                    )}\n---\n\n${treeNode.children
-                      .map((c) => toMarkdown({ c, v, i: 0 }))
-                      .join("\n")}\n${
-                      discourseResults.length
-                        ? `\n###### Discourse Context\n\n${discourseResults
-                            .flatMap((r) =>
-                              Object.values(r.results).map(
-                                (t) => `- **${r.label}:** [[${t}]]`
+                  const getRelationData = (relations = getRelations()) =>
+                    fromQuery?.relations ||
+                    relations.flatMap((s) =>
+                      window.roamAlphaAPI
+                        .q(
+                          `[:find ?source-uid ?dest-uid :where [?${
+                            s.triples.find(
+                              (t) => t[2] === "source" || t[2] === s.source
+                            )[0]
+                          } :block/uid ?source-uid] [?${
+                            s.triples.find(
+                              (t) =>
+                                t[2] === "destination" || t[2] === s.destination
+                            )[0]
+                          } :block/uid ?dest-uid] ${triplesToQuery(
+                            s.triples.map((t) =>
+                              t[2] === "source"
+                                ? [t[0], t[1], s.source]
+                                : t[2] === "destination"
+                                ? [t[0], t[1], s.destination]
+                                : t
+                            ),
+                            translator
+                          )}]`
+                        )
+                        .map(([source, target]) => ({
+                          source,
+                          target,
+                          label: s.label,
+                        }))
+                    );
+                  if (activeExportType === "CSV (neo4j)") {
+                    const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
+                    const nodeData = pageData
+                      .map(({ title, uid }, i) => {
+                        const value = title.replace(
+                          new RegExp(`^\\[\\[\\w*\\]\\] - `),
+                          ""
+                        );
+                        const { displayName, date } = getPageMetadata(title);
+                        return `${uid},${(
+                          allNodes.find(({ format }) =>
+                            matchNode({ format, title })
+                          )?.text || ""
+                        ).toUpperCase()},${
+                          value.includes(",") ? `"${value}"` : value
+                        },${displayName},"${date.toLocaleString()}"`;
+                      })
+                      .join("\n");
+                    zip.file(
+                      `${filename.replace(/\.csv/, "")}_nodes.csv`,
+                      `${nodeHeader}${nodeData}`
+                    );
+
+                    const relationHeader =
+                      "start:START_ID,end:END_ID,label:TYPE\n";
+                    const relationData = getRelationData().map(
+                      ({ source, target, label }) =>
+                        `${source},${target},${label.toUpperCase()}`
+                    );
+                    const relations = relationData.join("\n");
+                    zip.file(
+                      `${filename.replace(/\.csv/, "")}_relations.csv`,
+                      `${relationHeader}${relations}`
+                    );
+                  } else if (activeExportType === "Markdown") {
+                    const pages = pageData.map(({ title, uid }, i) => {
+                      const v = getPageViewType(title) || "bullet";
+                      const { date, displayName, id } = getPageMetadata(title);
+                      const treeNode = getTreeByBlockUid(uid);
+                      const discourseResults = getDiscourseContextResults(
+                        title,
+                        allNodes
+                      );
+                      const referenceResults = isFlagEnabled(
+                        "render references"
+                      )
+                        ? window.roamAlphaAPI
+                            .q(
+                              `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
+                                title
+                              )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                            )
+                            .filter(
+                              ([, { children = [] }]) => !!children.length
+                            )
+                        : [];
+                      const content = `---\ntitle: ${title}\nurl: ${getRoamUrl(
+                        id
+                      )}\nauthor: ${displayName}\ndate: ${format(
+                        date,
+                        "yyyy-MM-dd"
+                      )}\n---\n\n${treeNode.children
+                        .map((c) => toMarkdown({ c, v, i: 0 }))
+                        .join("\n")}\n${
+                        discourseResults.length
+                          ? `\n###### Discourse Context\n\n${discourseResults
+                              .flatMap((r) =>
+                                Object.values(r.results).map(
+                                  (t) => `- **${r.label}:** [[${t}]]`
+                                )
                               )
-                            )
-                            .join("\n")}\n`
-                        : ""
-                    }${
-                      referenceResults.length
-                        ? `\n###### References\n\n${referenceResults
-                            .map(
-                              (r) =>
-                                `${r[0].title}\n\n${toMarkdown({ c: r[1] })}`
-                            )
-                            .join("\n")}\n`
-                        : ""
-                    }`;
-                    const uids = new Set(collectUids(treeNode));
-                    return { title, content, uids };
-                  });
-                  pages.forEach(({ title, content }) =>
-                    zip.file(titleToFilename(title), content)
-                  );
-                } else {
-                  const allRelations = getRelations();
-                  const nodeLabelByType = Object.fromEntries(
-                    allNodes.map((a) => [a.type, a.text])
-                  );
-                  const grammar = allRelations.map(
-                    ({ label, destination, source }) => ({
-                      label,
-                      destination: nodeLabelByType[destination],
-                      source: nodeLabelByType[source],
-                    })
-                  );
-                  const nodes = pageData.map(({ title, uid }) => {
-                    const { date, displayName } = getPageMetadata(title);
-                    const { children } = getFullTreeByParentUid(uid);
-                    return {
-                      uid,
-                      title,
-                      children,
-                      date: date.toJSON(),
-                      createdBy: displayName,
-                    };
-                  });
-                  const relations = getRelationData();
-                  zip.file(
-                    `${filename.replace(/\.json$/, "")}.json`,
-                    JSON.stringify({ grammar, nodes, relations })
-                  );
+                              .join("\n")}\n`
+                          : ""
+                      }${
+                        referenceResults.length
+                          ? `\n###### References\n\n${referenceResults
+                              .map(
+                                (r) =>
+                                  `${r[0].title}\n\n${toMarkdown({ c: r[1] })}`
+                              )
+                              .join("\n")}\n`
+                          : ""
+                      }`;
+                      const uids = new Set(collectUids(treeNode));
+                      return { title, content, uids };
+                    });
+                    pages.forEach(({ title, content }) =>
+                      zip.file(titleToFilename(title), content)
+                    );
+                  } else {
+                    const allRelations = getRelations();
+                    const nodeLabelByType = Object.fromEntries(
+                      allNodes.map((a) => [a.type, a.text])
+                    );
+                    const grammar = allRelations.map(
+                      ({ label, destination, source }) => ({
+                        label,
+                        destination: nodeLabelByType[destination],
+                        source: nodeLabelByType[source],
+                      })
+                    );
+                    const nodes = pageData.map(({ title, uid }, i) => {
+                      const { date, displayName } = getPageMetadata(title);
+                      const { children } = getFullTreeByParentUid(uid);
+                      return {
+                        uid,
+                        title,
+                        children,
+                        date: date.toJSON(),
+                        createdBy: displayName,
+                      };
+                    });
+                    const relations = getRelationData();
+                    zip.file(
+                      `${filename.replace(/\.json$/, "")}.json`,
+                      JSON.stringify({ grammar, nodes, relations })
+                    );
+                  }
+                  finish();
+                } catch (e) {
+                  setError(e.message);
+                  setLoading(false);
                 }
-                finish();
               }, 1);
             }}
+            style={{ minWidth: 64 }}
           />
         </div>
       </div>
