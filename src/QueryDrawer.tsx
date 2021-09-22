@@ -650,7 +650,6 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
       .flatMap((c) => {
         const native = translator[c.relation];
         const targetType = nodeTypeByLabel[c.target.toLowerCase()];
-        const conditionTarget = targetType || c.target;
         if (native) {
           if (/is a/.test(c.relation)) {
             return native(c.source, targetType);
@@ -664,22 +663,44 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
             : "";
           return `${prefix}${native(c.source, c.target)}${suffix}`;
         }
+        const doesRelationMatchCondition = (
+          relation: { source: string; destination: string },
+          condition: { source: string; target: string }
+        ) => {
+          const sourceMatches =
+            nodeLabelByType[relation.source] === condition.source;
+          const targetMatches =
+            relation.destination === nodeLabelByType[condition.target] ||
+            matchNode({
+              format: nodeFormatByType[relation.destination],
+              title: condition.target,
+            });
+          if (sourceMatches) {
+            return (
+              targetMatches ||
+              (!nodeTypeByLabel[condition.target.toLowerCase()] &&
+                Object.values(nodeFormatByType).every(
+                  (format) => !matchNode({ format, title: condition.target })
+                ))
+            );
+          }
+          if (targetMatches) {
+            return (
+              sourceMatches || !nodeTypeByLabel[condition.source.toLowerCase()]
+            );
+          }
+          return false;
+        };
+        const conditionTarget = targetType || c.target;
         const filteredRelations = discourseRelations
           .map((r) =>
             (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
-            (nodeLabelByType[r.source].startsWith(c.source) ||
-              r.destination === conditionTarget ||
-              matchNode({
-                format: nodeFormatByType[r.destination],
-                title: conditionTarget,
-              }))
+            doesRelationMatchCondition(r, c)
               ? { ...r, forward: true }
-              : (nodeLabelByType[r.destination].startsWith(c.source) ||
-                  r.source === conditionTarget ||
-                  matchNode({
-                    format: nodeFormatByType[r.source],
-                    title: conditionTarget,
-                  })) &&
+              : doesRelationMatchCondition(
+                  { source: r.destination, destination: r.source },
+                  c
+                ) &&
                 (r.complement === c.relation || ANY_REGEX.test(c.relation))
               ? { ...r, forward: false }
               : undefined
