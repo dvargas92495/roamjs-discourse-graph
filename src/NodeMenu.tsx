@@ -141,7 +141,11 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
       canEscapeKeyClose
       minimal
       target={<span />}
-      position={Position.BOTTOM_RIGHT}
+      position={Position.BOTTOM_LEFT}
+      modifiers={{
+        flip: { enabled: false },
+        preventOverflow: { enabled: false },
+      }}
       content={
         <Menu ulRef={menuRef} data-active-index={activeIndex}>
           {NODE_LABELS.map((item, i) => {

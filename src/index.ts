@@ -14,6 +14,7 @@ import {
 } from "roam-client";
 import {
   createConfigObserver,
+  getSettingValueFromTree,
   getSubTree,
   toFlexRegex,
 } from "roamjs-components";
@@ -154,6 +155,17 @@ runExtension("discourse-graph", () => {
     title: CONFIG,
     config: {
       tabs: [
+        {
+          id: "home",
+          fields: [
+            {
+              title: "trigger",
+              description: "The trigger to create the node menu. Must refresh after editing.",
+              defaultValue: "\\",
+              type: "text",
+            },
+          ],
+        },
         { id: "preview", fields: [], toggleable: true },
         {
           id: "grammar",
@@ -248,13 +260,28 @@ runExtension("discourse-graph", () => {
   }
   setTimeout(refreshConfigTree, 1);
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "\\") {
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === "TEXTAREA" &&
-        target.classList.contains("rm-block-input")
-      ) {
+  const trigger = getSettingValueFromTree({
+    tree: configTree,
+    key: "trigger",
+    defaultValue: "\\",
+  })
+    .replace(/"/g, "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\+/g, "\\+")
+    .trim();
+  const triggerRegex = new RegExp(`${trigger}$`);
+  document.addEventListener("input", (e) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === "TEXTAREA" &&
+      target.classList.contains("rm-block-input")
+    ) {
+      const textarea = target as HTMLTextAreaElement;
+      const valueToCursor = textarea.value.substring(
+        0,
+        textarea.selectionStart
+      );
+      if (triggerRegex.test(valueToCursor)) {
         render({ textarea: target as HTMLTextAreaElement });
         e.preventDefault();
         e.stopPropagation();
