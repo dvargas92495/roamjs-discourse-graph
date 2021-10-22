@@ -160,7 +160,8 @@ runExtension("discourse-graph", () => {
           fields: [
             {
               title: "trigger",
-              description: "The trigger to create the node menu. Must refresh after editing.",
+              description:
+                "The trigger to create the node menu. Must refresh after editing.",
               defaultValue: "\\",
               type: "text",
             },
@@ -269,19 +270,13 @@ runExtension("discourse-graph", () => {
     .replace(/\\/g, "\\\\")
     .replace(/\+/g, "\\+")
     .trim();
-  const triggerRegex = new RegExp(`${trigger}$`);
-  document.addEventListener("input", (e) => {
-    const target = e.target as HTMLElement;
-    if (
-      target.tagName === "TEXTAREA" &&
-      target.classList.contains("rm-block-input")
-    ) {
-      const textarea = target as HTMLTextAreaElement;
-      const valueToCursor = textarea.value.substring(
-        0,
-        textarea.selectionStart
-      );
-      if (triggerRegex.test(valueToCursor)) {
+  document.addEventListener("keydown", (e) => {
+    if (e.key === trigger) {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === "TEXTAREA" &&
+        target.classList.contains("rm-block-input")
+      ) {
         render({ textarea: target as HTMLTextAreaElement });
         e.preventDefault();
         e.stopPropagation();
