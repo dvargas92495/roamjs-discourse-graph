@@ -265,11 +265,7 @@ runExtension("discourse-graph", () => {
     tree: configTree,
     key: "trigger",
     defaultValue: "\\",
-  })
-    .replace(/"/g, "")
-    .replace(/\\/g, "\\\\")
-    .replace(/\+/g, "\\+")
-    .trim();
+  }).trim();
   document.addEventListener("keydown", (e) => {
     if (e.key === trigger) {
       const target = e.target as HTMLElement;
