@@ -165,6 +165,12 @@ runExtension("discourse-graph", () => {
               defaultValue: "\\",
               type: "text",
             },
+            {
+              title: "hide page metadata",
+              description:
+                "Whether or not to display the page author and created date under each title",
+              type: "flag",
+            },
           ],
         },
         { id: "preview", fields: [], toggleable: true },
@@ -312,27 +318,32 @@ runExtension("discourse-graph", () => {
     clearOnClick: () => {},
   };
 
+  const hidePageMetadata = configTree.some((t) =>
+    toFlexRegex("hide page metadata").test(t.text)
+  );
   createHTMLObserver({
     tag: "H1",
     className: "rm-title-display",
     callback: (h1: HTMLHeadingElement) => {
       const title = elToTitle(h1);
-      const { displayName, date } = getPageMetadata(title);
-      const container = document.createElement("div");
-      const oldMarginBottom = getComputedStyle(h1).marginBottom;
-      container.style.marginTop = `${
-        4 - Number(oldMarginBottom.replace("px", "")) / 2
-      }px`;
-      container.style.marginBottom = oldMarginBottom;
-      const label = document.createElement("i");
-      label.innerText = `Created by ${
-        displayName || "Anonymous"
-      } on ${date.toLocaleString()}`;
-      container.appendChild(label);
-      if (h1.parentElement.lastChild === h1) {
-        h1.parentElement.appendChild(container);
-      } else {
-        h1.parentElement.insertBefore(container, h1.nextSibling);
+      if (!hidePageMetadata) {
+        const { displayName, date } = getPageMetadata(title);
+        const container = document.createElement("div");
+        const oldMarginBottom = getComputedStyle(h1).marginBottom;
+        container.style.marginTop = `${
+          4 - Number(oldMarginBottom.replace("px", "")) / 2
+        }px`;
+        container.style.marginBottom = oldMarginBottom;
+        const label = document.createElement("i");
+        label.innerText = `Created by ${
+          displayName || "Anonymous"
+        } on ${date.toLocaleString()}`;
+        container.appendChild(label);
+        if (h1.parentElement.lastChild === h1) {
+          h1.parentElement.appendChild(container);
+        } else {
+          h1.parentElement.insertBefore(container, h1.nextSibling);
+        }
       }
       if (title.startsWith("Playground") && !!h1.closest(".roam-article")) {
         const children = document.querySelector<HTMLDivElement>(
