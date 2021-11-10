@@ -4,8 +4,8 @@ on:
     branches: main
     paths:
       - "src/**"
+      - "package.json"
       - ".github/workflows/main.yaml"
-
 
 jobs:
   deploy:
