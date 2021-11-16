@@ -12,7 +12,6 @@ import {
   Tab,
   Tabs,
 } from "@blueprintjs/core";
-import { BUTTON } from "@blueprintjs/core/lib/esm/common/classes";
 import cytoscape, { NodeSingular } from "cytoscape";
 import React, {
   useCallback,
@@ -39,6 +38,10 @@ import {
   toFlexRegex,
 } from "roamjs-components";
 import { englishToDatalog, Panel } from "./util";
+
+interface Array<T> {
+  filter<U extends T>(pred: (a: T) => a is U): U[];
+}
 
 export const NodeConfigPanel: Panel = ({ uid }) => {
   const [nodes, setNodes] = useState(() =>
@@ -502,6 +505,8 @@ const RelationEditPanel = ({
           }
         }
       });
+
+      n.on("dragfree", unsavedChanges);
     },
     [
       sourceRef,
@@ -530,18 +535,28 @@ const RelationEditPanel = ({
           "source",
           "destination",
         ];
-        const { nodes, edges } = andTree.children.reduce(
-          ({ nodes, edges }, node) => {
+        const { nodes, edges, positions } = andTree.children.reduce(
+          ({ nodes, edges, positions }, node) => {
             const source = node.text;
-            if (!initialNodes.includes(source)) nodes.add(source);
-            const target = node.children[0]?.children?.[0]?.text || "";
-            if (!initialNodes.includes(target)) nodes.add(target);
-            edges.add({
-              source,
-              target,
-              relation: (node.children[0]?.text || "").toLowerCase(),
-            });
-            return { nodes, edges };
+            if (toFlexRegex("node positions").test(source)) {
+              return {
+                nodes,
+                edges,
+                positions: Object.fromEntries(
+                  node.children.map((c) => [c.text, c.children[0]?.text])
+                ),
+              };
+            } else {
+              if (!initialNodes.includes(source)) nodes.add(source);
+              const target = node.children[0]?.children?.[0]?.text || "";
+              if (!initialNodes.includes(target)) nodes.add(target);
+              edges.add({
+                source,
+                target,
+                relation: (node.children[0]?.text || "").toLowerCase(),
+              });
+              return { nodes, edges, positions };
+            }
           },
           {
             nodes: new Set(),
@@ -550,6 +565,7 @@ const RelationEditPanel = ({
               target: string;
               relation: string;
             }>(),
+            positions: {} as Record<string, string>,
           }
         );
         const elementNodes = Array.from(nodes)
@@ -560,10 +576,15 @@ const RelationEditPanel = ({
           ])
           .map((data, i, all) => ({
             data,
-            position: {
-              x: Math.sin((2 * Math.PI * i) / all.length) * 150 + 200,
-              y: Math.cos((2 * Math.PI * i) / all.length) * 150 + 200,
-            },
+            position: positions[data.id]
+              ? {
+                  x: Number(positions[data.id].split(" ")[0]),
+                  y: Number(positions[data.id].split(" ")[1]),
+                }
+              : {
+                  x: Math.sin((2 * Math.PI * i) / all.length) * 150 + 200,
+                  y: Math.cos((2 * Math.PI * i) / all.length) * 150 + 200,
+                },
           }));
         return [
           ...elementNodes,
@@ -1005,7 +1026,27 @@ const RelationEditPanel = ({
                           },
                         ],
                       };
-                    }),
+                    })
+                    .concat([
+                      {
+                        text: "node positions",
+                        children: elements
+                          .filter(
+                            (
+                              e
+                            ): e is {
+                              data: { id: string; node: unknown };
+                              position: { x: number; y: number };
+                            } => Object.keys(e).includes("position")
+                          )
+                          .map((e) => ({
+                            text: e.data.id,
+                            children: [
+                              { text: `${e.position.x} ${e.position.y}` },
+                            ],
+                          })),
+                      },
+                    ]),
                 }));
               getShallowTreeByParentUid(ifUid).forEach(({ uid }) =>
                 deleteBlock(uid)

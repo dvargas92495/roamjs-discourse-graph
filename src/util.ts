@@ -16,6 +16,7 @@ import { render as referenceRender } from "./ReferenceContext";
 export type Panel = (props: {
   uid: string;
   parentUid: string;
+  title: string;
 }) => React.ReactElement;
 
 let treeRef: { tree: RoamBasicNode[] } = { tree: [] };
