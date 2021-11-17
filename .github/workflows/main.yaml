@@ -1,7 +1,7 @@
 name: Publish Extension
 on:
   push:
-    branches: main
+    branches: experimental
     paths:
       - "src/**"
       - "package.json"
@@ -21,5 +21,5 @@ jobs:
         with:
           token: ${{ secrets.ROAMJS_DEVELOPER_TOKEN }}
           source: build
-          path: discourse-graph
+          path: discourse-graph/experimental
           release_token: ${{ secrets.ROAMJS_RELEASE_TOKEN }}

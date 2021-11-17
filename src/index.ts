@@ -145,6 +145,27 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-hightlighted-result {
   background: #FFFF00;
+}
+
+.roamjs-discourse-editor-preview > .roam-block-container > .rm-block-main,
+.roamjs-discourse-editor-preview > .roam-block-container > .rm-block-children > .rm-multibar,
+.roamjs-discourse-editor-preview > .roam-block-container > .rm-block-children > .roam-block-container > .rm-block-main > .controls,
+.roamjs-discourse-editor-preview > .roam-block-container > .rm-block-children > .roam-block-container > .rm-block-children > .rm-multibar {
+  visibility: hidden;
+}
+
+.roamjs-discourse-editor-preview {
+  margin-left: -32px;
+  margin-top: -8px;
+}
+
+.roamjs-discourse-editor-preview 
+  > .roam-block-container 
+  > .rm-block-children 
+  > .roam-block-container 
+  > .rm-block-main {
+  font-size: 24px;
+  font-weight: 700;
 }`);
 
 const CONFIG = toConfig("discourse-graph");

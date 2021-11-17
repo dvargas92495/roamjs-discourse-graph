@@ -36,8 +36,10 @@ import {
   MenuItemSelect,
   setInputSetting,
   toFlexRegex,
+  useSubTree,
 } from "roamjs-components";
 import { englishToDatalog, Panel } from "./util";
+import triplesToBlocks from "./utils/triplesToBlocks";
 
 interface Array<T> {
   filter<U extends T>(pred: (a: T) => a is U): U[];
@@ -163,178 +165,19 @@ const DEFAULT_SELECTED_RELATION = {
   id: "",
 };
 
-type Triple = { source: string; target: string; relation: string };
-
-const RelationEditPreview = ({
-  elements,
-  nodeFormatByLabel,
-}: {
-  elements: Triple[];
-  nodeFormatByLabel: Record<string, string>;
-}) => {
-  const relationToTitle = (source: string) => {
-    const rel = elements.find(
-      (h) =>
-        h.source === source &&
-        [/is a/i, /has title/i, /with text/i].some((r) => r.test(h.relation))
-    ) || {
-      relation: "",
-      target: "",
-    };
-    return /is a/i.test(rel.relation)
-      ? nodeFormatByLabel[rel.target].replace(
-          "{content}",
-          `This is a ${rel.target} page.`
-        )
-      : /has title/i.test(rel.relation)
-      ? rel.target
-      : /with text/i.test(rel.relation)
-      ? rel.target
-      : source;
-  };
-  const Block = (b: { source: string }) => (
-    <div className={"roam-block-container"}>
-      <div className={"rm-block-main"}>
-        <div className="controls rm-block__controls">
-          <span className="block-expand">
-            <span className="bp3-icon-standard bp3-icon-caret-down rm-caret rm-caret-open rm-caret-hidden"></span>
-          </span>
-          <span className="rm-bullet">
-            <span
-              className="rm-bullet__inner--user-icon"
-              tabIndex={0}
-              style={{ backgroundColor: "#202B33" }}
-            ></span>
-          </span>
-        </div>
-        <div className={"roam-block"}>
-          <span>
-            {elements
-              .filter(
-                (e) => /with text/i.test(e.relation) && e.source === b.source
-              )
-              .map((e, i) => (
-                <span key={`with-text-${i}`}>
-                  <span>
-                    {i > 0 && " "}
-                    {e.target}
-                  </span>
-                </span>
-              ))}
-            {elements
-              .filter(
-                (e) => /references/i.test(e.relation) && e.source === b.source
-              )
-              .map((e, i) => (
-                <span key={`references-${i}`}>
-                  <span> </span>
-                  <span className="rm-page-ref__brackets">[[</span>
-                  <span className={"rm-page-ref--link"}>
-                    {relationToTitle(e.target)}
-                  </span>
-                  <span className="rm-page-ref__brackets">]]</span>
-                </span>
-              ))}
-          </span>
-        </div>
-      </div>
-      <div className={"rm-block-children"}>
-        <div className="rm-multibar"></div>
-        {elements
-          .filter(
-            (c) =>
-              [/has child/i, /has descendant/i].some((r) =>
-                r.test(c.relation)
-              ) && c.source === b.source
-          )
-          .map((c, i) => (
-            <Block source={c.target} key={i} />
-          ))}
-        {elements
-          .filter(
-            (c) => /has ancestor/i.test(c.relation) && c.target === b.source
-          )
-          .map((c, i) => (
-            <Block source={c.source} key={i} />
-          ))}
-      </div>
-    </div>
-  );
-  const Page = ({ title, blocks }: { title: string; blocks: string[] }) => (
-    <div
-      style={{
-        width: 256,
-        height: 320,
-        borderRadius: 4,
-        border: "1px solid #cccccc",
-        margin: "0 8px",
-        padding: 8,
-      }}
-    >
-      <span
-        style={{
-          display: "block",
-          color: "#202B33",
-          marginBottom: 12,
-          fontWeight: 450,
-          fontSize: 24,
-        }}
-      >
-        {title}
-      </span>
-      {blocks.map((b, i) => (
-        <Block source={b} key={i} />
-      ))}
-    </div>
-  );
-  const pageElements = elements.filter((e) => /is in page/i.test(e.relation));
-  const pages = pageElements.reduce(
-    (prev, cur) => ({
-      ...prev,
-      [cur.target]: [...(prev[cur.target] || []), cur.source],
-    }),
-    {} as Record<string, string[]>
-  );
+const RelationEditPreview = ({ previewUid }: { previewUid: string }) => {
+  const containerRef = useRef(null);
+  useEffect(() => {
+    window.roamAlphaAPI.ui.components.renderBlock({
+      el: containerRef.current,
+      uid: previewUid,
+    });
+  }, [previewUid, containerRef]);
   return (
-    <div style={{ padding: "32px 24px" }}>
-      {pageElements.length ? (
-        Object.entries(pages).map((p, i) => (
-          <Page key={i} title={relationToTitle(p[0])} blocks={p[1]} />
-        ))
-      ) : (
-        <Page
-          title={"Any Page"}
-          blocks={Array.from(
-            elements.reduce(
-              (prev, cur) => {
-                if (
-                  [
-                    /has child/i,
-                    /references/i,
-                    /with text/i,
-                    /has descendant/i,
-                  ].some((r) => r.test(cur.relation))
-                ) {
-                  if (!prev.leaves.has(cur.source)) {
-                    prev.roots.add(cur.source);
-                  }
-                  prev.leaves.add(cur.target);
-                  prev.roots.delete(cur.target);
-                } else if (/has ancestor/i.test(cur.relation)) {
-                  if (!prev.leaves.has(cur.target)) {
-                    prev.roots.add(cur.target);
-                  }
-                  prev.leaves.add(cur.source);
-                  prev.roots.delete(cur.source);
-                }
-                return prev;
-              },
-              { roots: new Set<string>(), leaves: new Set<string>() }
-            ).roots
-          )}
-        />
-      )}
-    </div>
+    <div
+      ref={containerRef}
+      className={"roamjs-discourse-editor-preview"}
+    ></div>
   );
 };
 
@@ -343,11 +186,13 @@ const RelationEditPanel = ({
   nodes,
   back,
   translatorKeys,
+  previewUid,
 }: {
   editingRelationInfo: TreeNode;
   back: () => void;
   nodes: Record<string, { label: string; format: string }>;
   translatorKeys: string[];
+  previewUid: string;
 }) => {
   const nodeFormatsByLabel = useMemo(
     () =>
@@ -730,6 +575,41 @@ const RelationEditPanel = ({
   ]);
   const [isPreview, setIsPreview] = useState(false);
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    const triples = elementsRef.current[tab]
+      .filter((d) => !!(d.data as { relation?: string }).relation)
+      .map(
+        (d) =>
+          d as {
+            data: { relation: string; source: string; target: string };
+          }
+      )
+      .map((d) => ({
+        relation: d.data.relation,
+        source: (
+          elementsRef.current[tab].find((n) => n.data.id === d.data.source)
+            ?.data as { node: string }
+        )?.node,
+        target: (
+          elementsRef.current[tab].find((n) => n.data.id === d.data.target)
+            ?.data as { node: string }
+        )?.node,
+      }));
+    getShallowTreeByParentUid(previewUid).forEach(({ uid }) =>
+      deleteBlock(uid)
+    );
+    let order = 0;
+    triplesToBlocks({
+      defaultPageTitle: "Any Page",
+      toPage: (text, children) =>
+        createBlock({
+          node: { text, children },
+          parentUid: previewUid,
+          order: order++,
+        }),
+        nodeFormatsByLabel
+    })(triples);
+  }, [previewUid, tab, elementsRef, nodeFormatsByLabel]);
   return (
     <>
       <h3
@@ -875,32 +755,7 @@ const RelationEditPanel = ({
             }
           }}
         />
-        {isPreview && (
-          <RelationEditPreview
-            elements={elementsRef.current[tab]
-              .filter((d) => !!(d.data as { relation?: string }).relation)
-              .map(
-                (d) =>
-                  d as {
-                    data: { relation: string; source: string; target: string };
-                  }
-              )
-              .map((d) => ({
-                relation: d.data.relation,
-                source: (
-                  elementsRef.current[tab].find(
-                    (n) => n.data.id === d.data.source
-                  )?.data as { node: string }
-                )?.node,
-                target: (
-                  elementsRef.current[tab].find(
-                    (n) => n.data.id === d.data.target
-                  )?.data as { node: string }
-                )?.node,
-              }))}
-            nodeFormatByLabel={nodeFormatsByLabel}
-          />
-        )}
+        {isPreview && <RelationEditPreview previewUid={previewUid} />}
         <Menu
           style={{
             position: "absolute",
@@ -948,7 +803,9 @@ const RelationEditPanel = ({
             minimal
             icon={isPreview ? "edit" : "eye-open"}
             onClick={() => {
-              if (!isPreview) saveCyToElementRef(tab);
+              if (!isPreview) {
+                saveCyToElementRef(tab);
+              }
               setIsPreview(!isPreview);
             }}
             disabled={loading}
@@ -1064,7 +921,7 @@ const RelationEditPanel = ({
   );
 };
 
-export const RelationConfigPanel: Panel = ({ uid }) => {
+export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
   const refreshRelations = useCallback(
     () =>
       uid
@@ -1100,6 +957,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
       ),
     []
   );
+  const previewUid = useSubTree({ parentUid, key: "preview" }).uid;
   const translatorKeys = useMemo(() => Object.keys(englishToDatalog()), []);
   const [relations, setRelations] = useState(refreshRelations);
   const [editingRelation, setEditingRelation] = useState("");
@@ -1137,6 +995,7 @@ export const RelationConfigPanel: Panel = ({ uid }) => {
         setRelations(refreshRelations());
       }}
       translatorKeys={translatorKeys}
+      previewUid={previewUid}
     />
   ) : (
     <>

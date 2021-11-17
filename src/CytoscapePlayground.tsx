@@ -39,6 +39,7 @@ import { getNodes, getRelations, getRelationTriples } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
 import fuzzy from "fuzzy";
+import triplesToBlocks from "./utils/triplesToBlocks";
 
 const NodeIcon = ({
   shortcut,
@@ -736,143 +737,26 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                       target,
                     }));
                   })
-                  .forEach((triples) => {
-                    const relationToTitle = (source: string) =>
-                      triples.find(
-                        (h) =>
-                          h.source === source &&
-                          [/has title/i, /with text/i].some((r) =>
-                            r.test(h.relation)
-                          )
-                      )?.target;
-                    const blockReferences = new Set<{
-                      uid: string;
-                      text: string;
-                    }>();
-                    const toBlock = (source: string): InputTextNode => ({
-                      text: `${[
-                        ...triples
-                          .filter(
-                            (e) =>
-                              /with text/i.test(e.relation) &&
-                              e.source === source
-                          )
-                          .map((e) => e.target),
-                        ...triples
-                          .filter(
-                            (e) =>
-                              /references/i.test(e.relation) &&
-                              e.source === source
-                          )
-                          .map((e) => {
-                            const title = relationToTitle(e.target);
-                            if (title)
-                              return `[[${relationToTitle(e.target)}]]`;
-                            const text = triples.find(
-                              (h) =>
-                                h.source === e.target &&
-                                /with text/i.test(h.relation)
-                            )?.target;
-                            if (text) {
-                              const uid =
-                                window.roamAlphaAPI.util.generateUID();
-                              blockReferences.add({ uid, text });
-                              return `((${uid}))`;
-                            }
-                            return "Invalid Reference Target";
-                          }),
-                      ].join(" ")}`,
-                      children: [
-                        ...triples
-                          .filter(
-                            (c) =>
-                              [/has child/i, /has descendant/i].some((r) =>
-                                r.test(c.relation)
-                              ) && c.source === source
-                          )
-                          .map((c) => toBlock(c.target)),
-                        ...triples
-                          .filter(
-                            (c) =>
-                              /has ancestor/i.test(c.relation) &&
-                              c.target === source
-                          )
-                          .map((c) => toBlock(c.source)),
-                      ],
-                    });
-                    const toPage = (title: string, blocks: string[]) => {
-                      const parentUid =
-                        getPageUidByPageTitle(title) ||
-                        recentPageRef[title] ||
-                        (recentPageRef[title] = createPage({
-                          title: title,
-                        }));
-                      blocks
-                        .map(toBlock)
-                        .concat(Array.from(blockReferences))
-                        .forEach((node, order) =>
+                  .forEach(
+                    triplesToBlocks({
+                      defaultPageTitle: `Auto generated from ${title}`,
+                      toPage: (title: string, blocks: InputTextNode[]) => {
+                        const parentUid =
+                          getPageUidByPageTitle(title) ||
+                          recentPageRef[title] ||
+                          (recentPageRef[title] = createPage({
+                            title: title,
+                          }));
+                        blocks.forEach((node, order) =>
                           createBlock({ node, order, parentUid })
                         );
-                      if (!recentlyOpened.has(parentUid)) {
-                        recentlyOpened.add(parentUid);
-                        setTimeout(() => openBlockInSidebar(parentUid), 1000);
-                      }
-                    };
-                    const pageTriples = triples.filter((e) =>
-                      /is in page/i.test(e.relation)
-                    );
-                    if (pageTriples.length) {
-                      const pages = pageTriples.reduce(
-                        (prev, cur) => ({
-                          ...prev,
-                          [cur.target]: [
-                            ...(prev[cur.target] || []),
-                            cur.source,
-                          ],
-                        }),
-                        {} as Record<string, string[]>
-                      );
-                      Object.entries(pages).forEach((p) =>
-                        toPage(relationToTitle(p[0]) || p[0], p[1])
-                      );
-                    } else {
-                      toPage(
-                        `Auto generated from ${title}`,
-                        Array.from(
-                          triples.reduce(
-                            (prev, cur) => {
-                              if (
-                                [
-                                  /has attribute/i,
-                                  /has child/i,
-                                  /references/i,
-                                  /with text/i,
-                                  /has descendant/i,
-                                ].some((r) => r.test(cur.relation))
-                              ) {
-                                if (!prev.leaves.has(cur.source)) {
-                                  prev.roots.add(cur.source);
-                                }
-                                prev.leaves.add(cur.target);
-                                prev.roots.delete(cur.target);
-                              } else if (/has ancestor/i.test(cur.relation)) {
-                                if (!prev.leaves.has(cur.target)) {
-                                  prev.roots.add(cur.target);
-                                }
-                                prev.leaves.add(cur.source);
-                                prev.roots.delete(cur.source);
-                              }
-                              return prev;
-                            },
-                            {
-                              roots: new Set<string>(),
-                              leaves: new Set<string>(),
-                            }
-                          ).roots
-                        )
-                      );
-                    }
-                  });
+                        if (!recentlyOpened.has(parentUid)) {
+                          recentlyOpened.add(parentUid);
+                          setTimeout(() => openBlockInSidebar(parentUid), 1000);
+                        }
+                      },
+                    })
+                  );
               }}
             />
           </Tooltip>
