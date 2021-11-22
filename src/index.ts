@@ -166,6 +166,10 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
   > .rm-block-main {
   font-size: 24px;
   font-weight: 700;
+}
+
+.roamjs-discourse-editor-preview .rm-block-main {
+  pointer-events: none;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
