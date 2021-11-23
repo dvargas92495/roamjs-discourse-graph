@@ -42,6 +42,7 @@ import {
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
+import NetworkConfigPanel from "./NetworkConfigPanel";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -232,6 +233,14 @@ runExtension("discourse-graph", () => {
                 "Subscription User Settings to notify you of latest changes",
               options: {
                 component: SubscriptionConfigPanel,
+              },
+            },
+            {
+              title: "network",
+              description: "Connect to another Roam Graph!",
+              type: "custom",
+              options: {
+                component: NetworkConfigPanel,
               },
             },
           ],
