@@ -14,7 +14,7 @@
     "@types/react": "^17.0.9",
     "@types/react-dom": "^17.0.6",
     "roamjs-scripts": "^0.9.18",
-    "typescript": "^4.3.2"
+    "typescript": "^4.5.2"
   },
   "dependencies": {
     "@blueprintjs/core": "^3.45.0",

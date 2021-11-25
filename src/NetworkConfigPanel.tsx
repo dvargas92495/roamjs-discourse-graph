@@ -94,7 +94,7 @@ const AlertCode = ({ code }: { code: React.MutableRefObject<string> }) => {
   return code.current ? (
     <>
       <p>
-        Clock the button below to copy the handshake code and send it to your
+        Click the button below to copy the handshake code and send it to your
         peer
       </p>
       <p>
@@ -111,6 +111,31 @@ const AlertCode = ({ code }: { code: React.MutableRefObject<string> }) => {
     </>
   ) : null;
 };
+
+// These RTC objects are not JSON serializable -.-
+const serialize = ({
+  candidate,
+  description,
+}: {
+  candidate: RTCIceCandidate;
+  description: RTCSessionDescriptionInit;
+}) =>
+  window.btoa(
+    JSON.stringify({
+      description: {
+        type: description.type,
+        sdp: description.sdp,
+      },
+      candidate: candidate.toJSON(),
+    })
+  );
+
+const deserialize = (
+  s: string
+): {
+  candidate: RTCIceCandidate;
+  description: RTCSessionDescriptionInit;
+} => JSON.parse(window.atob(s));
 
 const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
   const [setupDisabled, setSetupDisabled] = useState(false);
@@ -163,7 +188,7 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
               });
             };
             Promise.all([
-              new Promise((resolve) => {
+              new Promise<RTCIceCandidate>((resolve) => {
                 localConnection.onicecandidate = (c) => {
                   if (c.candidate) {
                     resolve(c.candidate);
@@ -171,24 +196,25 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
                 };
               }),
               localConnection.createOffer().then((offer) => {
-                return localConnection
-                  .setLocalDescription(offer)
-                  .then(() => offer);
+                return localConnection.setLocalDescription(offer);
               }),
-            ]).then(([candidate, offer]) => {
-              alertCode.current = window.btoa(
-                JSON.stringify({ type: offer.type, sdp: offer.sdp, candidate })
-              );
+            ]).then(([candidate]) => {
+              alertCode.current = serialize({
+                candidate,
+                description: localConnection.localDescription,
+              });
               alertOnConfirm.current = (s) => {
-                const { candidate, ...description } = JSON.parse(
-                  window.atob(s)
-                );
-                localConnection.setRemoteDescription(description).then(() =>
-                  localConnection.addIceCandidate(candidate).then(() => {
-                    alertCode.current = "";
-                    setAlertOpen(false);
-                  })
-                );
+                const { candidate, description } = deserialize(s);
+                localConnection
+                  .setRemoteDescription(new RTCSessionDescription(description))
+                  .then(() =>
+                    localConnection
+                      .addIceCandidate(new RTCIceCandidate(candidate))
+                      .then(() => {
+                        alertCode.current = "";
+                        setAlertOpen(false);
+                      })
+                  );
               };
               setAlertOpen(true);
             });
@@ -215,9 +241,9 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
                 }
               };
               receiveChannel.onopen = () => {
+                alertCode.current = "";
                 setLoading(false);
                 setDisconnectDisabled(false);
-                alertCode.current = "";
               };
               receiveChannel.onclose = () => {
                 setLoading(false);
@@ -228,37 +254,36 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
             };
             setAlertOpen(true);
             Promise.all([
-              new Promise((resolve) => {
+              new Promise<RTCIceCandidate>((resolve) => {
                 remoteConnection.onicecandidate = (c) => {
                   if (c.candidate) {
                     resolve(c.candidate);
                   }
                 };
               }),
-              new Promise<RTCSessionDescriptionInit>((resolve) => {
+              new Promise<void>((resolve) => {
                 alertOnConfirm.current = (s) => {
-                  const { candidate, ...description } = JSON.parse(
-                    window.atob(s)
-                  );
+                  const { candidate, description } = deserialize(s);
                   remoteConnection
-                    .setRemoteDescription(description)
-                    .then(() => remoteConnection.addIceCandidate(candidate))
+                    .setRemoteDescription(
+                      new RTCSessionDescription(description)
+                    )
+                    .then(() =>
+                      remoteConnection.addIceCandidate(
+                        new RTCIceCandidate(candidate)
+                      )
+                    )
                     .then(() => remoteConnection.createAnswer())
                     .then((answer) =>
-                      remoteConnection
-                        .setLocalDescription(answer)
-                        .then(() => resolve(answer))
+                      remoteConnection.setLocalDescription(answer).then(resolve)
                     );
                 };
               }),
-            ]).then(([candidate, answer]) => {
-              alertCode.current = window.btoa(
-                JSON.stringify({
-                  type: answer.type,
-                  sdp: answer.sdp,
-                  candidate,
-                })
-              );
+            ]).then(([candidate]) => {
+              alertCode.current = serialize({
+                candidate,
+                description: remoteConnection.localDescription,
+              });
               setAlertOpen(false);
             });
           }}
