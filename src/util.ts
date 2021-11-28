@@ -65,28 +65,14 @@ export const DEFAULT_NODE_VALUES: InputTextNode[] = [
     text: "[[EVD]] - {content}",
     children: [{ text: "Evidence" }, { text: "E" }],
   },
-  {
-    uid: "_SOU-node",
-    text: "[[SOU]] - {content}",
-    children: [{ text: "Source" }, { text: "S" }],
-  },
-  {
-    uid: "_EXC-node",
-    text: "[[EXC]] - {content}",
-    children: [{ text: "Excerpt" }, { text: "X" }],
-  },
-  {
-    uid: "_AUT-node",
-    text: "[[AUT]] - {content}",
-    children: [{ text: "Author" }, { text: "A" }],
-  },
 ];
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   {
     text: "Informs",
     children: [
       { text: "Source", children: [{ text: "_EVD-node" }] },
-      { text: "Destination", children: [{ text: "QUE" }] },
+      { text: "Destination", children: [{ text: "_QUE-node" }] },
+      { text: "complement", children: [{ text: "Informed By" }] },
       {
         text: "If",
         children: [
@@ -126,6 +112,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
     children: [
       { text: "Source", children: [{ text: "_EVD-node", children: [] }] },
       { text: "Destination", children: [{ text: "_CLM-node", children: [] }] },
+      { text: "complement", children: [{ text: "Supported By" }] },
       {
         text: "If",
         children: [
@@ -215,6 +202,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
     children: [
       { text: "Source", children: [{ text: "_EVD-node", children: [] }] },
       { text: "Destination", children: [{ text: "_CLM-node", children: [] }] },
+      { text: "complement", children: [{ text: "Opposed By" }] },
       {
         text: "If",
         children: [
@@ -401,10 +389,12 @@ export const getRelations = () =>
       tree.find((i) => toFlexRegex("if").test(i.text))?.children || []
     ).map((c) => ({
       ...data,
-      triples: c.children.map((t) => {
-        const target = t.children[0]?.children?.[0]?.text || "";
-        return [t.text, t.children[0]?.text, target];
-      }),
+      triples: c.children
+        .filter((t) => !/node positions/i.test(t.text))
+        .map((t) => {
+          const target = t.children[0]?.children?.[0]?.text || "";
+          return [t.text, t.children[0]?.text, target];
+        }),
     }));
   });
 
@@ -478,7 +468,10 @@ export const triplesToQuery = (
   translator: DatalogTranslator
 ): string =>
   t
-    .map(([src, key, dest]) => translator[key.toLowerCase().trim()](src, dest))
+    .map(
+      ([src, key, dest]) =>
+        translator[key.toLowerCase().trim()]?.(src, dest) || ""
+    )
     .join(" ");
 
 export const getUserIdentifier = () => {
