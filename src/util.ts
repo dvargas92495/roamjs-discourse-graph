@@ -62,8 +62,13 @@ export const DEFAULT_NODE_VALUES: InputTextNode[] = [
   },
   {
     uid: "_EVD-node",
-    text: "[[EVD]] - {content}",
+    text: "[[EVD]] - {content} - {Source}",
     children: [{ text: "Evidence" }, { text: "E" }],
+  },
+  {
+    uid: "_SRC-node",
+    text: "@{content}",
+    children: [{ text: "Source" }, { text: "S" }],
   },
 ];
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
