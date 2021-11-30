@@ -172,7 +172,6 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
             const localConnection = new RTCPeerConnection({
               iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
             });
-            localConnection.addEventListener("icecandidate", console.log);
 
             const sendChannel = localConnection.createDataChannel(getGraph());
             const onMessageHandlers: ((s: string) => void)[] = [];
@@ -321,6 +320,8 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
         <Alert
           isOpen={alertOpen}
           onConfirm={() => alertOnConfirm.current(alertValue)}
+          canOutsideClickCancel
+     //     onClose={() => setAlertOpen(false)}
         >
           <AlertCode code={alertCode} />
           <Label>
