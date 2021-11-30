@@ -155,7 +155,11 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
             setLoading(true);
             setSetupDisabled(true);
             setConnectDisabled(true);
-            const localConnection = new RTCPeerConnection();
+            const localConnection = new RTCPeerConnection({
+              iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+              ]
+            });
 
             const sendChannel = localConnection.createDataChannel(getGraph());
             const onMessageHandlers: ((s: string) => void)[] = [];
