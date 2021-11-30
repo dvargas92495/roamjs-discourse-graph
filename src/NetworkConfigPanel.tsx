@@ -114,10 +114,10 @@ const AlertCode = ({ code }: { code: React.MutableRefObject<string> }) => {
 
 // These RTC objects are not JSON serializable -.-
 const serialize = ({
-  candidate,
+  candidates,
   description,
 }: {
-  candidate: RTCIceCandidate;
+  candidates: RTCIceCandidate[];
   description: RTCSessionDescriptionInit;
 }) =>
   window.btoa(
@@ -126,16 +126,29 @@ const serialize = ({
         type: description.type,
         sdp: description.sdp,
       },
-      candidate: candidate.toJSON(),
+      candidates: candidates.map((c) => c.toJSON()),
     })
   );
 
 const deserialize = (
   s: string
 ): {
-  candidate: RTCIceCandidate;
+  candidates: RTCIceCandidate[];
   description: RTCSessionDescriptionInit;
 } => JSON.parse(window.atob(s));
+
+const gatherCandidates = (con: RTCPeerConnection) => {
+  const candidates: RTCIceCandidate[] = [];
+  return new Promise<RTCIceCandidate[]>((resolve) => {
+    con.onicecandidate = (c) => {
+      if (c.candidate) {
+        candidates.push(c.candidate);
+      } else {
+        resolve(candidates);
+      }
+    };
+  });
+};
 
 const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
   const [setupDisabled, setSetupDisabled] = useState(false);
@@ -156,10 +169,9 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
             setSetupDisabled(true);
             setConnectDisabled(true);
             const localConnection = new RTCPeerConnection({
-              iceServers: [
-                { urls: "stun:stun.l.google.com:19302" },
-              ]
+              iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
             });
+            localConnection.addEventListener("icecandidate", console.log);
 
             const sendChannel = localConnection.createDataChannel(getGraph());
             const onMessageHandlers: ((s: string) => void)[] = [];
@@ -192,32 +204,28 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
               });
             };
             Promise.all([
-              new Promise<RTCIceCandidate>((resolve) => {
-                localConnection.onicecandidate = (c) => {
-                  if (c.candidate) {
-                    resolve(c.candidate);
-                  }
-                };
-              }),
+              gatherCandidates(localConnection),
               localConnection.createOffer().then((offer) => {
                 return localConnection.setLocalDescription(offer);
               }),
-            ]).then(([candidate]) => {
+            ]).then(([candidates]) => {
               alertCode.current = serialize({
-                candidate,
+                candidates,
                 description: localConnection.localDescription,
               });
               alertOnConfirm.current = (s) => {
-                const { candidate, description } = deserialize(s);
+                const { candidates, description } = deserialize(s);
                 localConnection
                   .setRemoteDescription(new RTCSessionDescription(description))
                   .then(() =>
-                    localConnection
-                      .addIceCandidate(new RTCIceCandidate(candidate))
-                      .then(() => {
-                        alertCode.current = "";
-                        setAlertOpen(false);
-                      })
+                    Promise.all(
+                      candidates.map((c) =>
+                        localConnection.addIceCandidate(new RTCIceCandidate(c))
+                      )
+                    ).then(() => {
+                      alertCode.current = "";
+                      setAlertOpen(false);
+                    })
                   );
               };
               setAlertOpen(true);
@@ -233,7 +241,9 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
             setLoading(true);
             setSetupDisabled(true);
             setConnectDisabled(true);
-            const remoteConnection = new RTCPeerConnection();
+            const remoteConnection = new RTCPeerConnection({
+              iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+            });
             remoteConnection.ondatachannel = (event) => {
               const receiveChannel = event.channel;
               receiveChannel.onmessage = (e) => {
@@ -258,23 +268,21 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
             };
             setAlertOpen(true);
             Promise.all([
-              new Promise<RTCIceCandidate>((resolve) => {
-                remoteConnection.onicecandidate = (c) => {
-                  if (c.candidate) {
-                    resolve(c.candidate);
-                  }
-                };
-              }),
+              gatherCandidates(remoteConnection),
               new Promise<void>((resolve) => {
                 alertOnConfirm.current = (s) => {
-                  const { candidate, description } = deserialize(s);
+                  const { candidates, description } = deserialize(s);
                   remoteConnection
                     .setRemoteDescription(
                       new RTCSessionDescription(description)
                     )
                     .then(() =>
-                      remoteConnection.addIceCandidate(
-                        new RTCIceCandidate(candidate)
+                      Promise.all(
+                        candidates.map((c) =>
+                          remoteConnection.addIceCandidate(
+                            new RTCIceCandidate(c)
+                          )
+                        )
                       )
                     )
                     .then(() => remoteConnection.createAnswer())
@@ -283,9 +291,9 @@ const NetworkConfigPanel: Panel = ({ uid, parentUid }) => {
                     );
                 };
               }),
-            ]).then(([candidate]) => {
+            ]).then(([candidates]) => {
               alertCode.current = serialize({
-                candidate,
+                candidates,
                 description: remoteConnection.localDescription,
               });
               setAlertOpen(false);
