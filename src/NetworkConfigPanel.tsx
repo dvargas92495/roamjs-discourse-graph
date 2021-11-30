@@ -140,11 +140,12 @@ const deserialize = (
 const gatherCandidates = (con: RTCPeerConnection) => {
   const candidates: RTCIceCandidate[] = [];
   return new Promise<RTCIceCandidate[]>((resolve) => {
+    con.onicegatheringstatechange = (e) =>
+      (e.target as RTCPeerConnection).iceGatheringState === "complete" &&
+      resolve(candidates);
     con.onicecandidate = (c) => {
       if (c.candidate) {
         candidates.push(c.candidate);
-      } else {
-        resolve(candidates);
       }
     };
   });
