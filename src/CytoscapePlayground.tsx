@@ -34,7 +34,7 @@ import {
   toFlexRegex,
 } from "roamjs-components";
 import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
-import { render as exportRender } from "./ExportDialog";
+import { render as exportRender, ExportRenderProps } from "./ExportDialog";
 import { getNodes, getRelations, getRelationTriples } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
@@ -73,7 +73,7 @@ type Props = {
   title: string;
   previewEnabled: boolean;
   globalRefs: { [key: string]: (...args: string[]) => void };
-};
+} & ExportRenderProps;
 
 const useTreeFieldUid = ({
   tree,
@@ -114,7 +114,7 @@ const COLORS = [
 const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
 
-const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
+const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRenderProps }: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const allPages = useMemo(getAllPageNames, []);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -811,6 +811,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs }: Props) => {
                         label: n.relation,
                       })),
                   },
+                  ...exportRenderProps
                 });
               }}
             />

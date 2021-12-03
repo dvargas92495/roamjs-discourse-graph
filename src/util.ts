@@ -13,11 +13,12 @@ import {
 import { getSettingValueFromTree, toFlexRegex } from "roamjs-components";
 import { render as referenceRender } from "./ReferenceContext";
 
-export type Panel = (props: {
+export type PanelProps = {
   uid: string;
   parentUid: string;
   title: string;
-}) => React.ReactElement;
+};
+export type Panel = (props: PanelProps) => React.ReactElement;
 
 let treeRef: { tree: RoamBasicNode[] } = { tree: [] };
 

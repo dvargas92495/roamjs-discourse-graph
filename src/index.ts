@@ -8,14 +8,17 @@ import {
   getPageTitleByHtmlElement,
   getPageTitleByPageUid,
   getTextByBlockUid,
+  InputTextNode,
   runExtension,
   toConfig,
+  toRoamDateUid,
   updateBlock,
 } from "roam-client";
 import {
   createConfigObserver,
   getSettingValueFromTree,
   getSubTree,
+  renderToast,
   toFlexRegex,
 } from "roamjs-components";
 import { render } from "./NodeMenu";
@@ -32,7 +35,6 @@ import {
   getNodeReferenceChildren,
   getPageMetadata,
   getQueriesUid,
-  getQueryUid,
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
@@ -42,7 +44,8 @@ import {
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
-import NetworkConfigPanel from "./NetworkConfigPanel";
+import { setupMultiplayer } from "./Multiplayer";
+import importDiscourseGraph from "./utils/importDiscourseGraph";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -235,14 +238,6 @@ runExtension("discourse-graph", () => {
                 component: SubscriptionConfigPanel,
               },
             },
-            {
-              title: "network",
-              description: "Connect to another Roam Graph!",
-              type: "custom",
-              options: {
-                component: NetworkConfigPanel,
-              },
-            },
           ],
         },
         { id: "render references", fields: [], toggleable: true },
@@ -253,53 +248,35 @@ runExtension("discourse-graph", () => {
 
   // Temporary shim
   const configTree = getBasicTreeByParentUid(pageUid);
-  if (!configTree.some((t) => toFlexRegex("shimmed").test(t.text))) {
-    const grammar = getSubTree({ tree: configTree, key: "grammar" }).children;
-    const nodes = getSubTree({ tree: grammar, key: "nodes" }).children;
-    const relations = getSubTree({ tree: grammar, key: "relations" }).children;
-    relations.forEach((relation) => {
-      const source = getSubTree({ tree: relation.children, key: "source" });
-      const destination = getSubTree({
-        tree: relation.children,
-        key: "destination",
-      });
-      const sourceNode = nodes.find(
-        (node) => source.children[0]?.text === node.text
-      );
-      const destinationNode = nodes.find(
-        (node) => destination.children[0]?.text === node.text
-      );
-      getSubTree({ tree: relation.children, key: "if" }).children.forEach(
-        (andTree) =>
-          andTree.children.forEach((triple) => {
-            const tripleNode = triple.children?.[0]?.children?.[0];
-            if (tripleNode?.text === source.children[0]?.text) {
-              updateBlock({ uid: tripleNode?.uid, text: "source" });
-            } else if (tripleNode?.text === destination.children[0]?.text) {
-              updateBlock({ uid: tripleNode?.uid, text: "destination" });
-            }
-          })
-      );
-      if (sourceNode) {
-        updateBlock({ uid: source.children[0].uid, text: sourceNode.uid });
-      }
-      if (destinationNode) {
-        updateBlock({
-          uid: destination.children[0].uid,
-          text: destinationNode.uid,
-        });
-      }
-    });
-    nodes.forEach((n) =>
-      updateBlock({ uid: n.uid, text: `[[${n.text}]] - {content}` })
-    );
-    createBlock({
-      node: { text: "shimmed" },
-      parentUid: pageUid,
-      order: configTree.length,
-    });
-  }
   setTimeout(refreshConfigTree, 1);
+
+  const { addGraphListener, getConnectedGraphs, sendToGraph } =
+    setupMultiplayer();
+  addGraphListener({
+    operation: "IMPORT_DISCOURSE_GRAPH",
+    handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {
+      importDiscourseGraph(data);
+      const todayUid = toRoamDateUid(new Date());
+      const todayOrder = getChildrenLengthByPageUid(todayUid);
+      createBlock({
+        parentUid: todayUid,
+        order: todayOrder,
+        node: {
+          text: `Imported discourse graph from [[${graph}]]`,
+          children: [{ text: `[[${data.title}]]` }],
+        },
+      });
+      sendToGraph({ operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM", graph });
+    },
+  });
+  addGraphListener({
+    operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+    handler: (_, graph) =>
+      renderToast({
+        id: "import-p2p-success",
+        content: `${graph} successfully imported your discourse graph!`,
+      }),
+  });
 
   const trigger = getSettingValueFromTree({
     tree: configTree,
@@ -322,7 +299,8 @@ runExtension("discourse-graph", () => {
 
   window.roamAlphaAPI.ui.commandPalette.addCommand({
     label: "Export Discourse Graph",
-    callback: () => exportRender({}),
+    callback: () =>
+      exportRender({ getGraphs: getConnectedGraphs, sendToGraph }),
   });
 
   window.roamAlphaAPI.ui.commandPalette.addCommand({
@@ -394,6 +372,8 @@ runExtension("discourse-graph", () => {
             title,
             previewEnabled: isFlagEnabled("preview"),
             globalRefs,
+            getGraphs: getConnectedGraphs,
+            sendToGraph,
           });
         }
       }
@@ -431,6 +411,8 @@ runExtension("discourse-graph", () => {
       queryRender({
         blockUid: getQueriesUid(),
         clearOnClick,
+        getGraphs: getConnectedGraphs,
+        sendToGraph,
       }),
   });
 

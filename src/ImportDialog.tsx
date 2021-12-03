@@ -8,14 +8,10 @@ import {
   SpinnerSize,
 } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
-import {
-  createBlock,
-  createPage,
-  getChildrenLengthByPageUid,
-  InputTextNode,
-  toRoamDateUid,
-} from "roam-client";
+import { toRoamDateUid, createBlock, getChildrenLengthByPageUid } from "roam-client";
 import { createOverlayRender } from "roamjs-components";
+import importDiscourseGraph from "./utils/importDiscourseGraph";
+
 
 const ImportDialog = ({ onClose }: { onClose: () => void }) => {
   const [loading, setLoading] = useState(false);
@@ -57,44 +53,16 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
               setTimeout(() => {
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                  const { grammar, nodes, relations } = JSON.parse(
-                    event.target.result as string
-                  );
-                  const pagesByUids = Object.fromEntries(
-                    nodes.map(({ uid, title }: Record<string, string>) => [
-                      uid,
-                      title,
-                    ])
-                  );
-                  createPage({
+                  importDiscourseGraph({
+                    ...JSON.parse(event.target.result as string),
                     title,
-                    tree: relations.map(
-                      ({ source, target, label }: Record<string, string>) => ({
-                        text: `[[${pagesByUids[source]}]]`,
-                        children: [
-                          {
-                            text: label,
-                            children: [
-                              {
-                                text: `[[${pagesByUids[target]}]]`,
-                              },
-                            ],
-                          },
-                        ],
-                      })
-                    ),
                   });
-                  nodes.forEach(
-                    (node: { title: string; children: InputTextNode[] }) =>
-                      createPage({ title: node.title, tree: node.children })
-                  );
                   const parentUid = toRoamDateUid(new Date());
                   createBlock({
                     node: { text: `[[${title}]]` },
                     parentUid,
                     order: getChildrenLengthByPageUid(parentUid),
                   });
-                  console.log(grammar);
                 };
                 reader.readAsText(file);
               }, 1);

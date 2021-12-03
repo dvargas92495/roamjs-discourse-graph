@@ -9,7 +9,7 @@ import {
   Spinner,
   SpinnerSize,
 } from "@blueprintjs/core";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   BLOCK_REF_REGEX,
   getFullTreeByParentUid,
@@ -36,6 +36,7 @@ import {
 import format from "date-fns/format";
 import download from "downloadjs";
 import JSZip from "jszip";
+import type { setupMultiplayer } from "./Multiplayer";
 
 type Props = {
   fromQuery?: {
@@ -46,9 +47,11 @@ type Props = {
       label: string;
     }[];
   };
+  getGraphs?: () => string[];
+  sendToGraph?: ReturnType<typeof setupMultiplayer>["sendToGraph"];
 };
 
-const EXPORT_TYPES = ["CSV (neo4j)", "Markdown", "JSON"] as const;
+const EXPORT_TYPES = ["CSV (neo4j)", "Markdown", "JSON", "graph"] as const;
 
 const viewTypeToPrefix = {
   bullet: "- ",
@@ -97,6 +100,8 @@ const toMarkdown = ({
 const ExportDialog = ({
   onClose,
   fromQuery,
+  getGraphs = () => [],
+  sendToGraph = console.log,
 }: {
   onClose: () => void;
 } & Props) => {
@@ -108,6 +113,8 @@ const ExportDialog = ({
   const [activeExportType, setActiveExportType] = useState<
     typeof EXPORT_TYPES[number]
   >(EXPORT_TYPES[0]);
+  const graphs = useMemo(getGraphs, [getGraphs]);
+  const [graph, setGraph] = useState<string>(graphs[0]);
   return (
     <Dialog
       isOpen={true}
@@ -120,11 +127,23 @@ const ExportDialog = ({
         <Label>
           Export Type
           <MenuItemSelect
-            items={[...EXPORT_TYPES]}
+            items={[
+              ...EXPORT_TYPES.filter((t) => graphs.length || t !== "graph"),
+            ]}
             activeItem={activeExportType}
             onItemSelect={(et) => setActiveExportType(et)}
           />
         </Label>
+        {activeExportType === "graph" && (
+          <Label>
+            Graph
+            <MenuItemSelect
+              items={graphs}
+              activeItem={graph}
+              onItemSelect={(et) => setGraph(et)}
+            />
+          </Label>
+        )}
         <Label>
           Filename
           <InputGroup
@@ -147,18 +166,27 @@ const ExportDialog = ({
               setTimeout(async () => {
                 try {
                   const zip = new JSZip();
-                  const finish = () =>
-                    zip.generateAsync({ type: "blob" }).then((content) => {
-                      download(content, `${filename}.zip`, "application/zip");
-                      onClose();
-                    });
+                  const finish =
+                    activeExportType === "graph"
+                      ? onClose
+                      : () =>
+                          zip
+                            .generateAsync({ type: "blob" })
+                            .then((content) => {
+                              download(
+                                content,
+                                `${filename}.zip`,
+                                "application/zip"
+                              );
+                              onClose();
+                            });
                   const allNodes = getNodes();
                   const translator = englishToDatalog(allNodes);
                   const allPages = window.roamAlphaAPI
                     .q(
                       "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
                     )
-                    .map(([title, uid]) => ({ title, uid }));
+                    .map(([title, uid]: string[]) => ({ title, uid }));
                   const pageData =
                     fromQuery?.nodes ||
                     allNodes.flatMap(({ format }) =>
@@ -166,9 +194,11 @@ const ExportDialog = ({
                         matchNode({ format, title })
                       )
                     );
-                  const getRelationData = (relations = getRelations()) =>
+                  const getRelationData = (
+                    relations?: ReturnType<typeof getRelations>
+                  ) =>
                     fromQuery?.relations ||
-                    relations.flatMap((s) =>
+                    (relations || getRelations()).flatMap((s) =>
                       window.roamAlphaAPI
                         .q(
                           `[:find ?source-uid ?dest-uid :where [?${
@@ -191,7 +221,7 @@ const ExportDialog = ({
                             translator
                           )}]`
                         )
-                        .map(([source, target]) => ({
+                        .map(([source, target]: string[]) => ({
                           source,
                           target,
                           label: s.label,
@@ -298,7 +328,7 @@ const ExportDialog = ({
                         source: nodeLabelByType[source],
                       })
                     );
-                    const nodes = pageData.map(({ title, uid }, i) => {
+                    const nodes = pageData.map(({ title, uid }) => {
                       const { date, displayName } = getPageMetadata(title);
                       const { children } = getFullTreeByParentUid(uid);
                       return {
@@ -310,10 +340,23 @@ const ExportDialog = ({
                       };
                     });
                     const relations = getRelationData();
-                    zip.file(
-                      `${filename.replace(/\.json$/, "")}.json`,
-                      JSON.stringify({ grammar, nodes, relations })
-                    );
+                    if (activeExportType === "graph") {
+                      sendToGraph({
+                        operation: "IMPORT_DISCOURSE_GRAPH",
+                        data: {
+                          grammar,
+                          nodes,
+                          relations,
+                          title: filename,
+                        },
+                        graph,
+                      });
+                    } else {
+                      zip.file(
+                        `${filename.replace(/\.json$/, "")}.json`,
+                        JSON.stringify({ grammar, nodes, relations })
+                      );
+                    }
                   }
                   finish();
                 } catch (e) {
@@ -334,5 +377,7 @@ export const render = createOverlayRender<Props>(
   "discourse-export",
   ExportDialog
 );
+
+export type ExportRenderProps = Omit<Parameters<typeof render>[0], "fromQuery">;
 
 export default ExportDialog;

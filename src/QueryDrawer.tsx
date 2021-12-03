@@ -9,7 +9,7 @@ import {
   Popover,
   PopoverPosition,
 } from "@blueprintjs/core";
-import { render as exportRender } from "./ExportDialog";
+import { render as exportRender, ExportRenderProps } from "./ExportDialog";
 import React, {
   useCallback,
   useEffect,
@@ -54,7 +54,7 @@ import fuzzy from "fuzzy";
 type Props = {
   blockUid: string;
   clearOnClick: (s: string, m: string) => void;
-};
+} & ExportRenderProps;
 
 type Condition = {
   relation: string;
@@ -199,6 +199,7 @@ const SavedQuery = ({
   setResultsReferenced,
   editSavedQuery,
   parseQuery,
+  ...exportRenderProps
 }: {
   uid: string;
   clearOnClick: (s: string, t: string) => void;
@@ -210,7 +211,7 @@ const SavedQuery = ({
     returnNode: string;
     conditionNodes: Omit<Condition, "uid">[];
   };
-}) => {
+} & ExportRenderProps) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const [minimized, setMinimized] = useState(false);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
@@ -340,6 +341,7 @@ const SavedQuery = ({
                     }))
                   ),
                 },
+                ...exportRenderProps,
               });
             }}
           />
@@ -475,6 +477,7 @@ const SavedQueriesContainer = ({
   clearOnClick,
   editSavedQuery,
   parseQuery,
+  ...exportRenderProps
 }: {
   savedQueries: string[];
   setSavedQueries: (s: string[]) => void;
@@ -484,7 +487,7 @@ const SavedQueriesContainer = ({
     returnNode: string;
     conditionNodes: Omit<Condition, "uid">[];
   };
-}) => {
+} & ExportRenderProps) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
       const title = getPageTitleByPageUid(pageUid);
@@ -549,13 +552,18 @@ const SavedQueriesContainer = ({
           setResultsReferenced={setResultsReferenced}
           editSavedQuery={editSavedQuery}
           parseQuery={parseQuery}
+          {...exportRenderProps}
         />
       ))}
     </>
   );
 };
 
-const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
+const QueryDrawerContent = ({
+  clearOnClick,
+  blockUid,
+  ...exportRenderProps
+}: Props) => {
   const tree = useMemo(() => getBasicTreeByParentUid(blockUid), []);
   const discourseNodes = useMemo(getNodes, []);
   const nodeFormatByLabel = useMemo(
@@ -1093,6 +1101,7 @@ const QueryDrawerContent = ({ clearOnClick, blockUid }: Props) => {
           clearOnClick={clearOnClick}
           editSavedQuery={editSavedQuery}
           parseQuery={parseQuery}
+          {...exportRenderProps}
         />
       )}
     </>
