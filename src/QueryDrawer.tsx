@@ -17,30 +17,26 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  createBlock,
-  deleteBlock,
-  getBasicTreeByParentUid,
-  getCurrentPageUid,
-  getPageTitleByPageUid,
-  getPageUidByPageTitle,
-  getRoamUrl,
-  getTextByBlockUid,
-  openBlockInSidebar,
-  toRoamDateUid,
-  updateBlock,
-} from "roam-client";
-import {
-  createOverlayRender,
-  getSettingValueFromTree,
-  getSettingValuesFromTree,
-  getSubTree,
-  MenuItemSelect,
-  PageInput,
-  setInputSetting,
-  toFlexRegex,
-  useArrowKeyDown,
-} from "roamjs-components";
+import createBlock from "roamjs-components/writes/createBlock";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
+import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getRoamUrl from "roamjs-components/dom/getRoamUrl";
+import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
+import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
+import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
+import updateBlock from "roamjs-components/writes/updateBlock";
+import createOverlayRender from "roamjs-components/util/createOverlayRender";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import getSettingValuesFromTree from "roamjs-components/util/getSettingValuesFromTree";
+import getSubTree from "roamjs-components/util/getSubTree";
+import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
+import PageInput from "roamjs-components/components/PageInput";
+import setInputSetting from "roamjs-components/util/setInputSetting";
+import toFlexRegex from "roamjs-components/util/toFlexRegex";
+import useArrowKeyDown from "roamjs-components/hooks/useArrowKeyDown";
 import ResizableDrawer from "./ResizableDrawer";
 import {
   englishToDatalog,

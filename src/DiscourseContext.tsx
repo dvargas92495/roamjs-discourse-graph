@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
-import { getRoamUrl, openBlockInSidebar } from "roam-client";
+import getRoamUrl from "roamjs-components/dom/getRoamUrl"; 
+import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
 import { getDiscourseContextResults } from "./util";
 
 type Props = { title: string };

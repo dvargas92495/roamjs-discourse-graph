@@ -1,13 +1,11 @@
 import { Button, Classes, Drawer, Position } from "@blueprintjs/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import {
-  getCurrentUserUid,
-  getDisplayNameByUid,
-  getTextByBlockUid,
-  updateBlock,
-} from "roam-client";
-import { getPixelValue, getUserIdentifier } from "./util";
+import getCurrentUserUid from "roamjs-components/queries/getCurrentUserUid";
+import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
+import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
+import updateBlock from "roamjs-components/writes/updateBlock";
+import { getPixelValue } from "./util";
 
 type Props = {
   parentUid: string;

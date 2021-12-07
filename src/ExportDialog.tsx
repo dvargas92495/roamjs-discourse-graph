@@ -10,19 +10,16 @@ import {
   SpinnerSize,
 } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
-import {
-  BLOCK_REF_REGEX,
-  getFullTreeByParentUid,
-  getGraph,
-  getPageViewType,
-  getRoamUrl,
-  getTextByBlockUid,
-  getTreeByBlockUid,
-  normalizePageTitle,
-  TreeNode,
-  ViewType,
-} from "roam-client";
-import { createOverlayRender, MenuItemSelect } from "roamjs-components";
+import { BLOCK_REF_REGEX } from "roamjs-components/dom/constants";
+import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
+import getGraph from "roamjs-components/util/getGraph";
+import getPageViewType from "roamjs-components/queries/getPageViewType";
+import getRoamUrl from "roamjs-components/dom/getRoamUrl";
+import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
+import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import { TreeNode, ViewType } from "roamjs-components/types";
+import createOverlayRender from "roamjs-components/util/createOverlayRender";
+import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import {
   englishToDatalog,
   getDiscourseContextResults,
@@ -265,7 +262,7 @@ const ExportDialog = ({
                     const pages = pageData.map(({ title, uid }, i) => {
                       const v = getPageViewType(title) || "bullet";
                       const { date, displayName, id } = getPageMetadata(title);
-                      const treeNode = getTreeByBlockUid(uid);
+                      const treeNode = getFullTreeByParentUid(uid);
                       const discourseResults = getDiscourseContextResults(
                         title,
                         allNodes

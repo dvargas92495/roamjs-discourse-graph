@@ -1,26 +1,20 @@
-import {
-  addStyle,
-  createBlock,
-  createHTMLObserver,
-  getBasicTreeByParentUid,
-  getChildrenLengthByPageUid,
-  getCurrentPageUid,
-  getPageTitleByHtmlElement,
-  getPageTitleByPageUid,
-  getTextByBlockUid,
-  InputTextNode,
-  runExtension,
-  toConfig,
-  toRoamDateUid,
-  updateBlock,
-} from "roam-client";
-import {
-  createConfigObserver,
-  getSettingValueFromTree,
-  getSubTree,
-  renderToast,
-  toFlexRegex,
-} from "roamjs-components";
+import addStyle from "roamjs-components/dom/addStyle";
+import createBlock from "roamjs-components/writes/createBlock";
+import createHTMLObserver from "roamjs-components/dom/createHTMLObserver";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
+import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
+import getPageTitleByHtmlElement from "roamjs-components/dom/getPageTitleByHtmlElement";
+import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
+import runExtension from "roamjs-components/util/runExtension";
+import toConfig from "roamjs-components/util/toConfigPageName";
+import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
+import updateBlock from "roamjs-components/writes/updateBlock";
+import { createConfigObserver } from "roamjs-components/components/ConfigPage";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import { render as renderToast } from "roamjs-components/components/Toast";
+import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
@@ -46,6 +40,9 @@ import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
 import { setupMultiplayer } from "./Multiplayer";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
+
+// @ts-ignore
+window.createBlock = createBlock;
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,

@@ -20,26 +20,22 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  createBlock,
-  deleteBlock,
-  getBasicTreeByParentUid,
-  getFirstChildTextByBlockUid,
-  getPageUidByPageTitle,
-  getShallowTreeByParentUid,
-  getTreeByBlockUid,
-  TreeNode,
-} from "roam-client";
-import {
-  getSettingValueFromTree,
-  getSubTree,
-  MenuItemSelect,
-  setInputSetting,
-  toFlexRegex,
-  useSubTree,
-} from "roamjs-components";
+import createBlock from "roamjs-components/writes/createBlock";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getFirstChildTextByBlockUid from "roamjs-components/queries/getFirstChildTextByBlockUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
+import type { TreeNode } from "roamjs-components/types";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import getSubTree from "roamjs-components/util/getSubTree";
+import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
+import setInputSetting from "roamjs-components/util/setInputSetting";
+import toFlexRegex from "roamjs-components/util/toFlexRegex";
+import useSubTree from "roamjs-components/hooks/useSubTree";
 import { englishToDatalog, Panel } from "./util";
 import triplesToBlocks from "./utils/triplesToBlocks";
+import { getFullTreeByParentUid } from "roam-client";
 
 interface Array<T> {
   filter<U extends T>(pred: (a: T) => a is U): U[];
@@ -174,10 +170,7 @@ const RelationEditPreview = ({ previewUid }: { previewUid: string }) => {
     });
   }, [previewUid, containerRef]);
   return (
-    <div
-      ref={containerRef}
-      className={"roamjs-discourse-editor-preview"}
-    ></div>
+    <div ref={containerRef} className={"roamjs-discourse-editor-preview"}></div>
   );
 };
 
@@ -607,7 +600,7 @@ const RelationEditPanel = ({
           parentUid: previewUid,
           order: order++,
         }),
-        nodeFormatsByLabel
+      nodeFormatsByLabel,
     })(triples);
   }, [previewUid, tab, elementsRef, nodeFormatsByLabel]);
   return (
@@ -963,7 +956,7 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
   const [editingRelation, setEditingRelation] = useState("");
   const [newRelation, setNewRelation] = useState("");
   const editingRelationInfo = useMemo(
-    () => editingRelation && getTreeByBlockUid(editingRelation),
+    () => editingRelation && getFullTreeByParentUid(editingRelation),
     [editingRelation]
   );
   const onNewRelation = () => {

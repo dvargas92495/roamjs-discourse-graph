@@ -9,8 +9,9 @@ import {
 } from "@blueprintjs/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { getGraph } from "roam-client";
-import { createOverlayRender, renderToast } from "roamjs-components";
+import getGraph from "roamjs-components/util/getGraph";
+import createOverlayRender from "roamjs-components/util/createOverlayRender";
+import { render as renderToast } from "roamjs-components/components/Toast";
 import { v4 } from "uuid";
 
 // These RTC objects are not JSON serializable -.-

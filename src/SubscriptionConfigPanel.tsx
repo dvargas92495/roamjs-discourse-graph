@@ -1,17 +1,13 @@
 import { Button, Label } from "@blueprintjs/core";
 import React, { useMemo, useRef, useState } from "react";
-import {
-  createBlock,
-  deleteBlock,
-  getBasicTreeByParentUid,
-  getPageUidByPageTitle,
-  getRoamUrl,
-} from "roam-client";
-import {
-  BlockInput,
-  MenuItemSelect,
-  PageInput,
-} from "roamjs-components";
+import createBlock from "roamjs-components/writes/createBlock";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getRoamUrl from "roamjs-components/dom/getRoamUrl";
+import BlockInput from "roamjs-components/components/BlockInput";
+import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
+import PageInput from "roamjs-components/components/PageInput";
 import { getUserIdentifier, Panel } from "./util";
 
 const SUBSCRIPTION_TYPES = ["page", "block"] as const;

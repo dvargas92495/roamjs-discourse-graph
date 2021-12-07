@@ -1,7 +1,7 @@
-import {
-  createPage,
+import type {
   InputTextNode,
-} from "roam-client";
+} from "roamjs-components/types";
+import createPage from "roamjs-components/writes/createPage";
 
 const importDiscourseGraph = ({
   title,

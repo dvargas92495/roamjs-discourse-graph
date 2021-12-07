@@ -8,10 +8,11 @@ import {
   SpinnerSize,
 } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
-import { toRoamDateUid, createBlock, getChildrenLengthByPageUid } from "roam-client";
-import { createOverlayRender } from "roamjs-components";
+import toRoamDateUid from "roamjs-components/date/toRoamDate";
+import createBlock from "roamjs-components/writes/createBlock";
+import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
+import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
-
 
 const ImportDialog = ({ onClose }: { onClose: () => void }) => {
   const [loading, setLoading] = useState(false);

@@ -7,18 +7,16 @@ import React, {
   useState,
 } from "react";
 import ReactDOM from "react-dom";
-import {
-  createBlock,
-  createPage,
-  getPageUidByPageTitle,
-  getTextByBlockUid,
-  getTreeByPageName,
-  getUids,
-  openBlockInSidebar,
-  updateBlock,
-} from "roam-client";
-import { getCoordsFromTextarea } from "roamjs-components";
+import createBlock from "roamjs-components/writes/createBlock";
+import createPage from "roamjs-components/writes/createPage";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
+import getUids from "roamjs-components/dom/getUids";
+import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
+import updateBlock from "roamjs-components/writes/updateBlock";
+import { getCoordsFromTextarea } from "roamjs-components/components/CursorMenu";
 import { getNodes, nodeFormatToDatalog } from "./util";
+import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 
 type Props = {
   textarea: HTMLTextAreaElement;
@@ -73,7 +71,9 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
           const pageUid =
             getPageUidByPageTitle(pagename) || createPage({ title: pagename });
           setTimeout(() => {
-            const nodes = getTreeByPageName(format);
+            const nodes = getFullTreeByParentUid(
+              getPageUidByPageTitle(format)
+            ).children;
             nodes.forEach(
               ({ text, textAlign, heading, viewType, children }, order) =>
                 createBlock({

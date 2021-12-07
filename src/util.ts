@@ -1,16 +1,13 @@
-import {
-  createBlock,
-  getBasicTreeByParentUid,
-  getCurrentUserDisplayName,
-  getCurrentUserUid,
-  getDisplayNameByUid,
-  getPageUidByPageTitle,
-  InputTextNode,
-  normalizePageTitle,
-  RoamBasicNode,
-  TextNode,
-} from "roam-client";
-import { getSettingValueFromTree, toFlexRegex } from "roamjs-components";
+import type { InputTextNode, RoamBasicNode, TextNode } from "roamjs-components/types";
+import createBlock from "roamjs-components/writes/createBlock";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
+import getCurrentUserUid from "roamjs-components/queries/getCurrentUserUid";
+import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as referenceRender } from "./ReferenceContext";
 
 export type PanelProps = {

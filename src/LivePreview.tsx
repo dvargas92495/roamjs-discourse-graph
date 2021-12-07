@@ -7,8 +7,8 @@ import React, {
   useState,
 } from "react";
 import ReactDOM from "react-dom";
-import { getChildrenLengthByPageUid, getPageUidByPageTitle } from "roam-client";
-import { useSubTree } from "roamjs-components";
+import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import { getNodeReferenceChildren, isNodeTitle } from "./util";
 
 const sizes = [300, 400, 500, 600];
@@ -32,7 +32,7 @@ const TooltipContent = ({
     document
       .getElementById("roamjs-discourse-live-preview-container")
       ?.remove?.();
-      let newIsEmpty = true;
+    let newIsEmpty = true;
     if (numChildren) {
       const el = document.createElement("div");
       el.id = "roamjs-discourse-live-preview-container";
@@ -47,9 +47,9 @@ const TooltipContent = ({
     if (isNodeTitle(tag)) {
       const refs = getNodeReferenceChildren(tag);
       containerRef.current.appendChild(refs);
-      newIsEmpty = newIsEmpty && !refs.childElementCount
+      newIsEmpty = newIsEmpty && !refs.childElementCount;
     }
-    setIsEmpty(newIsEmpty)
+    setIsEmpty(newIsEmpty);
   }, [uid, containerRef, numChildren, tag, setIsEmpty]);
   return (
     <div
@@ -74,7 +74,11 @@ const TooltipContent = ({
           maxHeight: size,
         }}
       >
-        {isEmpty && <span>Page <i>{tag}</i> is empty.</span>}
+        {isEmpty && (
+          <span>
+            Page <i>{tag}</i> is empty.
+          </span>
+        )}
       </div>
     </div>
   );

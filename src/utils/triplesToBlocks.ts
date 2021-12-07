@@ -1,4 +1,4 @@
-import type { InputTextNode } from "roam-client";
+import type { InputTextNode } from "roamjs-components/types";
 
 const triplesToBlocks =
   ({

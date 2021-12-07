@@ -15,24 +15,19 @@ import {
   Position,
   Tooltip,
 } from "@blueprintjs/core";
-import {
-  createBlock,
-  createPage,
-  deleteBlock,
-  getAllPageNames,
-  getBasicTreeByParentUid,
-  getPageUidByPageTitle,
-  InputTextNode,
-  openBlockInSidebar,
-  RoamBasicNode,
-  updateBlock,
-} from "roam-client";
-import {
-  getSettingValueFromTree,
-  renderToast,
-  setInputSetting,
-  toFlexRegex,
-} from "roamjs-components";
+import createBlock from "roamjs-components/writes/createBlock";
+import createPage from "roamjs-components/writes/createPage";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
+import getAllPageNames from "roamjs-components/queries/getAllPageNames";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import type { InputTextNode, RoamBasicNode } from "roamjs-components/types";
+import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
+import updateBlock from "roamjs-components/writes/updateBlock";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import { render as renderToast } from "roamjs-components/components/Toast";
+import setInputSetting from "roamjs-components/util/setInputSetting";
+import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
 import { render as exportRender, ExportRenderProps } from "./ExportDialog";
 import { getNodes, getRelations, getRelationTriples } from "./util";
