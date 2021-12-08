@@ -184,7 +184,7 @@ const onConnect = ({
       const { operation, ...data } = JSON.parse(ongoingMessage.join(""));
       messageHandlers[operation]?.(data, name);
     } else {
-      console.log(`Received chunk ${chunk} of ${total}`);
+      console.log(`Received chunk ${chunk + 1} of ${total}`);
     }
   });
   channel.onclose = onDisconnect(name);
@@ -380,30 +380,6 @@ const MESSAGE_LIMIT = 15900; // 16KB minus 100b buffer for metadata
 
 export const setupMultiplayer = () => {
   const messageHandlers: MessageHandlers = {};
-  window.roamAlphaAPI.ui.commandPalette.addCommand({
-    label: "Setup Multiplayer",
-    callback: () => {
-      createOverlayRender<Omit<AlertProps, "onClose">>(
-        "multiplayer-setup",
-        SetupAlert
-      )({ messageHandlers });
-    },
-  });
-  window.roamAlphaAPI.ui.commandPalette.addCommand({
-    label: "Connect To Graph",
-    callback: () => {
-      createOverlayRender<Omit<AlertProps, "onClose">>(
-        "multiplayer-connect",
-        SetupConnect
-      )({ messageHandlers });
-    },
-  });
-  const sibling = document
-    .querySelector(`.rm-topbar .rm-sync`)
-    .closest(".bp3-popover-wrapper");
-  const parent = document.createElement("span");
-  sibling.parentElement.insertBefore(parent, sibling);
-  ReactDOM.render(<Multiplayer />, parent);
   return {
     addGraphListener: ({
       operation,
@@ -443,12 +419,46 @@ export const setupMultiplayer = () => {
       }
     },
     getConnectedGraphs: () => Object.keys(connectedGraphs),
+    enable: () => {
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Setup Multiplayer",
+        callback: () => {
+          createOverlayRender<Omit<AlertProps, "onClose">>(
+            "multiplayer-setup",
+            SetupAlert
+          )({ messageHandlers });
+        },
+      });
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Connect To Graph",
+        callback: () => {
+          createOverlayRender<Omit<AlertProps, "onClose">>(
+            "multiplayer-connect",
+            SetupConnect
+          )({ messageHandlers });
+        },
+      });
+      const sibling = document
+        .querySelector(`.rm-topbar .rm-sync`)
+        .closest(".bp3-popover-wrapper");
+      const parent = document.createElement("span");
+      parent.id = "roamjs-multiplayer";
+      sibling.parentElement.insertBefore(parent, sibling);
+      ReactDOM.render(<Multiplayer />, parent);
+    },
+    disable: () => {
+      const parent = document.getElementById("roamjs-multiplayer");
+      ReactDOM.unmountComponentAtNode(parent);
+      parent.remove();
+      window.roamAlphaAPI.ui.commandPalette.removeCommand({
+        label: "Connect To Graph",
+      });
+      window.roamAlphaAPI.ui.commandPalette.removeCommand({
+        label: "Setup Multiplayer",
+      });
+      Object.keys(connectedGraphs).forEach((g) => delete connectedGraphs[g]);
+    },
   };
-};
-
-const l = <T extends unknown>(p: T): T => {
-  console.log(p);
-  return p;
 };
 
 export default Multiplayer;

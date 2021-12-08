@@ -37,8 +37,8 @@ import type { setupMultiplayer } from "./Multiplayer";
 
 type Props = {
   fromQuery?: {
-    nodes: { title: string; uid: string }[];
-    relations: {
+    nodes?: { title: string; uid: string }[];
+    relations?: {
       target: string;
       source: string;
       label: string;

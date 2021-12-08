@@ -38,11 +38,9 @@ import {
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
-import { setupMultiplayer } from "./Multiplayer";
+import Multiplayer, { setupMultiplayer } from "./Multiplayer";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
-
-// @ts-ignore
-window.createBlock = createBlock;
+import getSubTree from "roamjs-components/util/getSubTree";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -177,6 +175,8 @@ const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
 
 runExtension("discourse-graph", () => {
+  const { addGraphListener, getConnectedGraphs, sendToGraph, enable, disable } =
+    setupMultiplayer();
   const { pageUid } = createConfigObserver({
     title: CONFIG,
     config: {
@@ -235,6 +235,14 @@ runExtension("discourse-graph", () => {
                 component: SubscriptionConfigPanel,
               },
             },
+            {
+              title: "multiplayer",
+              type: "flag",
+              description: "Whether or not to enable Multiplayer on this graph",
+              options: {
+                onChange: (f) => (f ? enable() : disable()),
+              },
+            },
           ],
         },
         { id: "render references", fields: [], toggleable: true },
@@ -243,12 +251,14 @@ runExtension("discourse-graph", () => {
     },
   });
 
-  // Temporary shim
   const configTree = getBasicTreeByParentUid(pageUid);
   setTimeout(refreshConfigTree, 1);
 
-  const { addGraphListener, getConnectedGraphs, sendToGraph } =
-    setupMultiplayer();
+  const isEnabled = getSubTree({
+    tree: configTree,
+    key: "subscriptions",
+  }).children.some((s) => toFlexRegex("multiplayer").test(s.text));
+  if (isEnabled) enable();
   addGraphListener({
     operation: "IMPORT_DISCOURSE_GRAPH",
     handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {

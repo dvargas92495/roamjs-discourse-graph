@@ -328,14 +328,9 @@ const SavedQuery = ({
                       title: text,
                       uid: pageUid,
                     }))
-                    .concat(conditions.map((c) => c.predicate)),
-                  relations: conditions.flatMap((c) =>
-                    results.map((s) => ({
-                      source: s.uid,
-                      target: c.predicate.uid,
-                      label: c.relation,
-                    }))
-                  ),
+                    .concat(
+                      conditions.map((c) => c.predicate).filter((c) => !!c.uid)
+                    ),
                 },
                 ...exportRenderProps,
               });
