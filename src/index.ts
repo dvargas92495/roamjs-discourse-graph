@@ -23,6 +23,7 @@ import { render as contextRender } from "./DiscourseContext";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
+import { render as queryRequestRender } from "./components/SendQueryRequest";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
@@ -38,9 +39,14 @@ import {
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
-import Multiplayer, { setupMultiplayer } from "./Multiplayer";
+import { setupMultiplayer } from "./Multiplayer";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
 import getSubTree from "roamjs-components/util/getSubTree";
+import { Intent } from "@blueprintjs/core";
+import createButtonObserver from "roamjs-components/dom/createButtonObserver";
+import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
+import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -175,8 +181,14 @@ const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
 
 runExtension("discourse-graph", () => {
-  const { addGraphListener, getConnectedGraphs, sendToGraph, enable, disable } =
-    setupMultiplayer();
+  const {
+    addGraphListener,
+    getConnectedGraphs,
+    sendToGraph,
+    enable,
+    disable,
+    removeGraphListener,
+  } = setupMultiplayer();
   const { pageUid } = createConfigObserver({
     title: CONFIG,
     config: {
@@ -284,6 +296,35 @@ runExtension("discourse-graph", () => {
         content: `${graph} successfully imported your discourse graph!`,
       }),
   });
+  addGraphListener({
+    operation: "QUERY_REQUEST",
+    handler: (json, graph) => {
+      const { page, requestId } = json as { page: string; requestId: string };
+      const todayUid = toRoamDateUid();
+      const bottom = getChildrenLengthByPageUid(todayUid);
+      createBlock({
+        parentUid: todayUid,
+        order: bottom,
+        node: {
+          text: `New [[query request]] from [[${graph}]]`,
+          children: [
+            {
+              text: `Get full page contents of [[${page}]]`,
+            },
+            {
+              text: `{{Accept:${graph}:${requestId}:${page}}}`,
+            },
+          ],
+        },
+      });
+      renderToast({
+        id: "new-query-request",
+        content: `New query request from ${graph}`,
+        intent: Intent.PRIMARY,
+      });
+      sendToGraph({ operation: "QUERY_REQUEST_RECEIVED", graph });
+    },
+  });
 
   const trigger = getSettingValueFromTree({
     tree: configTree,
@@ -313,6 +354,72 @@ runExtension("discourse-graph", () => {
   window.roamAlphaAPI.ui.commandPalette.addCommand({
     label: "Import Discourse Graph",
     callback: () => importRender({}),
+  });
+
+  window.roamAlphaAPI.ui.commandPalette.addCommand({
+    label: "Send Query Request",
+    callback: () => {
+      const graphs = getConnectedGraphs();
+      if (!graphs.length) {
+        renderToast({
+          id: "discouse-no-graphs",
+          content: "There are no connected graphs available to ask for a query",
+          intent: Intent.WARNING,
+        });
+      } else {
+        queryRequestRender({
+          uid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+          graphs,
+          sendToGraph,
+          addGraphListener,
+          removeGraphListener,
+        });
+      }
+    },
+  });
+  createButtonObserver({
+    attribute: "accept",
+    render: (b) => {
+      b.onclick = () => {
+        const { blockUid } = getUidsFromButton(b);
+        const text = getTextByBlockUid(blockUid);
+        const parts = (/{{([^}]+)}}/.exec(text)?.[1] || "").split(":");
+        if (parts.length >= 4) {
+          const [, graph, requestId, ...page] = parts;
+          const title = page.join(":");
+          const tree = getFullTreeByParentUid(
+            getPageUidByPageTitle(title)
+          ).children;
+          sendToGraph({
+            graph,
+            operation: `QUERY_RESPONSE/${requestId}`,
+            data: {
+              page: {
+                tree,
+                title,
+              },
+            },
+          });
+          const operation = `QUERY_RESPONSE_RECEIVED/${requestId}`;
+          addGraphListener({
+            operation,
+            handler: (_, g) => {
+              if (g === graph) {
+                renderToast({
+                  id: "query-response-success",
+                  content: `Graph ${g} Successfully Received the query`,
+                  intent: Intent.SUCCESS,
+                });
+                removeGraphListener({
+                  operation,
+                });
+                updateBlock({ uid: blockUid, text: "Sent" });
+              }
+            },
+          });
+        }
+      };
+    },
   });
 
   const elToTitle = (e: Node): string => {

@@ -418,7 +418,10 @@ export const setupMultiplayer = () => {
         );
       }
     },
-    getConnectedGraphs: () => Object.keys(connectedGraphs),
+    getConnectedGraphs: () =>
+      Object.keys(connectedGraphs).filter(
+        (g) => connectedGraphs[g].status === "CONNECTED"
+      ),
     enable: () => {
       window.roamAlphaAPI.ui.commandPalette.addCommand({
         label: "Setup Multiplayer",

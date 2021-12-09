@@ -35,7 +35,7 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import useSubTree from "roamjs-components/hooks/useSubTree";
 import { englishToDatalog, Panel } from "./util";
 import triplesToBlocks from "./utils/triplesToBlocks";
-import { getFullTreeByParentUid } from "roam-client";
+import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 
 interface Array<T> {
   filter<U extends T>(pred: (a: T) => a is U): U[];
