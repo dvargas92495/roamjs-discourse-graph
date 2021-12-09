@@ -195,35 +195,47 @@ const ExportDialog = ({
                     relations?: ReturnType<typeof getRelations>
                   ) =>
                     fromQuery?.relations ||
-                    (relations || getRelations()).flatMap((s) =>
-                      window.roamAlphaAPI
-                        .q(
-                          `[:find ?source-uid ?dest-uid :where [?${
-                            s.triples.find(
-                              (t) => t[2] === "source" || t[2] === s.source
-                            )[0]
-                          } :block/uid ?source-uid] [?${
-                            s.triples.find(
-                              (t) =>
-                                t[2] === "destination" || t[2] === s.destination
-                            )[0]
-                          } :block/uid ?dest-uid] ${triplesToQuery(
-                            s.triples.map((t) =>
-                              t[2] === "source"
-                                ? [t[0], t[1], s.source]
-                                : t[2] === "destination"
-                                ? [t[0], t[1], s.destination]
-                                : t
-                            ),
-                            translator
-                          )}]`
-                        )
-                        .map(([source, target]: string[]) => ({
-                          source,
-                          target,
-                          label: s.label,
-                        }))
-                    );
+                    (relations || getRelations())
+                      .filter(
+                        (s) =>
+                          s.triples.some(
+                            (t) => t[2] === "source" || t[2] === s.source
+                          ) &&
+                          s.triples.some(
+                            (t) =>
+                              t[2] === "destination" || t[2] === s.destination
+                          )
+                      )
+                      .flatMap((s) =>
+                        window.roamAlphaAPI
+                          .q(
+                            `[:find ?source-uid ?dest-uid :where [?${
+                              s.triples.find(
+                                (t) => t[2] === "source" || t[2] === s.source
+                              )[0]
+                            } :block/uid ?source-uid] [?${
+                              s.triples.find(
+                                (t) =>
+                                  t[2] === "destination" ||
+                                  t[2] === s.destination
+                              )[0]
+                            } :block/uid ?dest-uid] ${triplesToQuery(
+                              s.triples.map((t) =>
+                                t[2] === "source"
+                                  ? [t[0], t[1], s.source]
+                                  : t[2] === "destination"
+                                  ? [t[0], t[1], s.destination]
+                                  : t
+                              ),
+                              translator
+                            )}]`
+                          )
+                          .map(([source, target]: string[]) => ({
+                            source,
+                            target,
+                            label: s.label,
+                          }))
+                      );
                   if (activeExportType === "CSV (neo4j)") {
                     const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
                     const nodeData = pageData
