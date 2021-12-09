@@ -48,6 +48,16 @@ type Props = {
   sendToGraph?: ReturnType<typeof setupMultiplayer>["sendToGraph"];
 };
 
+const uniqJsonArray = <T extends unknown>(arr: T[]) =>
+  Array.from(
+    new Set(
+      arr.map((r) =>
+        JSON.stringify(
+          Object.entries(r).sort(([k], [k2]) => k.localeCompare(k2))
+        )
+      )
+    )
+  ).map((entries) => Object.fromEntries(JSON.parse(entries))) as T[];
 const EXPORT_TYPES = ["CSV (neo4j)", "Markdown", "JSON", "graph"] as const;
 
 const viewTypeToPrefix = {
@@ -348,7 +358,12 @@ const ExportDialog = ({
                         createdBy: displayName,
                       };
                     });
-                    const relations = getRelationData();
+                    const nodeSet = new Set(nodes.map((n) => n.uid));
+                    const relations = uniqJsonArray(
+                      getRelationData().filter(
+                        (r) => nodeSet.has(r.source) && nodeSet.has(r.target)
+                      )
+                    );
                     if (activeExportType === "graph") {
                       sendToGraph({
                         operation: "IMPORT_DISCOURSE_GRAPH",

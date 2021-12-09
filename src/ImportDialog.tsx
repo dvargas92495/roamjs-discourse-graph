@@ -16,7 +16,6 @@ import importDiscourseGraph from "./utils/importDiscourseGraph";
 
 const ImportDialog = ({ onClose }: { onClose: () => void }) => {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [value, setValue] = useState("");
   const [file, setFile] = useState<File>();
   const title = useMemo(() => value.split(/[/\\]/).slice(-1)[0], [value]);
@@ -44,7 +43,6 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
       </div>
       <div className={Classes.DIALOG_FOOTER}>
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-          <span style={{ color: "darkred" }}>{error}</span>
           {loading && <Spinner size={SpinnerSize.SMALL} />}
           <Button
             text={"Import"}
