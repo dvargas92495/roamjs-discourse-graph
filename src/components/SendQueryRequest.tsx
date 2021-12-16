@@ -19,6 +19,8 @@ import createBlock from "roamjs-components/writes/createBlock";
 import createPage from "roamjs-components/writes/createPage";
 import { TreeNode } from "roamjs-components/types";
 import { v4 } from "uuid";
+import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
+import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 
 type Props = Pick<
   ReturnType<typeof setupMultiplayer>,
@@ -102,7 +104,11 @@ const SendQueryRequest = ({
                       handler: (json, g) => {
                         if (g === graph) {
                           const { page } = json as {
-                            page: { title: string; tree: TreeNode[], uid: string };
+                            page: {
+                              title: string;
+                              tree: TreeNode[];
+                              uid: string;
+                            };
                           };
                           const pageUid = getPageUidByPageTitle(page.title);
                           if (pageUid) {
@@ -121,6 +127,14 @@ const SendQueryRequest = ({
                           sendToGraph({
                             graph,
                             operation: `QUERY_RESPONSE_RECEIVED/${requestId}`,
+                          });
+                          const todayUid = toRoamDateUid();
+                          createBlock({
+                            parentUid: todayUid,
+                            node: {
+                              text: `Received response for page ${page} from graph ${g}.`,
+                            },
+                            order: getChildrenLengthByPageUid(todayUid),
                           });
                         }
                       },

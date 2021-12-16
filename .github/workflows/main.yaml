@@ -1,7 +1,7 @@
 name: Publish Extension
 on:
   push:
-    branches: 
+    branches:
       - main
       - experimental
     paths:
@@ -17,9 +17,9 @@ jobs:
       - name: install
         run: npm install
       - name: build
-        run: npm run build 
+        run: npm run build
       - name: RoamJS Publish
-        uses: dvargas92495/roamjs-publish@0.4.2
+        uses: dvargas92495/roamjs-publish@0.4.3
         with:
           token: ${{ secrets.ROAMJS_DEVELOPER_TOKEN }}
           source: build
