@@ -1,6 +1,7 @@
 import addStyle from "roamjs-components/dom/addStyle";
 import createBlock from "roamjs-components/writes/createBlock";
 import createHTMLObserver from "roamjs-components/dom/createHTMLObserver";
+import createBlockObserver from "roamjs-components/dom/createBlockObserver";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
@@ -11,6 +12,7 @@ import runExtension from "roamjs-components/util/runExtension";
 import toConfig from "roamjs-components/util/toConfigPageName";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
+import getBlockUidsReferencingPage from "roamjs-components/queries/getBlockUidsReferencingPage";
 import { createConfigObserver } from "roamjs-components/components/ConfigPage";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import { render as renderToast } from "roamjs-components/components/Toast";
@@ -47,6 +49,11 @@ import createButtonObserver from "roamjs-components/dom/createButtonObserver";
 import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getUids from "roamjs-components/dom/getUids";
+import getFirstChildUidByBlockUid from "roamjs-components/queries/getFirstChildUidByBlockUid";
+import { InputTextNode } from "roamjs-components/types";
+import createPage from "roamjs-components/writes/createPage";
+import addInputSetting from "roamjs-components/util/addInputSetting";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -175,6 +182,10 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-editor-preview .rm-block-main {
   pointer-events: none;
+}
+
+.roamjs-connected-ref > div {
+  display: none;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
@@ -387,9 +398,8 @@ runExtension("discourse-graph", () => {
         if (parts.length >= 4) {
           const [, graph, requestId, ...page] = parts;
           const title = page.join(":");
-          const tree = getFullTreeByParentUid(
-            getPageUidByPageTitle(title)
-          ).children;
+          const uid = getPageUidByPageTitle(title);
+          const tree = getFullTreeByParentUid(uid).children;
           sendToGraph({
             graph,
             operation: `QUERY_RESPONSE/${requestId}`,
@@ -397,6 +407,7 @@ runExtension("discourse-graph", () => {
               page: {
                 tree,
                 title,
+                uid,
               },
             },
           });
@@ -653,4 +664,126 @@ runExtension("discourse-graph", () => {
     showNotificationIcon(e.newURL);
   });
   showNotificationIcon(window.location.hash);
+
+  const multiplayerReferences = Object.fromEntries(
+    getBlockUidsReferencingPage("Multiplayer References").flatMap((uid) =>
+      getBasicTreeByParentUid(uid).map((c) => [
+        c.text,
+        c.children[0]?.uid || "",
+      ])
+    )
+  );
+
+  createBlockObserver((block) => {
+    const possibleRefs = Array.from(
+      block.querySelectorAll(`span.rm-paren, span.rm-block-ref`)
+    );
+    if (possibleRefs.some((r) => r.classList.contains("rm-paren"))) {
+      const text = getTextByBlockUid(getUids(block).blockUid);
+      const refRegex = /\(\((.*?)\)\)/g;
+      possibleRefs.forEach((pr) => {
+        const uid = refRegex.exec(text)?.[1];
+        if (pr.classList.contains("rm-paren")) {
+          const renderConnectedReference = () => {
+            const refUid = multiplayerReferences[uid];
+            const spacer = pr.querySelector<HTMLSpanElement>("span.rm-spacer");
+            if (spacer) {
+              spacer.style.display = "none";
+            }
+            pr.classList.remove("rm-paren");
+            pr.classList.remove("rm-paren--closed");
+            pr.classList.add("rm-block-ref");
+            const el = document.createElement("span");
+            el.className = "roamjs-connected-ref";
+            pr.appendChild(el);
+            window.roamAlphaAPI.ui.components.renderBlock({ uid: refUid, el });
+            const spanContent = el.querySelector(
+              `div.roam-block[id$='${refUid}'] > span`
+            );
+            el.innerHTML = `${el.innerHTML}${spanContent.innerHTML}`;
+          };
+          if (multiplayerReferences[uid]) {
+            renderConnectedReference();
+          } else {
+            const operation = `QUERY_REF_RESPONSE/${uid}`;
+            addGraphListener({
+              operation,
+              handler: (e, graph) => {
+                removeGraphListener({ operation });
+                const { found, node } = e as {
+                  found: boolean;
+                  node: InputTextNode;
+                };
+                const { uid: nodeUid, ...nodeRest } = node;
+                if (found) {
+                  const newNode = {
+                    ...nodeRest,
+                    uid: window.roamAlphaAPI.util.generateUID(),
+                  };
+                  const pageUid = getPageUidByPageTitle(graph);
+                  const entry = {
+                    text: uid,
+                    children: [newNode],
+                  };
+                  if (!pageUid) {
+                    createPage({
+                      title: graph,
+                      tree: [
+                        {
+                          text: "[[Multiplayer References]]",
+                          children: [entry],
+                        },
+                      ],
+                    });
+                  } else {
+                    const tree = getBasicTreeByParentUid(pageUid);
+                    const referencesUid = tree.find(
+                      (t) => t.text === "[[Multiplayer References]]"
+                    )?.uid;
+                    if (!referencesUid) {
+                      createBlock({
+                        parentUid: pageUid,
+                        node: {
+                          text: "[[Multiplayer References]]",
+                          children: [entry],
+                        },
+                      });
+                    } else {
+                      createBlock({
+                        parentUid: referencesUid,
+                        node: entry,
+                      });
+                    }
+                  }
+                  setTimeout(() => {
+                    multiplayerReferences[nodeUid] = newNode.uid;
+                    renderConnectedReference();
+                  }, 1);
+                }
+              },
+            });
+            getConnectedGraphs().forEach((graph) =>
+              sendToGraph({ operation: "QUERY_REF", graph, data: { uid } })
+            );
+          }
+        }
+      });
+    }
+  });
+
+  addGraphListener({
+    operation: "QUERY_REF",
+    handler: (e, graph) => {
+      const { uid } = e as { uid: string };
+      const node = getFullTreeByParentUid(uid);
+      sendToGraph({
+        operation: `QUERY_REF_RESPONSE/${uid}`,
+        data: {
+          found: !!node.text,
+          node,
+        },
+        graph,
+      });
+    },
+  });
 });

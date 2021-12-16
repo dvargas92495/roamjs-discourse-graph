@@ -102,7 +102,7 @@ const SendQueryRequest = ({
                       handler: (json, g) => {
                         if (g === graph) {
                           const { page } = json as {
-                            page: { title: string; tree: TreeNode[] };
+                            page: { title: string; tree: TreeNode[], uid: string };
                           };
                           const pageUid = getPageUidByPageTitle(page.title);
                           if (pageUid) {
