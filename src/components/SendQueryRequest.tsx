@@ -132,7 +132,7 @@ const SendQueryRequest = ({
                           createBlock({
                             parentUid: todayUid,
                             node: {
-                              text: `Received response for page ${page} from graph ${g}.`,
+                              text: `Received response for page ${page.title} from graph ${g}.`,
                             },
                             order: getChildrenLengthByPageUid(todayUid),
                           });
