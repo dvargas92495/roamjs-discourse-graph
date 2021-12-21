@@ -1,4 +1,8 @@
-import type { InputTextNode, RoamBasicNode, TextNode } from "roamjs-components/types";
+import type {
+  InputTextNode,
+  RoamBasicNode,
+  TextNode,
+} from "roamjs-components/types";
 import createBlock from "roamjs-components/writes/createBlock";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
@@ -9,6 +13,7 @@ import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as referenceRender } from "./ReferenceContext";
+import getSubTree from "roamjs-components/util/getSubTree";
 
 export type PanelProps = {
   uid: string;
@@ -44,8 +49,20 @@ export const getQueriesUid = () =>
     order: 3,
   });
 
-export const isFlagEnabled = (flag: string) =>
-  treeRef.tree.some((t) => toFlexRegex(flag).test(t.text));
+export const isFlagEnabled = (
+  flag: string,
+  inputTree?: RoamBasicNode[]
+): boolean => {
+  const flagParts = flag.split(".");
+  const tree = inputTree || treeRef.tree;
+  if (flagParts.length === 1)
+    return tree.some((t) => toFlexRegex(flag).test(t.text));
+  else
+    return isFlagEnabled(
+      flagParts.slice(1).join("."),
+      getSubTree({ tree, key: flagParts[0] }).children
+    );
+};
 
 export const DEFAULT_NODE_VALUES: InputTextNode[] = [
   {
@@ -605,9 +622,9 @@ export const getDiscourseContextResults = (
       rawResults.map((r) => [r.label, {} as Record<string, string>])
     );
     rawResults.forEach((r) =>
-      Object.entries(r.results).forEach(
-        ([k, v]) => (groupedResults[r.label][k] = v)
-      )
+      Object.entries(r.results)
+        .filter(([, v]) => v !== title)
+        .forEach(([k, v]) => (groupedResults[r.label][k] = v))
     );
     return Object.entries(groupedResults).map(([label, results]) => ({
       label,

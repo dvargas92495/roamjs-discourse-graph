@@ -22,6 +22,10 @@ import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
+import {
+  render as discourseOverlayRender,
+  refreshOverlayCounters,
+} from "./components/DiscourseContextOverlay";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
@@ -29,6 +33,7 @@ import { render as queryRequestRender } from "./components/SendQueryRequest";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  getDiscourseContextResults,
   getNodeReferenceChildren,
   getPageMetadata,
   getQueriesUid,
@@ -50,10 +55,10 @@ import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getUids from "roamjs-components/dom/getUids";
-import getFirstChildUidByBlockUid from "roamjs-components/queries/getFirstChildUidByBlockUid";
 import { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
-import addInputSetting from "roamjs-components/util/addInputSetting";
+import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
+import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -191,6 +196,74 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
 
+const pageRefObservers = new Set<(s: HTMLSpanElement) => void>();
+const previewPageRefHandler = (s: HTMLSpanElement) => {
+  const tag =
+    s.getAttribute("data-tag") ||
+    s.parentElement.getAttribute("data-link-title");
+  if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
+    s.setAttribute("data-roamjs-discourse-augment-tag", "true");
+    const parent = document.createElement("span");
+    previewRender({
+      parent,
+      tag,
+      registerMouseEvents: ({ open, close }) => {
+        s.addEventListener("mouseenter", (e) => open(e.ctrlKey));
+        s.addEventListener("mouseleave", close);
+      },
+    });
+    s.appendChild(parent);
+  }
+};
+
+const overlayPageRefHandler = (s: HTMLSpanElement) => {
+  if (!s.parentElement.closest(".rm-page-ref")) {
+    const tag =
+      s.getAttribute("data-tag") ||
+      s.parentElement.getAttribute("data-link-title");
+    if (!s.getAttribute("data-roamjs-discourse-overlay") && isNodeTitle(tag)) {
+      s.setAttribute("data-roamjs-discourse-overlay", "true");
+      const parent = document.createElement("span");
+      discourseOverlayRender({
+        parent,
+        tag,
+      });
+      if (s.hasAttribute("data-tag")) {
+        s.appendChild(parent);
+      } else {
+        s.parentElement.appendChild(parent);
+      }
+    }
+  }
+};
+
+const pageRefObserverRef: { current?: MutationObserver } = {
+  current: undefined,
+};
+const enablePageRefObserver = () =>
+  (pageRefObserverRef.current = createHTMLObserver({
+    useBody: true,
+    tag: "SPAN",
+    className: "rm-page-ref",
+    callback: (s: HTMLSpanElement) => {
+      pageRefObservers.forEach((f) => f(s));
+    },
+  }));
+const disablePageRefObserver = () => {
+  pageRefObserverRef.current.disconnect();
+  pageRefObserverRef.current = undefined;
+};
+const onPageRefObserverChange =
+  (handler: (s: HTMLSpanElement) => void) => (b: boolean) => {
+    if (b) {
+      if (!pageRefObservers.size) enablePageRefObserver();
+      pageRefObservers.add(handler);
+    } else {
+      pageRefObservers.delete(handler);
+      if (!pageRefObservers.size) disablePageRefObserver();
+    }
+  };
+
 runExtension("discourse-graph", () => {
   const {
     addGraphListener,
@@ -220,9 +293,17 @@ runExtension("discourse-graph", () => {
                 "Whether or not to display the page author and created date under each title",
               type: "flag",
             },
+            {
+              title: "preview",
+              description:
+                "Whether or not to display page previews when hovering over page refs",
+              type: "flag",
+              options: {
+                onChange: onPageRefObserverChange(previewPageRefHandler),
+              },
+            },
           ],
         },
-        { id: "preview", fields: [], toggleable: true },
         {
           id: "grammar",
           fields: [
@@ -242,6 +323,15 @@ runExtension("discourse-graph", () => {
               defaultValue: DEFAULT_RELATION_VALUES,
               options: {
                 component: RelationConfigPanel,
+              },
+            },
+            {
+              title: "overlay",
+              type: "flag",
+              description:
+                "Whether to overlay discourse context information over node references",
+              options: {
+                onChange: onPageRefObserverChange(overlayPageRefHandler),
               },
             },
           ],
@@ -581,34 +671,19 @@ runExtension("discourse-graph", () => {
         },
       });
     }
-  });
+  }, 1);
 
   setTimeout(() => {
-    if (isFlagEnabled("preview")) {
-      createHTMLObserver({
-        useBody: true,
-        tag: "SPAN",
-        className: "rm-page-ref",
-        callback: (s: HTMLSpanElement) => {
-          const tag =
-            s.getAttribute("data-tag") ||
-            s.parentElement.getAttribute("data-link-title");
-          if (!s.getAttribute("data-roamjs-discourse-augment-tag")) {
-            s.setAttribute("data-roamjs-discourse-augment-tag", "true");
-            const parent = document.createElement("span");
-            previewRender({
-              parent,
-              tag,
-              registerMouseEvents: ({ open, close }) => {
-                s.addEventListener("mouseenter", (e) => open(e.ctrlKey));
-                s.addEventListener("mouseleave", close);
-              },
-            });
-            s.appendChild(parent);
-          }
-        },
+    if (isFlagEnabled("preview")) pageRefObservers.add(previewPageRefHandler);
+    if (isFlagEnabled("grammar.overlay")) {
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Refresh Overlay Counters",
+        callback: refreshOverlayCounters,
       });
+      refreshOverlayCounters();
+      pageRefObservers.add(overlayPageRefHandler);
     }
+    if (pageRefObservers.size) enablePageRefObserver();
   }, 1);
 
   const showNotificationIcon = (url: string) => {

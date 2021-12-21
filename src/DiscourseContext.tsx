@@ -1,15 +1,18 @@
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
-import getRoamUrl from "roamjs-components/dom/getRoamUrl"; 
+import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
 import { getDiscourseContextResults } from "./util";
 
-type Props = { title: string };
+type Props = {
+  title: string;
+  results?: ReturnType<typeof getDiscourseContextResults>;
+};
 
-const ContextContent = ({ title }: Props) => {
+export const ContextContent = ({ title, results }: Props) => {
   const queryResults = useMemo(
-    () => getDiscourseContextResults(title),
-    [title]
+    () => results && getDiscourseContextResults(title),
+    [title, results]
   );
   const renderItems = (blocks: Record<string, string>, label: string) =>
     Object.entries(blocks).map(([uid, title]) => (
