@@ -11,7 +11,7 @@ type Props = {
 
 export const ContextContent = ({ title, results }: Props) => {
   const queryResults = useMemo(
-    () => results && getDiscourseContextResults(title),
+    () => results || getDiscourseContextResults(title),
     [title, results]
   );
   const renderItems = (blocks: Record<string, string>, label: string) =>
