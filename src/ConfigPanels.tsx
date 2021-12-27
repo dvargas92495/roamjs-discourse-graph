@@ -596,7 +596,7 @@ const RelationEditPanel = ({
       defaultPageTitle: "Any Page",
       toPage: (text, children) =>
         createBlock({
-          node: { text, children },
+          node: { text, children, open: true },
           parentUid: previewUid,
           order: order++,
         }),
