@@ -23,8 +23,8 @@ import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import {
-  render as discourseOverlayRender,
   refreshOverlayCounters,
+  render as discourseOverlayRender
 } from "./components/DiscourseContextOverlay";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
@@ -680,7 +680,6 @@ runExtension("discourse-graph", () => {
         label: "Refresh Overlay Counters",
         callback: refreshOverlayCounters,
       });
-      refreshOverlayCounters();
       pageRefObservers.add(overlayPageRefHandler);
     }
     if (pageRefObservers.size) enablePageRefObserver();

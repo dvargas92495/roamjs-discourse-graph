@@ -30,12 +30,14 @@ export const ContextContent = ({ title, results }: Props) => {
         </span>
       </li>
     ));
-  return (
+  return queryResults.length ? (
     <ul style={{ listStyleType: "none" }}>
       {queryResults.flatMap(({ label, results }) =>
         renderItems(results, label)
       )}
     </ul>
+  ) : (
+    <div>No discourse relations found.</div>
   );
 };
 

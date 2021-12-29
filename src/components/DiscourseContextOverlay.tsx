@@ -1,45 +1,20 @@
 import { Button, Popover, Position } from "@blueprintjs/core";
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
-import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
-import { getDiscourseContextResults, isNodeTitle } from "../util";
+import { getDiscourseContextResults } from "../util";
+import { useInViewport } from "react-in-viewport";
 
-const cache: {
-  [title: string]: {
-    results: ReturnType<typeof getDiscourseContextResults>;
-    refs: number;
-  };
+const resultsCache: {
+  [title: string]: ReturnType<typeof getDiscourseContextResults>;
 } = {};
-
+const refCache: {
+  [title: string]: number;
+} = {};
 const refreshUi: { [k: string]: () => void } = {};
 
 export const refreshOverlayCounters = () => {
-  const pageRefCount: { [k: string]: number } = {};
-  window.roamAlphaAPI
-    .q("[:find (pull ?b [:node/title]) ?a :where [?a :block/refs ?b]]")
-    .map((a) => a[0]?.title as string)
-    .filter((a) => !!a)
-    .forEach((a) => {
-      if (pageRefCount[a]) pageRefCount[a]++;
-      else pageRefCount[a] = 1;
-    });
-  getAllPageNames()
-    .filter(isNodeTitle)
-    .forEach(
-      (s) =>
-        (cache[s] = {
-          results: getDiscourseContextResults(s),
-          refs: pageRefCount[s] || 0,
-        })
-    );
   Object.entries(refreshUi).forEach(([k, v]) => {
     if (document.getElementById(k)) {
       v();
@@ -49,14 +24,29 @@ export const refreshOverlayCounters = () => {
   });
 };
 
-const DiscourseContextOverlay = ({ tag }: { tag: string }) => {
-  const id = useMemo(() => v4(), []);
-  const [results, setResults] = useState(cache[tag].results);
-  const [refs, setRefs] = useState(cache[tag].refs);
+const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
+  const getResults = useCallback(
+    () =>
+      resultsCache[tag] ||
+      (resultsCache[tag] = getDiscourseContextResults(tag)),
+    [tag]
+  );
+  const getRefs = useCallback(() => {
+    return (
+      refCache[tag] ||
+      (refCache[tag] = window.roamAlphaAPI.q(
+        `[:find ?a :where [?b :node/title "${tag}"] [?a :block/refs ?b]]`
+      ).length)
+    );
+  }, [tag]);
+  const [results, setResults] = useState(getResults);
+  const [refs, setRefs] = useState(getRefs);
   const refresh = useCallback(() => {
-    setResults(cache[tag].results);
-    setRefs(cache[tag].refs);
-  }, [tag, setResults, setRefs]);
+    delete refCache[tag];
+    delete resultsCache[tag];
+    setResults(getResults);
+    setRefs(getRefs);
+  }, [getResults, setResults, setRefs, getRefs, tag]);
   useEffect(() => {
     refreshUi[id] = refresh;
   }, [refresh]);
@@ -87,6 +77,28 @@ const DiscourseContextOverlay = ({ tag }: { tag: string }) => {
   );
 };
 
+const Wrapper = ({ parent, tag }: { parent: HTMLElement; tag: string }) => {
+  const id = useMemo(() => v4(), []);
+  const { inViewport } = useInViewport(
+    { current: parent },
+    {},
+    { disconnectOnLeave: false },
+    {}
+  );
+  return inViewport ? (
+    <DiscourseContextOverlay tag={tag} id={id} />
+  ) : (
+    <Button
+      id={id}
+      minimal
+      text={`0 | 0`}
+      icon={"diagram-tree"}
+      rightIcon={"graph"}
+      disabled={true}
+    />
+  );
+};
+
 export const render = ({
   tag,
   parent,
@@ -96,5 +108,5 @@ export const render = ({
 }) => {
   parent.style.margin = "0 8px";
   parent.onmousedown = (e) => e.stopPropagation();
-  ReactDOM.render(<DiscourseContextOverlay tag={tag} />, parent);
+  ReactDOM.render(<Wrapper tag={tag} parent={parent} />, parent);
 };
