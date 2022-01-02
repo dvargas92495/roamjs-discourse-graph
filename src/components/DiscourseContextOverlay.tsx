@@ -53,22 +53,23 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
   return (
     <Popover
       content={
-        <div style={{ padding: 16, maxWidth: 300 }}>
+        <div className="roamjs-discourse-context-popover" style={{ padding: 16, maxWidth: 300 }}>
           <ContextContent title={tag} results={results} />
         </div>
       }
       target={
         <Button
           id={id}
+          className={"roamjs-discourse-context-overlay"}
           minimal
           text={`${
             results.flatMap((r) => Object.entries(r.results)).length
           } | ${refs}`}
           icon={"diagram-tree"}
-          rightIcon={"graph"}
+          rightIcon={"link"}
         />
       }
-      position={Position.BOTTOM_RIGHT}
+      placement={"auto"}
       modifiers={{
         flip: { enabled: false },
         preventOverflow: { enabled: false },
@@ -93,7 +94,8 @@ const Wrapper = ({ parent, tag }: { parent: HTMLElement; tag: string }) => {
       minimal
       text={`0 | 0`}
       icon={"diagram-tree"}
-      rightIcon={"graph"}
+      rightIcon={"link"}
+      className={"roamjs-discourse-context-overlay"}
       disabled={true}
     />
   );
