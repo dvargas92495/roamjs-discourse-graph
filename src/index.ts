@@ -33,7 +33,6 @@ import { render as queryRequestRender } from "./components/SendQueryRequest";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
-  getDiscourseContextResults,
   getNodeReferenceChildren,
   getPageMetadata,
   getQueriesUid,
@@ -191,6 +190,10 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-connected-ref > div {
   display: none;
+}
+
+.roamjs-discourse-result-panel {
+  width: 100%;
 }`);
 
 const CONFIG = toConfig("discourse-graph");

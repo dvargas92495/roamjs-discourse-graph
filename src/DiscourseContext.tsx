@@ -1,8 +1,8 @@
+import { Tabs, Tab } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
-import getRoamUrl from "roamjs-components/dom/getRoamUrl";
-import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
-import { getDiscourseContextResults } from "./util";
+import ResultsView from "./components/ResultsView";
+import { getDiscourseContextResults, Result } from "./util";
 
 type Props = {
   title: string;
@@ -11,31 +11,35 @@ type Props = {
 
 export const ContextContent = ({ title, results }: Props) => {
   const queryResults = useMemo(
-    () => results || getDiscourseContextResults(title),
+    () =>
+      (results || getDiscourseContextResults(title)).filter(
+        (r) => !!Object.keys(r.results).length
+      ),
     [title, results]
   );
-  const renderItems = (blocks: Record<string, string>, label: string) =>
-    Object.entries(blocks).map(([uid, title]) => (
-      <li key={`${label}-${uid}`} style={{ margin: "2px 0" }}>
-        <b>{label}: </b>
-        <span
-          className={"roamjs-discourse-context-title"}
-          onClick={(e) =>
-            e.shiftKey
-              ? openBlockInSidebar(uid)
-              : window.location.assign(getRoamUrl(uid))
-          }
-        >
-          {title}
-        </span>
-      </li>
-    ));
+  const [tabId, setTabId] = useState(0);
   return queryResults.length ? (
-    <ul style={{ listStyleType: "none" }}>
-      {queryResults.flatMap(({ label, results }) =>
-        renderItems(results, label)
-      )}
-    </ul>
+    <Tabs selectedTabId={tabId} onChange={(e) => setTabId(Number(e))} vertical>
+      {queryResults.map((r, i) => (
+        <Tab
+          id={i}
+          key={i}
+          title={r.label}
+          panelClassName="roamjs-discourse-result-panel"
+          panel={
+            <ResultsView
+              results={Object.values(r.results).map((r) => r as Result)}
+              Header={({ sortComponent }) => (
+                <>
+                  <span>{r.label}</span>
+                  {sortComponent}
+                </>
+              )}
+            />
+          }
+        />
+      ))}
+    </Tabs>
   ) : (
     <div>No discourse relations found.</div>
   );
@@ -65,7 +69,9 @@ const DiscourseContext = ({ title }: Props) => {
           <strong>Discourse Context</strong>
         </div>
       </div>
+      <div style={{paddingLeft: 16}}>
       {caretOpen && <ContextContent title={title} />}
+      </div>
     </>
   );
 };

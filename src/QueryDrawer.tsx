@@ -43,9 +43,11 @@ import {
   getNodes,
   getRelations,
   matchNode,
+  Result,
   triplesToQuery,
 } from "./util";
 import fuzzy from "fuzzy";
+import ResultsView from "./components/ResultsView";
 
 type Props = {
   blockUid: string;
@@ -171,47 +173,32 @@ type SearchResult = {
   editedTime: number;
 };
 
-const SORT_OPTIONS: {
-  label: string;
-  fcn: (a: SearchResult, b: SearchResult) => number;
-}[] = [
-  { label: "TITLE A->Z", fcn: (a, b) => a.text.localeCompare(b.text) },
-  { label: "TITLE Z->A", fcn: (a, b) => b.text.localeCompare(a.text) },
-  { label: "YOUNGEST", fcn: (a, b) => a.createdTime - b.createdTime },
-  { label: "OLDEST", fcn: (a, b) => b.createdTime - a.createdTime },
-  { label: "EARLIEST", fcn: (a, b) => a.editedTime - b.editedTime },
-  { label: "LATEST", fcn: (a, b) => b.editedTime - a.editedTime },
-];
-const SORT_FCN_BY_LABEL = Object.fromEntries(
-  SORT_OPTIONS.map(({ label, fcn }) => [label, fcn])
-);
-export const SEARCH_HIGHLIGHT = "#C26313";
-
-const SavedQuery = ({
+const SavedQueryNew = ({
   uid,
-  clearOnClick,
   onDelete,
+  parseQuery,
   resultsReferenced,
+  clearOnClick,
   setResultsReferenced,
   editSavedQuery,
-  parseQuery,
   ...exportRenderProps
 }: {
   uid: string;
-  clearOnClick: (s: string, t: string) => void;
-  onDelete: () => void;
-  resultsReferenced: Set<string>;
-  setResultsReferenced: (s: Set<string>) => void;
-  editSavedQuery: (s: string[]) => void;
   parseQuery: (s: string[]) => {
     returnNode: string;
     conditionNodes: Omit<Condition, "uid">[];
   };
+  onDelete: () => void;
+  resultsReferenced: Set<string>;
+  clearOnClick: (s: string, t: string) => void;
+  setResultsReferenced: (s: Set<string>) => void;
+  editSavedQuery: (s: string[]) => void;
 } & ExportRenderProps) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
-  const [minimized, setMinimized] = useState(false);
-  const [label, setLabel] = useState(() => getTextByBlockUid(uid));
-  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const query = useMemo(
+    () => getSettingValuesFromTree({ tree, key: "query" }),
+    []
+  );
   const results = useMemo(
     () =>
       window.roamAlphaAPI
@@ -232,31 +219,14 @@ const SavedQuery = ({
         ),
     []
   );
-  const query = useMemo(
-    () => getSettingValuesFromTree({ tree, key: "query" }),
-    []
+  const resultFilter = useCallback(
+    (r: Result) => !resultsReferenced.has(r.text),
+    [resultsReferenced]
   );
+  const [minimized, setMinimized] = useState(false);
+  const [label, setLabel] = useState(() => getTextByBlockUid(uid));
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
   const returnNode = /^Find (.*) Where$/.exec(query[0])?.[1];
-  const [activeSort, setActiveSort] = useState(SORT_OPTIONS[0].label);
-  const [searchTerm, setSearchTerm] = useState("");
-  const sortedResults = useMemo(() => {
-    const sorted = results
-      .filter((r) => !resultsReferenced.has(r.text))
-      .sort(SORT_FCN_BY_LABEL[activeSort]);
-    return searchTerm
-      ? sorted
-          .map((s) => ({
-            ...s,
-            text:
-              fuzzy.match(searchTerm, s.text, {
-                pre: "<span>",
-                post: "<span>",
-              })?.rendered || s.text,
-            hit: fuzzy.test(searchTerm, s.text),
-          }))
-          .filter((s) => s.hit)
-      : sorted;
-  }, [results, activeSort, searchTerm, resultsReferenced]);
   return (
     <div
       style={{
@@ -266,112 +236,94 @@ const SavedQuery = ({
         margin: 4,
       }}
     >
-      <h4
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          margin: 4,
-        }}
-      >
-        {isEditingLabel ? (
-          <InputGroup
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                updateBlock({ uid, text: label });
-                setIsEditingLabel(false);
-              }
-            }}
-            autoFocus
-            rightElement={
+      <ResultsView
+        Header={({ sortComponent }) => (
+          <>
+            {isEditingLabel ? (
+              <InputGroup
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    updateBlock({ uid, text: label });
+                    setIsEditingLabel(false);
+                  }
+                }}
+                autoFocus
+                rightElement={
+                  <Button
+                    minimal
+                    icon={"confirm"}
+                    onClick={() => {
+                      updateBlock({ uid, text: label });
+                      setIsEditingLabel(false);
+                    }}
+                  />
+                }
+              />
+            ) : (
+              <span tabIndex={-1} onClick={() => setIsEditingLabel(true)}>
+                {label}
+              </span>
+            )}
+            <div>
+              {sortComponent}
               <Button
+                icon={"export"}
                 minimal
-                icon={"confirm"}
                 onClick={() => {
-                  updateBlock({ uid, text: label });
-                  setIsEditingLabel(false);
+                  const conditions = parseQuery(query).conditionNodes.map(
+                    (c) => ({
+                      predicate: {
+                        title: c.target,
+                        uid: getPageUidByPageTitle(c.target),
+                      },
+                      relation: c.relation,
+                    })
+                  );
+                  exportRender({
+                    fromQuery: {
+                      nodes: results
+                        .map(({ text, pageUid }) => ({
+                          title: text,
+                          uid: pageUid,
+                        }))
+                        .concat(
+                          conditions
+                            .map((c) => c.predicate)
+                            .filter((c) => !!c.uid)
+                        ),
+                    },
+                    ...exportRenderProps,
+                  });
                 }}
               />
-            }
-          />
-        ) : (
-          <span tabIndex={-1} onClick={() => setIsEditingLabel(true)}>
-            {label}
-          </span>
+              <Button
+                icon={minimized ? "maximize" : "minimize"}
+                onClick={() => setMinimized(!minimized)}
+                active={minimized}
+                minimal
+              />
+              <Button icon={"cross"} onClick={onDelete} minimal />
+            </div>
+          </>
         )}
-        <div>
-          <MenuItemSelect
-            popoverProps={{ portalClassName: "roamjs-discourse-results-sort" }}
-            ButtonProps={{ rightIcon: "sort" }}
-            activeItem={activeSort}
-            items={SORT_OPTIONS.map(({ label }) => label)}
-            onItemSelect={(e) => setActiveSort(e)}
-            className={"roamjs-discourse-results-sort"}
-          />
+        hideResults={minimized}
+        results={results.map((r) => ({ ...r, uid: r.pageUid }))}
+        resultFilter={resultFilter}
+        ResultIcon={({ result: r }) => (
           <Button
-            icon={"export"}
+            icon={"hand-right"}
             minimal
             onClick={() => {
-              const conditions = parseQuery(query).conditionNodes.map((c) => ({
-                predicate: {
-                  title: c.target,
-                  uid: getPageUidByPageTitle(c.target),
-                },
-                relation: c.relation,
-              }));
-              exportRender({
-                fromQuery: {
-                  nodes: results
-                    .map(({ text, pageUid }) => ({
-                      title: text,
-                      uid: pageUid,
-                    }))
-                    .concat(
-                      conditions.map((c) => c.predicate).filter((c) => !!c.uid)
-                    ),
-                },
-                ...exportRenderProps,
-              });
+              setResultsReferenced(
+                new Set([...Array.from(resultsReferenced), r.text])
+              );
+              clearOnClick?.(r.text, returnNode);
             }}
           />
-          <Button
-            icon={minimized ? "maximize" : "minimize"}
-            onClick={() => setMinimized(!minimized)}
-            active={minimized}
-            minimal
-          />
-          <Button icon={"cross"} onClick={onDelete} minimal />
-        </div>
-      </h4>
-      {!minimized && (
-        <div
-          tabIndex={-1}
-          style={{ position: "relative", outline: "none" }}
-          onKeyDown={(e) => {
-            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-              if (e.key === "Backspace") {
-                setSearchTerm(searchTerm.slice(0, -1));
-              } else if (e.key.length === 1) {
-                setSearchTerm(`${searchTerm}${e.key.toLowerCase()}`);
-                if (e.key === " ") e.preventDefault();
-              }
-            }
-          }}
-        >
-          <span
-            style={{
-              background: SEARCH_HIGHLIGHT,
-              color: "white",
-              position: "absolute",
-              top: 4,
-              right: 4,
-              outline: sortedResults.length ? "unset" : "2px solid darkred",
-            }}
-          >
-            {searchTerm}
-          </span>
+        )}
+        resultContent={
           <div style={{ fontSize: 10, position: "relative" }}>
             <Button
               icon={<Icon icon={"edit"} iconSize={12} />}
@@ -397,67 +349,8 @@ const SavedQuery = ({
               </p>
             ))}
           </div>
-          {sortedResults.length ? (
-            <>
-              <i style={{ opacity: 0.8 }}>
-                Showing {sortedResults.length} of {results.length} results
-              </i>
-              <ul>
-                {sortedResults.map((r) => (
-                  <li key={r.pageUid}>
-                    <span
-                      style={{
-                        display: "flex",
-                        width: "100%",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <a
-                        className={"rm-page-ref"}
-                        href={getRoamUrl(r.pageUid)}
-                        onClick={(e) => {
-                          if (e.ctrlKey || e.shiftKey) {
-                            openBlockInSidebar(r.pageUid);
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }
-                        }}
-                      >
-                        {r.text.split("<span>").map((s, i) => (
-                          <span
-                            key={i}
-                            className={
-                              i % 2 === 0
-                                ? ""
-                                : "roamjs-discourse-hightlighted-result"
-                            }
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      </a>
-                      <Button
-                        icon={"hand-right"}
-                        minimal
-                        onClick={() => {
-                          setResultsReferenced(
-                            new Set([...Array.from(resultsReferenced), r.text])
-                          );
-                          clearOnClick?.(r.text, returnNode);
-                        }}
-                      />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <div>No Results</div>
-          )}
-        </div>
-      )}
+        }
+      />
     </div>
   );
 };
@@ -531,7 +424,7 @@ const SavedQueriesContainer = ({
       <hr />
       <H3>Saved Queries</H3>
       {savedQueries.map((sq) => (
-        <SavedQuery
+        <SavedQueryNew
           uid={sq}
           key={sq}
           clearOnClick={clearOnClick}

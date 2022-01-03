@@ -523,6 +523,13 @@ export const getPageMetadata = (title: string) => {
   };
 };
 
+export type Result = {
+  text: string;
+  uid: string;
+  createdTime: number;
+  editedTime: number;
+};
+
 export const getDiscourseContextResults = (
   title: string,
   nodes = getNodes(),
@@ -532,6 +539,7 @@ export const getDiscourseContextResults = (
     matchNode({ format, title })
   )?.type;
   try {
+    const pull = `[:block/uid [:node/title :as "text"] [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]`;
     const rawResults = [
       ...relations
         .filter((r) => r.source === nodeType)
@@ -552,28 +560,17 @@ export const getDiscourseContextResults = (
           const lastPlaceholder = freeVar(destinationTriple[0]);
           return {
             label: r.label,
-            results: Object.fromEntries(
-              window.roamAlphaAPI
-                .q(
-                  `[:find (pull ${lastPlaceholder} [:block/uid :node/title]) :where ${triplesToQuery(
-                    [
-                      [sourceTriple[0], "Has Title", title],
-                      [
-                        destinationTriple[0],
-                        destinationTriple[1],
-                        r.destination,
-                      ],
-                      ...r.triples.filter(
-                        (t) => t !== sourceTriple && t !== destinationTriple
-                      ),
-                    ],
-                    englishToDatalog(nodes)
-                  )}]`
-                )
-                .map(([{ uid, title }]: [Record<string, string>]) => [
-                  uid,
-                  title,
-                ])
+            results: window.roamAlphaAPI.q(
+              `[:find (pull ${lastPlaceholder} ${pull}) :where ${triplesToQuery(
+                [
+                  [sourceTriple[0], "Has Title", title],
+                  [destinationTriple[0], destinationTriple[1], r.destination],
+                  ...r.triples.filter(
+                    (t) => t !== sourceTriple && t !== destinationTriple
+                  ),
+                ],
+                englishToDatalog(nodes)
+              )}]`
             ),
           };
         }),
@@ -596,35 +593,29 @@ export const getDiscourseContextResults = (
           const firstPlaceholder = freeVar(sourceTriple[0]);
           return {
             label: r.complement,
-            results: Object.fromEntries(
-              window.roamAlphaAPI
-                .q(
-                  `[:find (pull ${firstPlaceholder} [:block/uid :node/title]) :where ${triplesToQuery(
-                    [
-                      [destinationTriple[0], "Has Title", title],
-                      [sourceTriple[0], sourceTriple[1], r.source],
-                      ...r.triples.filter(
-                        (t) => t !== destinationTriple && t !== sourceTriple
-                      ),
-                    ],
-                    englishToDatalog(nodes)
-                  )}]`
-                )
-                .map(([{ uid, title }]: [Record<string, string>]) => [
-                  uid,
-                  title,
-                ])
+            results: window.roamAlphaAPI.q(
+              `[:find (pull ${firstPlaceholder} ${pull}) :where ${triplesToQuery(
+                [
+                  [destinationTriple[0], "Has Title", title],
+                  [sourceTriple[0], sourceTriple[1], r.source],
+                  ...r.triples.filter(
+                    (t) => t !== destinationTriple && t !== sourceTriple
+                  ),
+                ],
+                englishToDatalog(nodes)
+              )}]`
             ),
           };
         }),
     ];
     const groupedResults = Object.fromEntries(
-      rawResults.map((r) => [r.label, {} as Record<string, string>])
+      rawResults.map((r) => [r.label, {} as Record<string, Partial<Result>>])
     );
     rawResults.forEach((r) =>
-      Object.entries(r.results)
-        .filter(([, v]) => v !== title)
-        .forEach(([k, v]) => (groupedResults[r.label][k] = v))
+      (r.results as unknown[])
+        .map(([a]: [Result]) => a)
+        .filter((a) => a.text !== title)
+        .forEach((res) => (groupedResults[r.label][res.uid] = res))
     );
     return Object.entries(groupedResults).map(([label, results]) => ({
       label,

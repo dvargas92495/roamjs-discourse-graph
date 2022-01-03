@@ -314,7 +314,7 @@ const ExportDialog = ({
                           ? `\n###### Discourse Context\n\n${discourseResults
                               .flatMap((r) =>
                                 Object.values(r.results).map(
-                                  (t) => `- **${r.label}:** [[${t}]]`
+                                  (t) => `- **${r.label}:** [[${t.text}]]`
                                 )
                               )
                               .join("\n")}\n`
