@@ -24,7 +24,7 @@ import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import {
   refreshOverlayCounters,
-  render as discourseOverlayRender
+  render as discourseOverlayRender,
 } from "./components/DiscourseContextOverlay";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
@@ -229,7 +229,7 @@ const overlayPageRefHandler = (s: HTMLSpanElement) => {
       const parent = document.createElement("span");
       discourseOverlayRender({
         parent,
-        tag,
+        tag: tag.replace(/\\"/g, '"'),
       });
       if (s.hasAttribute("data-tag")) {
         s.appendChild(parent);

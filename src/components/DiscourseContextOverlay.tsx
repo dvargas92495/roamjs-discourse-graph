@@ -5,6 +5,7 @@ import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
 import { getDiscourseContextResults } from "../util";
 import { useInViewport } from "react-in-viewport";
+import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 
 const resultsCache: {
   [title: string]: ReturnType<typeof getDiscourseContextResults>;
@@ -35,7 +36,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
     return (
       refCache[tag] ||
       (refCache[tag] = window.roamAlphaAPI.q(
-        `[:find ?a :where [?b :node/title "${tag}"] [?a :block/refs ?b]]`
+        `[:find ?a :where [?b :node/title "${normalizePageTitle(tag)}"] [?a :block/refs ?b]]`
       ).length)
     );
   }, [tag]);
