@@ -446,7 +446,10 @@ type DatalogTranslator = {
 };
 
 export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
-  const formatByType = Object.fromEntries(nodes.map((n) => [n.type, n.format]));
+  const formatByType = Object.fromEntries([
+    ...nodes.map((n) => [n.type, n.format]),
+    ...nodes.map((n) => [n.text, n.format]),
+  ]);
   return {
     "is a": (src, dest) =>
       `[${freeVar(src)} :node/title ${freeVar(
