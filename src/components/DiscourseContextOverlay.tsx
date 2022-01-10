@@ -6,12 +6,13 @@ import { ContextContent } from "../DiscourseContext";
 import { getDiscourseContextResults } from "../util";
 import { useInViewport } from "react-in-viewport";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
 
-const resultsCache: {
-  [title: string]: ReturnType<typeof getDiscourseContextResults>;
-} = {};
-const refCache: {
-  [title: string]: number;
+const cache: {
+  [title: string]: {
+    results: ReturnType<typeof getDiscourseContextResults>;
+    refs: number;
+  };
 } = {};
 const refreshUi: { [k: string]: () => void } = {};
 
@@ -25,36 +26,67 @@ export const refreshOverlayCounters = () => {
   });
 };
 
+const overlayQueue: (() => void)[] = [];
+
+const getOverlayInfo = (
+  tag: string
+): Promise<{
+  refs: number;
+  results: ReturnType<typeof getDiscourseContextResults>;
+}> => {
+  if (cache[tag]) return Promise.resolve(cache[tag]);
+  return new Promise((resolve) => {
+    const triggerNow = overlayQueue.length === 0;
+    overlayQueue.push(() => {
+      const start = new Date();
+      const output = (cache[tag] = {
+        results: getDiscourseContextResults(tag),
+        refs: window.roamAlphaAPI.q(
+          `[:find ?a :where [?b :node/title "${normalizePageTitle(
+            tag
+          )}"] [?a :block/refs ?b]]`
+        ).length,
+      });
+      const runTime = differenceInMilliseconds(new Date(), start);
+      setTimeout(() => {
+        overlayQueue.splice(0, 1);
+        overlayQueue[0]?.();
+      }, runTime * 4);
+      resolve(output);
+    });
+    if (triggerNow) overlayQueue[0]();
+  });
+};
+
 const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
-  const getResults = useCallback(
+  const [loading, setLoading] = useState(true);
+  const [results, setResults] = useState([]);
+  const [refs, setRefs] = useState(0);
+  const getInfo = useCallback(
     () =>
-      resultsCache[tag] ||
-      (resultsCache[tag] = getDiscourseContextResults(tag)),
-    [tag]
+      getOverlayInfo(tag).then(({ refs, results }) => {
+        setResults(results);
+        setRefs(refs);
+        setLoading(false);
+      }),
+    [tag, setResults, setLoading, setRefs]
   );
-  const getRefs = useCallback(() => {
-    return (
-      refCache[tag] ||
-      (refCache[tag] = window.roamAlphaAPI.q(
-        `[:find ?a :where [?b :node/title "${normalizePageTitle(tag)}"] [?a :block/refs ?b]]`
-      ).length)
-    );
-  }, [tag]);
-  const [results, setResults] = useState(getResults);
-  const [refs, setRefs] = useState(getRefs);
   const refresh = useCallback(() => {
-    delete refCache[tag];
-    delete resultsCache[tag];
-    setResults(getResults);
-    setRefs(getRefs);
-  }, [getResults, setResults, setRefs, getRefs, tag]);
+    setLoading(true);
+    delete cache[tag];
+    getInfo();
+  }, [getInfo, tag, setLoading]);
   useEffect(() => {
     refreshUi[id] = refresh;
-  }, [refresh]);
+    getInfo();
+  }, [refresh, getInfo]);
   return (
     <Popover
       content={
-        <div className="roamjs-discourse-context-popover" style={{ padding: 16, maxWidth: 560 }}>
+        <div
+          className="roamjs-discourse-context-popover"
+          style={{ padding: 16, maxWidth: 560 }}
+        >
           <ContextContent title={tag} results={results} />
         </div>
       }
@@ -68,6 +100,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
           } | ${refs}`}
           icon={"diagram-tree"}
           rightIcon={"link"}
+          disabled={loading}
         />
       }
       placement={"auto"}
