@@ -85,7 +85,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
       content={
         <div
           className="roamjs-discourse-context-popover"
-          style={{ padding: 16, maxWidth: 560 }}
+          style={{ padding: 16, maxWidth: 720, overflowY: 'scroll', maxHeight: `calc(100vh - 200px)` }}
         >
           <ContextContent title={tag} results={results} />
         </div>

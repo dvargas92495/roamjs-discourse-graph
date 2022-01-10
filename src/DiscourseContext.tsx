@@ -1,4 +1,4 @@
-import { Tabs, Tab } from "@blueprintjs/core";
+import { Switch, Tabs, Tab } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import ResultsView from "./components/ResultsView";
@@ -7,6 +7,78 @@ import { getDiscourseContextResults, Result } from "./util";
 type Props = {
   title: string;
   results?: ReturnType<typeof getDiscourseContextResults>;
+};
+
+const ContextTab = ({
+  r,
+  groupByTarget,
+  setGroupByTarget,
+}: {
+  r: Props["results"][number];
+  groupByTarget: boolean;
+  setGroupByTarget: (b: boolean) => void;
+}) => {
+  const [subTabId, setSubTabId] = useState(0);
+  const subTabs = useMemo(
+    () =>
+      groupByTarget
+        ? Array.from(
+            new Set(Object.values(r.results).map((res) => res.target))
+          ).sort()
+        : [],
+    [groupByTarget, r.results]
+  );
+  const results = useMemo(
+    () =>
+      groupByTarget
+        ? Object.fromEntries(
+            Object.entries(r.results).filter(
+              ([, res]) => res.target === subTabs[subTabId]
+            )
+          )
+        : r.results,
+    [groupByTarget, r.results, subTabId, subTabs]
+  );
+  const resultsView = (
+    <ResultsView
+      results={Object.values(results).map((r) => r as Result)}
+      Header={({ sortComponent }) => (
+        <>
+          <span>{r.label}</span>
+          <span style={{ display: "flex", alignItems: "center" }}>
+            {sortComponent}
+            <Switch
+              label="Group By Target"
+              checked={groupByTarget}
+              style={{ fontSize: 8, marginLeft: 4, marginBottom: 0 }}
+              onChange={(e) =>
+                setGroupByTarget((e.target as HTMLInputElement).checked)
+              }
+            />
+          </span>
+        </>
+      )}
+    />
+  );
+  return subTabs.length ? (
+    <Tabs
+      selectedTabId={subTabId}
+      onChange={(e) => setSubTabId(Number(e))}
+      vertical
+    >
+      {subTabs.map((target, j) => (
+        <Tab
+          key={j}
+          id={j}
+          title={target}
+          panelClassName="roamjs-discourse-result-panel"
+          panel={resultsView}
+        />
+      ))}
+    </Tabs>
+  ) : (
+    resultsView
+  );
 };
 
 export const ContextContent = ({ title, results }: Props) => {
@@ -18,9 +90,10 @@ export const ContextContent = ({ title, results }: Props) => {
     [title, results]
   );
   const [tabId, setTabId] = useState(0);
+  const [groupByTarget, setGroupByTarget] = useState(false);
   return queryResults.length ? (
     <Tabs selectedTabId={tabId} onChange={(e) => setTabId(Number(e))} vertical>
-      {queryResults.map((r, i) => (
+      {/*queryResults.map((r, i) => (
         <Tab
           id={i}
           key={i}
@@ -35,6 +108,22 @@ export const ContextContent = ({ title, results }: Props) => {
                   {sortComponent}
                 </>
               )}
+            />
+          }
+        />
+        ))*/}
+      {queryResults.map((r, i) => (
+        <Tab
+          id={i}
+          key={i}
+          title={r.label}
+          panelClassName="roamjs-discourse-result-panel"
+          panel={
+            <ContextTab
+              key={i}
+              r={r}
+              groupByTarget={groupByTarget}
+              setGroupByTarget={setGroupByTarget}
             />
           }
         />
@@ -69,8 +158,8 @@ const DiscourseContext = ({ title }: Props) => {
           <strong>Discourse Context</strong>
         </div>
       </div>
-      <div style={{paddingLeft: 16}}>
-      {caretOpen && <ContextContent title={title} />}
+      <div style={{ paddingLeft: 16 }}>
+        {caretOpen && <ContextContent title={title} />}
       </div>
     </>
   );

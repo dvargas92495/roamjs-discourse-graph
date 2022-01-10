@@ -541,6 +541,9 @@ export const getDiscourseContextResults = (
   const nodeType = nodes.find(({ format }) =>
     matchNode({ format, title })
   )?.type;
+  const nodeTextByType = Object.fromEntries(
+    nodes.map(({ type, text }) => [type, text])
+  );
   try {
     const pull = `[:block/uid [:node/title :as "text"] [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]`;
     const rawResults = [
@@ -563,6 +566,7 @@ export const getDiscourseContextResults = (
           const lastPlaceholder = freeVar(destinationTriple[0]);
           return {
             label: r.label,
+            target: r.destination,
             results: window.roamAlphaAPI.q(
               `[:find (pull ${lastPlaceholder} ${pull}) :where ${triplesToQuery(
                 [
@@ -596,6 +600,7 @@ export const getDiscourseContextResults = (
           const firstPlaceholder = freeVar(sourceTriple[0]);
           return {
             label: r.complement,
+            target: r.source,
             results: window.roamAlphaAPI.q(
               `[:find (pull ${firstPlaceholder} ${pull}) :where ${triplesToQuery(
                 [
@@ -612,13 +617,22 @@ export const getDiscourseContextResults = (
         }),
     ];
     const groupedResults = Object.fromEntries(
-      rawResults.map((r) => [r.label, {} as Record<string, Partial<Result>>])
+      rawResults.map((r) => [
+        r.label,
+        {} as Record<string, Partial<Result & { target: string }>>,
+      ])
     );
     rawResults.forEach((r) =>
       (r.results as unknown[])
         .map(([a]: [Result]) => a)
         .filter((a) => a.text !== title)
-        .forEach((res) => (groupedResults[r.label][res.uid] = res))
+        .forEach(
+          (res) =>
+            (groupedResults[r.label][res.uid] = {
+              ...res,
+              target: nodeTextByType[r.target],
+            })
+        )
     );
     return Object.entries(groupedResults).map(([label, results]) => ({
       label,
