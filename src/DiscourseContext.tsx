@@ -1,5 +1,5 @@
 import { Switch, Tabs, Tab } from "@blueprintjs/core";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import ResultsView from "./components/ResultsView";
 import { getDiscourseContextResults, Result } from "./util";
@@ -28,16 +28,17 @@ const ContextTab = ({
         : [],
     [groupByTarget, r.results]
   );
+  const getFilteredResults = useCallback(
+    (id) =>
+      Object.entries(r.results).filter(([, res]) => res.target === subTabs[id]),
+    [subTabs, r.results]
+  );
   const results = useMemo(
     () =>
       groupByTarget
-        ? Object.fromEntries(
-            Object.entries(r.results).filter(
-              ([, res]) => res.target === subTabs[subTabId]
-            )
-          )
+        ? Object.fromEntries(getFilteredResults(subTabId))
         : r.results,
-    [groupByTarget, r.results, subTabId, subTabs]
+    [groupByTarget, r.results, subTabId, getFilteredResults]
   );
   const resultsView = (
     <ResultsView
@@ -70,7 +71,7 @@ const ContextTab = ({
         <Tab
           key={j}
           id={j}
-          title={target}
+          title={`(${getFilteredResults(j).length}) ${target}`}
           panelClassName="roamjs-discourse-result-panel"
           panel={resultsView}
         />
@@ -93,30 +94,11 @@ export const ContextContent = ({ title, results }: Props) => {
   const [groupByTarget, setGroupByTarget] = useState(false);
   return queryResults.length ? (
     <Tabs selectedTabId={tabId} onChange={(e) => setTabId(Number(e))} vertical>
-      {/*queryResults.map((r, i) => (
-        <Tab
-          id={i}
-          key={i}
-          title={r.label}
-          panelClassName="roamjs-discourse-result-panel"
-          panel={
-            <ResultsView
-              results={Object.values(r.results).map((r) => r as Result)}
-              Header={({ sortComponent }) => (
-                <>
-                  <span>{r.label}</span>
-                  {sortComponent}
-                </>
-              )}
-            />
-          }
-        />
-        ))*/}
       {queryResults.map((r, i) => (
         <Tab
           id={i}
           key={i}
-          title={r.label}
+          title={`(${Object.values(r.results).length}) ${r.label}`}
           panelClassName="roamjs-discourse-result-panel"
           panel={
             <ContextTab
