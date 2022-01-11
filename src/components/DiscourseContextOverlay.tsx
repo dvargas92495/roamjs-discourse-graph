@@ -85,7 +85,10 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
       content={
         <div
           className="roamjs-discourse-context-popover"
-          style={{ padding: 16, maxWidth: 720, overflowY: 'scroll', maxHeight: `calc(100vh - 200px)` }}
+          style={{
+            padding: 16,
+            maxWidth: 720,
+          }}
         >
           <ContextContent title={tag} results={results} />
         </div>
@@ -103,7 +106,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
           disabled={loading}
         />
       }
-      placement={"auto"}
+      position={Position.BOTTOM}
       modifiers={{
         flip: { enabled: false },
         preventOverflow: { enabled: false },

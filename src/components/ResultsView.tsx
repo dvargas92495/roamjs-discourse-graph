@@ -64,6 +64,7 @@ const ResultsView = ({
   }, [results, activeSort, searchTerm, resultFilter]);
   return (
     <div
+      className="roamjs-discourse-results-view"
       style={{
         width: "100%",
       }}
@@ -124,7 +125,13 @@ const ResultsView = ({
               <i style={{ opacity: 0.8 }}>
                 Showing {sortedResults.length} of {results.length} results
               </i>
-              <ul>
+              <ul
+                style={{
+                  maxHeight: "400px",
+                  overflowY: "scroll",
+                  paddingRight: 10,
+                }}
+              >
                 {sortedResults.map((r) => (
                   <li key={r.uid}>
                     <span

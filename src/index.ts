@@ -194,6 +194,16 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-result-panel {
   width: 100%;
+}
+
+/* width */
+.roamjs-discourse-results-view ul::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* Handle */
+.roamjs-discourse-results-view ul::-webkit-scrollbar-thumb {
+  background: #888;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
