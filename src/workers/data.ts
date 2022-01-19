@@ -506,13 +506,12 @@ const init = (
                 ),
                 [destinationTriple[0], destinationTriple[1], r.destination],
               ];
-              const initialVar = sourceTriple[0].toLowerCase();
-              const programs = reduceTriples(triples, initialVar, id);
+              const programs = reduceTriples(triples, sourceTriple[0].toLowerCase(), id);
               return {
                 label: r.label,
                 target: r.destination,
                 results: Array.from(programs.assignments)
-                  .map((dict) => dict[initialVar])
+                  .map((dict) => dict[destinationTriple[0].toLowerCase()])
                   .map((id) => pagesById[id] || blocksById[id]),
               };
             }),
@@ -538,13 +537,16 @@ const init = (
                 ),
                 [sourceTriple[0], sourceTriple[1], r.source],
               ];
-              const initialVar = destinationTriple[0].toLowerCase();
-              const programs = reduceTriples(triples, initialVar, id);
+              const programs = reduceTriples(
+                triples,
+                destinationTriple[0].toLowerCase(),
+                id
+              );
               return {
                 label: r.complement,
                 target: r.source,
                 results: Array.from(programs.assignments)
-                  .map((dict) => dict[initialVar])
+                  .map((dict) => dict[sourceTriple[0].toLowerCase()])
                   .map((id) => pagesById[id] || blocksById[id]),
               };
             }),
