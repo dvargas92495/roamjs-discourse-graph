@@ -5,7 +5,6 @@ import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
 import { getDiscourseContextResults } from "../util";
 import { useInViewport } from "react-in-viewport";
-import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
 import axios from "axios";
 import { render as loadingRender } from "./LoadingAlert";
 
@@ -14,21 +13,12 @@ const listeners: { [name: string]: (a: unknown) => void } = {};
 const initGraph = () => {
   loadingRender({
     operation: () => {
-      const startLoading = new Date();
-      console.log("started loading", startLoading);
       listeners["init"] = (e: { method: string; count: number }) => {
-        console.log(
-          "Received",
-          e.count,
-          "blocks",
-          differenceInMilliseconds(new Date(), startLoading)
-        );
         delete listeners["init"];
         dataWorker.init = true;
       };
       dataWorker.current.postMessage({
         method: "init",
-        start: startLoading.valueOf(),
         blocks: window.roamAlphaAPI.q(`[:find 
           (pull ?b 
             [:db/id [:node/title :as "text"] [:block/string :as "text"] :block/page :block/refs :block/uid :block/children [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]
@@ -39,10 +29,6 @@ const initGraph = () => {
     content: "Please wait as we load your graph's discourse data...",
   });
 };
-window.roamAlphaAPI.ui.commandPalette.addCommand({
-  label: "Refresh Cache",
-  callback: initGraph,
-});
 
 axios
   .get(

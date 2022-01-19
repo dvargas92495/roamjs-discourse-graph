@@ -68,11 +68,8 @@ const init = (
       createdTime: number;
       editedTime: number;
     }
-  ][],
-  startLoading: number
+  ][]
 ) => {
-  const start = new Date();
-  console.log("init started", start, "took", start.valueOf() - startLoading);
   const uidsById: Record<number, string> = {};
   const pagesById: Record<number, string> = {};
   const pageIdByTitle: Record<string, number> = {};
@@ -561,15 +558,6 @@ const init = (
     };
   });
 
-  const finish = new Date();
-  console.log(
-    "finished loading",
-    finish,
-    "took",
-    finish.valueOf() - start.valueOf(),
-    "with string size",
-    JSON.stringify(graph).length
-  );
   postMessage({ method: "init", count: blocks.length });
 };
 
@@ -640,7 +628,7 @@ onmessage = (e) => {
   if (data.method === "discourse") {
     discourse(data.tag);
   } else if (data.method === "init") {
-    init(data.blocks, data.start);
+    init(data.blocks);
   }
 };
 
