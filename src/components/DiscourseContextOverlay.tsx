@@ -5,81 +5,16 @@ import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
 import { getDiscourseContextResults } from "../util";
 import { useInViewport } from "react-in-viewport";
-import axios from "axios";
-import { render as loadingRender } from "./LoadingAlert";
+import { getDataWorker, listeners, refreshUi } from "../dataWorkerClient";
 
-const dataWorker: { current: Worker, init: boolean } = { current: undefined, init: false };
-const listeners: { [name: string]: (a: unknown) => void } = {};
-const initGraph = () => {
-  loadingRender({
-    operation: () => {
-      listeners["init"] = (e: { method: string; count: number }) => {
-        delete listeners["init"];
-        dataWorker.init = true;
-      };
-      dataWorker.current.postMessage({
-        method: "init",
-        blocks: window.roamAlphaAPI.q(`[:find 
-          (pull ?b 
-            [:db/id [:node/title :as "text"] [:block/string :as "text"] :block/page :block/refs :block/uid :block/children [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]
-          ) 
-          :where [?b :block/uid]]`),
-      });
-    },
-    content: "Please wait as we load your graph's discourse data...",
-  });
+type DiscourseData = {
+  results: ReturnType<typeof getDiscourseContextResults>;
+  refs: number;
 };
 
-axios
-  .get(
-    (document.currentScript as HTMLScriptElement).src.replace(
-      /\/main\.js$/,
-      "/data.js"
-    ),
-    { responseType: "blob" }
-  )
-  .then((r) => {
-    dataWorker.current = new Worker(window.URL.createObjectURL(r.data));
-    dataWorker.current.onmessage = (e) => {
-      const { method, ...data } = e.data;
-      listeners[method]?.(data);
-    };
-    initGraph();
-  });
-
-const getDataWorker = (attempt = 1): Promise<Worker> =>
-  dataWorker.current && dataWorker.init
-    ? Promise.resolve(dataWorker.current)
-    : attempt < 100
-    ? new Promise((resolve) =>
-        setTimeout(() => resolve(getDataWorker(attempt + 1)), attempt * 10)
-      )
-    : Promise.reject("Failed to load data worker");
-
-const cache: {
-  [title: string]: {
-    results: ReturnType<typeof getDiscourseContextResults>;
-    refs: number;
-  };
-} = {};
-type CacheData = typeof cache[string];
-const refreshUi: { [k: string]: () => void } = {};
-
-export const refreshOverlayCounters = () => {
-  Object.entries(refreshUi).forEach(([k, v]) => {
-    if (document.getElementById(k)) {
-      v();
-    } else {
-      delete refreshUi[k];
-    }
-  });
-};
-
-const getOverlayInfo = (tag: string): Promise<CacheData> => {
-  if (cache[tag]) return Promise.resolve(cache[tag]);
-  return new Promise<CacheData>((resolve) => {
-    listeners[`discourse-${tag}`] = (args: CacheData) => {
-      cache[tag] = args;
+const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
+  return new Promise<DiscourseData>((resolve) => {
+    listeners[`discourse-${tag}`] = (args: DiscourseData) => {
       resolve(args);
       delete listeners[`discourse-${tag}`];
     };
@@ -107,9 +42,8 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
   );
   const refresh = useCallback(() => {
     setLoading(true);
-    delete cache[tag];
     getInfo();
-  }, [getInfo, tag, setLoading]);
+  }, [getInfo, setLoading]);
   useEffect(() => {
     refreshUi[id] = refresh;
     getInfo();

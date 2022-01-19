@@ -16,19 +16,6 @@ const graph: {
       }[];
     };
   };
-  blocks: {
-    [uid: string]: {
-      "is a"?: string;
-      references: string[];
-      "is in page"?: string;
-      "has title"?: string;
-      "has attribute": string[];
-      "has child": string[];
-      "has ancestor"?: string;
-      "has descendant": string[];
-      "with text": string;
-    };
-  };
   config: {
     nodes: {
       format: string;
@@ -48,7 +35,6 @@ const graph: {
   };
 } = {
   pages: {},
-  blocks: {},
   config: {
     nodes: [],
     relations: [],
@@ -57,19 +43,28 @@ const graph: {
 };
 
 const init = (
-  blocks: [
-    {
-      id: number;
-      page?: { id: number };
-      refs?: { id: number }[];
-      text?: string;
-      uid: string;
-      children?: { id: number }[];
-      createdTime: number;
-      editedTime: number;
-    }
-  ][]
+  blocks:
+    | [
+        {
+          id: number;
+          page?: { id: number };
+          refs?: { id: number }[];
+          text?: string;
+          uid: string;
+          children?: { id: number }[];
+          createdTime: number;
+          editedTime: number;
+        }
+      ][]
+    | string
 ) => {
+  if (typeof blocks === "string") {
+    const { pages, config } = JSON.parse(blocks) as typeof graph;
+    graph.pages = pages;
+    graph.config = config;
+    postMessage({ method: "init" });
+    return;
+  }
   const uidsById: Record<number, string> = {};
   const pagesById: Record<number, string> = {};
   const pageIdByTitle: Record<string, number> = {};
@@ -503,7 +498,11 @@ const init = (
                 ),
                 [destinationTriple[0], destinationTriple[1], r.destination],
               ];
-              const programs = reduceTriples(triples, sourceTriple[0].toLowerCase(), id);
+              const programs = reduceTriples(
+                triples,
+                sourceTriple[0].toLowerCase(),
+                id
+              );
               return {
                 label: r.label,
                 target: r.destination,
@@ -558,7 +557,7 @@ const init = (
     };
   });
 
-  postMessage({ method: "init", count: blocks.length });
+  postMessage({ method: "init", graph: JSON.stringify(graph) });
 };
 
 const matchNode = ({

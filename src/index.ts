@@ -22,10 +22,8 @@ import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
-import {
-  refreshOverlayCounters,
-  render as discourseOverlayRender,
-} from "./components/DiscourseContextOverlay";
+import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
+import { initializeDataWorker, refreshDiscourseData } from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
@@ -56,8 +54,6 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import getUids from "roamjs-components/dom/getUids";
 import { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
-import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
-import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -690,9 +686,10 @@ runExtension("discourse-graph", () => {
     if (isFlagEnabled("preview")) pageRefObservers.add(previewPageRefHandler);
     if (isFlagEnabled("grammar.overlay")) {
       window.roamAlphaAPI.ui.commandPalette.addCommand({
-        label: "Refresh Overlay Counters",
-        callback: refreshOverlayCounters,
+        label: "Refresh Discourse Data",
+        callback: refreshDiscourseData,
       });
+      initializeDataWorker();
       pageRefObservers.add(overlayPageRefHandler);
     }
     if (pageRefObservers.size) enablePageRefObserver();
