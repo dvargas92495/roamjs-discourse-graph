@@ -11,6 +11,7 @@ import {
   SpinnerSize,
   Tab,
   Tabs,
+  Tooltip,
 } from "@blueprintjs/core";
 import cytoscape, { NodeSingular } from "cytoscape";
 import React, {
@@ -26,16 +27,23 @@ import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByPar
 import getFirstChildTextByBlockUid from "roamjs-components/queries/getFirstChildTextByBlockUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
-import type { TreeNode } from "roamjs-components/types";
+import type {
+  InputTextNode,
+  RoamBasicNode,
+  TreeNode,
+} from "roamjs-components/types";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import getSubTree from "roamjs-components/util/getSubTree";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import setInputSetting from "roamjs-components/util/setInputSetting";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
+// import localStorageSet from "roamjs-components/util/localStorageSet";
+// import localStorageGet from "roamjs-components/util/localStorageGet";
 import useSubTree from "roamjs-components/hooks/useSubTree";
 import { englishToDatalog, Panel } from "./util";
 import triplesToBlocks from "./utils/triplesToBlocks";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
+import { render as renderToast } from "roamjs-components/components/Toast";
 
 interface Array<T> {
   filter<U extends T>(pred: (a: T) => a is U): U[];
@@ -474,7 +482,7 @@ const RelationEditPanel = ({
         ]
   );
   const saveCyToElementRef = useCallback(
-    (t) => {
+    (t: number) => {
       const nodes = cyRef.current.nodes();
       const edges = cyRef.current.edges();
       elementsRef.current[t] = [
@@ -488,7 +496,7 @@ const RelationEditPanel = ({
     initialElements.length ? initialElements.map((_, i) => i) : [0]
   );
 
-  useEffect(() => {
+  const loadCytoscape = useCallback(() => {
     cyRef.current?.destroy?.();
     cyRef.current = cytoscape({
       container: containerRef.current,
@@ -535,6 +543,7 @@ const RelationEditPanel = ({
       boxSelectionEnabled: false,
     });
     cyRef.current.on("click", (e) => {
+      console.log(e);
       if (blockClickRef.current) {
         return;
       }
@@ -566,6 +575,9 @@ const RelationEditPanel = ({
     tab,
     unsavedChanges,
   ]);
+  useEffect(() => {
+    loadCytoscape();
+  }, [loadCytoscape]);
   const [isPreview, setIsPreview] = useState(false);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -779,30 +791,88 @@ const RelationEditPanel = ({
         </Menu>
         <div style={{ zIndex: 1, position: "absolute", top: 8, right: 8 }}>
           {tabs.length > 1 && (
+            <Tooltip content={"Delete"}>
+              <Button
+                minimal
+                icon={"trash"}
+                disabled={loading}
+                onClick={() => {
+                  const newTabs = tabs.filter((t) => t != tab);
+                  setTabs(newTabs);
+                  setTab(newTabs[0]);
+                  unsavedChanges();
+                }}
+                style={{ marginRight: 8 }}
+              />
+            </Tooltip>
+          )}
+          <Tooltip content={isPreview ? "Edit" : "Preview"}>
             <Button
               minimal
-              icon={"trash"}
-              disabled={loading}
+              icon={isPreview ? "edit" : "eye-open"}
               onClick={() => {
-                const newTabs = tabs.filter((t) => t != tab);
-                setTabs(newTabs);
-                setTab(newTabs[0]);
-                unsavedChanges();
+                if (!isPreview) {
+                  saveCyToElementRef(tab);
+                }
+                setIsPreview(!isPreview);
               }}
+              disabled={loading}
               style={{ marginRight: 8 }}
             />
+          </Tooltip>
+          {!!localStorage.getItem("roamjs:discourse-relation-copy") && (
+            <Tooltip content={"Paste Relation"}>
+              <Button
+                minimal
+                icon={"clipboard"}
+                disabled={loading}
+                style={{ marginRight: 8 }}
+                onClick={() => {
+                  elementsRef.current[tab] = JSON.parse(
+                    localStorage.getItem("roamjs:discourse-relation-copy")
+                  ).map((n: { data: { id: string } }) =>
+                    n.data.id === "source"
+                      ? {
+                          ...n,
+                          data: {
+                            ...n.data,
+                            node: source,
+                          },
+                        }
+                      : n.data.id === "destination"
+                      ? {
+                          ...n,
+                          data: {
+                            ...n.data,
+                            node: destination,
+                          },
+                        }
+                      : n
+                  );
+                  loadCytoscape();
+                }}
+              />
+            </Tooltip>
           )}
-          <Button
-            minimal
-            icon={isPreview ? "edit" : "eye-open"}
-            onClick={() => {
-              if (!isPreview) {
+          <Tooltip content={"Copy Relation"}>
+            <Button
+              minimal
+              icon={"duplicate"}
+              disabled={loading}
+              onClick={() => {
                 saveCyToElementRef(tab);
-              }
-              setIsPreview(!isPreview);
-            }}
-            disabled={loading}
-          />
+                localStorage.setItem(
+                  "roamjs:discourse-relation-copy",
+                  JSON.stringify(elementsRef.current[tab])
+                );
+                renderToast({
+                  id: "relation-copy",
+                  content: "Copied Relation",
+                  intent: Intent.PRIMARY,
+                });
+              }}
+            />
+          </Tooltip>
         </div>
       </div>
       <div style={{ display: "flex" }}>
@@ -1030,21 +1100,72 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
                 </span>
               </span>
               <span>
-                <Button
-                  icon={"edit"}
-                  minimal
-                  onClick={() => {
-                    setEditingRelation(rel.uid);
-                  }}
-                />
-                <Button
-                  icon={"delete"}
-                  minimal
-                  onClick={() => {
-                    deleteBlock(rel.uid);
-                    setRelations(relations.filter((r) => r.uid !== rel.uid));
-                  }}
-                />
+                <Tooltip content={"Duplicate"}>
+                  <Button
+                    icon={"duplicate"}
+                    minimal
+                    onClick={() => {
+                      const baseText = rel.text
+                        .split(" ")
+                        .filter((s) => !/^\(\d+\)$/.test(s))
+                        .join(" ");
+                      const copy = relations.reduce((p, c) => {
+                        if (c.text.startsWith(baseText)) {
+                          const copyIndex = Number(
+                            /\((\d+)\)$/.exec(c.text)?.[1]
+                          );
+                          if (copyIndex && copyIndex > p) {
+                            return copyIndex;
+                          }
+                        }
+                        return p;
+                      }, 0);
+                      const text = `${rel.text} (${copy + 1})`;
+                      const copyTree = getBasicTreeByParentUid(rel.uid);
+                      const stripUid = (n: RoamBasicNode[]): InputTextNode[] =>
+                        n.map((c) => ({
+                          text: c.text,
+                          children: stripUid(c.children),
+                        }));
+                      const newUid = createBlock({
+                        parentUid: uid,
+                        order: relations.length,
+                        node: {
+                          text,
+                          children: stripUid(copyTree),
+                        },
+                      });
+                      setRelations([
+                        ...relations,
+                        {
+                          uid: newUid,
+                          source: rel.source,
+                          destination: rel.destination,
+                          text,
+                        },
+                      ]);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip content={"Edit"}>
+                  <Button
+                    icon={"edit"}
+                    minimal
+                    onClick={() => {
+                      setEditingRelation(rel.uid);
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip content={"Delete"}>
+                  <Button
+                    icon={"delete"}
+                    minimal
+                    onClick={() => {
+                      deleteBlock(rel.uid);
+                      setRelations(relations.filter((r) => r.uid !== rel.uid));
+                    }}
+                  />
+                </Tooltip>
               </span>
             </div>
           </li>
