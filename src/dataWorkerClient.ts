@@ -2,8 +2,13 @@ import axios from "axios";
 import { render as loadingRender } from "./components/LoadingAlert";
 import localStorageGet from "roamjs-components/util/localStorageGet";
 import localStorageSet from "roamjs-components/util/localStorageSet";
+import localStorageRemove from "roamjs-components/util/localStorageRemove";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { Intent } from "@blueprintjs/core";
+import { PullBlock } from "roamjs-components/types";
+import getUids from "roamjs-components/dom/getUids";
+import createBlockObserver from "roamjs-components/dom/createBlockObserver";
+import { createHTMLObserver } from "roamjs-components";
 
 const dataWorkerUrl = (document.currentScript as HTMLScriptElement).src.replace(
   /\/main\.js$/,
@@ -83,7 +88,63 @@ export const initializeDataWorker = () =>
       const { method, ...data } = e.data;
       listeners[method]?.(data);
     };
-    loadGraph();
+    loadGraph().then(() => {
+      const blocksWatched: {
+        [uid: string]: {
+          pattern: string;
+          entityId: string;
+          callback: (before: PullBlock, after: PullBlock) => void;
+        };
+      } = {};
+      const watchUid = (b: HTMLDivElement | HTMLTextAreaElement) => {
+        const { blockUid } = getUids(b);
+        if (!blocksWatched[blockUid]) {
+          blocksWatched[blockUid] = {
+            pattern: "[*]",
+            entityId: `[:block/uid "${blockUid}"]`,
+            callback: (before, after) => {
+              dataWorker.current.postMessage({
+                method: "update",
+                before,
+                after,
+              });
+            },
+          };
+          window.roamAlphaAPI.data.addPullWatch(
+            blocksWatched[blockUid].pattern,
+            blocksWatched[blockUid].entityId,
+            blocksWatched[blockUid].callback
+          );
+        }
+      };
+      const unwatchUid = (b: HTMLDivElement | HTMLTextAreaElement) => {
+        const { blockUid } = getUids(b);
+        if (blocksWatched[blockUid]) {
+          window.roamAlphaAPI.data.removePullWatch(
+            blocksWatched[blockUid].pattern,
+            blocksWatched[blockUid].entityId,
+            blocksWatched[blockUid].callback
+          );
+          delete blocksWatched[blockUid];
+        }
+      };
+      createHTMLObserver({
+        tag: "DIV",
+        className: "roam-block-container",
+        callback: (t: HTMLDivElement) => {
+          watchUid(
+            t.querySelector(".rm-block-main .roam-block") ||
+              t.querySelector(".rm-block-main textarea")
+          );
+        },
+        removeCallback: (t: HTMLDivElement) => {
+          unwatchUid(
+            t.querySelector(".rm-block-main .roam-block") ||
+              t.querySelector(".rm-block-main textarea")
+          );
+        },
+      });
+    });
   });
 
 export const getDataWorker = (attempt = 1): Promise<Worker> =>
@@ -97,6 +158,7 @@ export const getDataWorker = (attempt = 1): Promise<Worker> =>
 
 export const refreshUi: { [k: string]: () => void } = {};
 export const refreshDiscourseData = () => {
+  localStorageRemove("graph-cache");
   loadGraph().then(() =>
     Object.entries(refreshUi).forEach(([k, v]) => {
       if (document.getElementById(k)) {

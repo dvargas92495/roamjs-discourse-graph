@@ -2,6 +2,8 @@
 // - DEFAULT_[NODE|RELATIONS]_VALUES
 // - Config, graph updates update cache
 
+import type { PullBlock } from "roamjs-components/types";
+
 const graph: {
   pages: {
     [k: string]: {
@@ -33,12 +35,18 @@ const graph: {
     }[];
     id: number;
   };
+  edges: {
+    pagesById: Record<number, string>;
+  };
 } = {
   pages: {},
   config: {
     nodes: [],
     relations: [],
     id: 0,
+  },
+  edges: {
+    pagesById: {},
   },
 };
 
@@ -66,7 +74,6 @@ const init = (
     return;
   }
   const uidsById: Record<number, string> = {};
-  const pagesById: Record<number, string> = {};
   const pageIdByTitle: Record<string, number> = {};
   const blocksPageById: Record<number, number> = {};
   const blocksById: Record<number, string> = {};
@@ -87,7 +94,7 @@ const init = (
       uidsById[id] = uid;
       timeById[id] = { createdTime, editedTime };
       if (!page) {
-        pagesById[id] = text;
+        graph.edges.pagesById[id] = text;
         pageIdByTitle[text] = id;
         if (text === "roam/js/discourse-graph") {
           graph.config.id = id;
@@ -183,7 +190,9 @@ const init = (
       [text, new Set<number>()],
     ])
   );
-  const allPages = new Set(Object.keys(pagesById).map((i) => Number(i)));
+  const allPages = new Set(
+    Object.keys(graph.edges.pagesById).map((i) => Number(i))
+  );
   const allBlocks = new Set(Object.keys(blocksById).map((i) => Number(i)));
 
   const getDescendants = (id: number) => {
@@ -194,7 +203,7 @@ const init = (
     return Array.from(desSet);
   };
   allPages.forEach((id) => {
-    const title = pagesById[id];
+    const title = graph.edges.pagesById[id];
     const node = graph.config.nodes.find(({ format }) =>
       matchNode({ format, title })
     );
@@ -270,7 +279,7 @@ const init = (
                 if (refs.length) programs.vars.add(targetVar);
                 return refs;
               } else if (rel === "is in page") {
-                if (pagesById[sourceId]) {
+                if (graph.edges.pagesById[sourceId]) {
                   return [];
                 } else if (dict[targetVar]) {
                   return dict[targetVar] === blocksPageById[sourceId]
@@ -286,7 +295,7 @@ const init = (
                   ];
                 }
               } else if (rel === "has title") {
-                if (pagesById[sourceId] === target) {
+                if (graph.edges.pagesById[sourceId] === target) {
                   return [dict];
                 } else {
                   return [];
@@ -352,7 +361,7 @@ const init = (
                 if (refs.length) programs.vars.add(v);
                 return refs;
               } else if (rel === "is in page") {
-                if (!pagesById[targetId]) {
+                if (!graph.edges.pagesById[targetId]) {
                   return [];
                 } else {
                   const children = Array.from(
@@ -469,7 +478,7 @@ const init = (
     );
   };
 
-  Object.entries(pagesById).forEach(([_id, title]) => {
+  Object.entries(graph.edges.pagesById).forEach(([_id, title]) => {
     const id = Number(_id);
     const nodeType = graph.config.nodes.find(({ format }) =>
       matchNode({ format, title })
@@ -508,7 +517,7 @@ const init = (
                 target: r.destination,
                 results: Array.from(programs.assignments)
                   .map((dict) => dict[destinationTriple[0].toLowerCase()])
-                  .map((id) => pagesById[id] || blocksById[id]),
+                  .map((id) => graph.edges.pagesById[id] || blocksById[id]),
               };
             }),
           ...graph.config.relations
@@ -543,7 +552,7 @@ const init = (
                 target: r.source,
                 results: Array.from(programs.assignments)
                   .map((dict) => dict[sourceTriple[0].toLowerCase()])
-                  .map((id) => pagesById[id] || blocksById[id]),
+                  .map((id) => graph.edges.pagesById[id] || blocksById[id]),
               };
             }),
         ]
@@ -614,6 +623,36 @@ const getDiscourseContextResults = (title: string) => {
   }));
 };
 
+const update = (before: PullBlock, after: PullBlock) => {
+  const newRefs = after[":block/refs"] || [];
+  const oldRefs = before[":block/refs"] || [];
+  const oldSet = new Set(oldRefs.map((a) => a[":db/id"]));
+  const newSet = new Set(newRefs.map((a) => a[":db/id"]));
+  const refsToAdd = newRefs
+    .filter((n) => !oldSet.has(n[":db/id"]))
+    .map((n) => n[":db/id"]);
+  const refsToRemove = oldRefs
+    .filter((n) => !newSet.has(n[":db/id"]))
+    .map((n) => n[":db/id"]);
+  const blockPageId = after[":block/page"][":db/id"];
+  refsToAdd.forEach((id) => {
+    const existing = new Set(
+      graph.pages[graph.edges.pagesById[id]].linkedReferences
+    );
+    existing.add(blockPageId);
+    graph.pages[graph.edges.pagesById[id]].linkedReferences =
+      Array.from(existing);
+  });
+  refsToRemove.forEach((id) => {
+    const existing = new Set(
+      graph.pages[graph.edges.pagesById[id]].linkedReferences
+    );
+    existing.delete(blockPageId);
+    graph.pages[graph.edges.pagesById[id]].linkedReferences =
+      Array.from(existing);
+  });
+};
+
 const discourse = (tag: string) => {
   postMessage({
     method: `discourse-${tag}`,
@@ -628,7 +667,7 @@ onmessage = (e) => {
     discourse(data.tag);
   } else if (data.method === "init") {
     init(data.blocks);
+  } else if (data.method === "update") {
+    update(data.before, data.after);
   }
 };
-
-export {};

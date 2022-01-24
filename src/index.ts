@@ -273,7 +273,7 @@ const onPageRefObserverChange =
     }
   };
 
-runExtension("discourse-graph", () => {
+runExtension("discourse-graph", async () => {
   const {
     addGraphListener,
     getConnectedGraphs,
@@ -282,7 +282,7 @@ runExtension("discourse-graph", () => {
     disable,
     removeGraphListener,
   } = setupMultiplayer();
-  const { pageUid } = createConfigObserver({
+  const { pageUid } = await createConfigObserver({
     title: CONFIG,
     config: {
       tabs: [
@@ -716,19 +716,22 @@ runExtension("discourse-graph", () => {
             .children || []
         ).find((t) => t.children[0].text === uid);
         const defaultTimestamp = new Date().valueOf();
-        notificationRender({
-          p: span,
-          parentUid: uid,
-          timestamp:
-            Number(notificationBlock.children[1]?.text) || defaultTimestamp,
-          configUid:
-            notificationBlock.children[1]?.uid ||
-            createBlock({
+        (notificationBlock.children[1]?.uid
+          ? Promise.resolve(notificationBlock.children[1]?.uid)
+          : createBlock({
               node: { text: `${defaultTimestamp}` },
               parentUid: notificationBlock.uid,
               order: 1,
-            }),
-        });
+            })
+        ).then((configUid) =>
+          notificationRender({
+            p: span,
+            parentUid: uid,
+            timestamp:
+              Number(notificationBlock.children[1]?.text) || defaultTimestamp,
+            configUid,
+          })
+        );
       }, 1000);
     }
   };

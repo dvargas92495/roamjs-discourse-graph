@@ -41,13 +41,19 @@ export const getQueryUid = () =>
     order: 3,
   });
 
-export const getQueriesUid = () =>
-  treeRef.tree.find((t) => toFlexRegex("queries").test(t.text))?.uid ||
+export const getQueriesUid = () => {
+  const uid = treeRef.tree.find((t) =>
+    toFlexRegex("queries").test(t.text)
+  )?.uid;
+  if (uid) return uid;
+  const newUid = window.roamAlphaAPI.util.generateUID();
   createBlock({
-    node: { text: "queries" },
+    node: { text: "queries", uid: newUid },
     parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
     order: 3,
   });
+  return newUid;
+};
 
 export const isFlagEnabled = (
   flag: string,

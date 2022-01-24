@@ -102,20 +102,19 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
         style={{ marginBottom: 8 }}
         disabled={!format || !shortcut || !label}
         onClick={() => {
-          const valueUid = createBlock({
+          createBlock({
             parentUid: uid,
             order: nodes.length,
             node: {
               text: format,
               children: [{ text: label }, { text: shortcut }],
             },
-          });
-          setTimeout(() => {
+          }).then((valueUid) => {
             setNodes([...nodes, { format, uid: valueUid, label, shortcut }]);
             setFormat("");
             setLabel("");
             setShortcut("");
-          }, 1);
+          });
         }}
       />
       <ul
@@ -883,7 +882,7 @@ const RelationEditPanel = ({
           style={{ marginTop: 10, marginRight: 16 }}
           onClick={() => {
             setLoading(true);
-            setTimeout(() => {
+            setTimeout(async () => {
               const rootUid = editingRelationInfo.uid;
               setInputSetting({
                 blockUid: rootUid,
@@ -906,11 +905,11 @@ const RelationEditPanel = ({
                 editingRelationInfo.children.find((t) =>
                   toFlexRegex("if").test(t.text)
                 )?.uid ||
-                createBlock({
+                (await createBlock({
                   node: { text: "If" },
                   parentUid: rootUid,
                   order: 3,
-                });
+                }));
               saveCyToElementRef(tab);
               const blocks = tabs
                 .map((t) => elementsRef.current[t])
@@ -1030,12 +1029,11 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
     [editingRelation]
   );
   const onNewRelation = () => {
-    const relationUid = createBlock({
+    createBlock({
       parentUid: uid,
       order: relations.length,
       node: { text: newRelation },
-    });
-    setTimeout(() => {
+    }).then((relationUid) => {
       setRelations([
         ...relations,
         {
@@ -1047,7 +1045,7 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
       ]);
       setNewRelation("");
       setEditingRelation(relationUid);
-    }, 1);
+    });
   };
   return editingRelation ? (
     <RelationEditPanel
@@ -1127,23 +1125,24 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
                           text: c.text,
                           children: stripUid(c.children),
                         }));
-                      const newUid = createBlock({
+                      createBlock({
                         parentUid: uid,
                         order: relations.length,
                         node: {
                           text,
                           children: stripUid(copyTree),
                         },
-                      });
-                      setRelations([
-                        ...relations,
-                        {
-                          uid: newUid,
-                          source: rel.source,
-                          destination: rel.destination,
-                          text,
-                        },
-                      ]);
+                      }).then((newUid) =>
+                        setRelations([
+                          ...relations,
+                          {
+                            uid: newUid,
+                            source: rel.source,
+                            destination: rel.destination,
+                            text,
+                          },
+                        ])
+                      );
                     }}
                   />
                 </Tooltip>

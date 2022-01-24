@@ -66,38 +66,41 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
           0,
           textarea.selectionStart
         )}[[${pagename}]]${text.substring(textarea.selectionEnd)}`;
-        updateBlock({ text: newText, uid: blockUid });
-        setTimeout(() => {
-          const pageUid =
-            getPageUidByPageTitle(pagename) || createPage({ title: pagename });
-          setTimeout(() => {
+        updateBlock({ text: newText, uid: blockUid })
+          .then(
+            () =>
+              getPageUidByPageTitle(pagename) || createPage({ title: pagename })
+          )
+          .then((pageUid) => {
             const nodes = getFullTreeByParentUid(
               getPageUidByPageTitle(format)
             ).children;
-            nodes.forEach(
-              ({ text, textAlign, heading, viewType, children }, order) =>
-                createBlock({
-                  node: { text, textAlign, heading, viewType, children },
-                  order,
-                  parentUid: pageUid,
-                })
-            );
-            openBlockInSidebar(pageUid);
-            setTimeout(() => {
-              const sidebarTitle = document.querySelector(
-                ".rm-sidebar-outline .rm-title-display"
-              );
-              sidebarTitle.dispatchEvent(
-                new MouseEvent("mousedown", { bubbles: true })
-              );
+            Promise.all(
+              nodes.map(
+                ({ text, textAlign, heading, viewType, children }, order) =>
+                  createBlock({
+                    node: { text, textAlign, heading, viewType, children },
+                    order,
+                    parentUid: pageUid,
+                  })
+              )
+            ).then(() => {
+              openBlockInSidebar(pageUid);
               setTimeout(() => {
-                const ta = document.activeElement as HTMLTextAreaElement;
-                const index = ta.value.length;
-                ta.setSelectionRange(index, index);
-              }, 1);
-            }, 100);
-          }, 1);
-        }, 1);
+                const sidebarTitle = document.querySelector(
+                  ".rm-sidebar-outline .rm-title-display"
+                );
+                sidebarTitle.dispatchEvent(
+                  new MouseEvent("mousedown", { bubbles: true })
+                );
+                setTimeout(() => {
+                  const ta = document.activeElement as HTMLTextAreaElement;
+                  const index = ta.value.length;
+                  ta.setSelectionRange(index, index);
+                }, 1);
+              }, 100);
+            });
+          });
       });
       onClose();
     },

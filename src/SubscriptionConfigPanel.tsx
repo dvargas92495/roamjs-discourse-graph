@@ -13,15 +13,15 @@ import { getUserIdentifier, Panel } from "./util";
 const SUBSCRIPTION_TYPES = ["page", "block"] as const;
 
 const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
-  const rootUid = useMemo(
-    () =>
-      uid ||
-      createBlock({
-        node: { text: getUserIdentifier() },
-        parentUid,
-      }),
-    [parentUid]
-  );
+  const rootUid = useMemo(() => {
+    if (uid) return uid;
+    const newUid = window.roamAlphaAPI.util.generateUID();
+    createBlock({
+      node: { text: getUserIdentifier(), uid: newUid },
+      parentUid,
+    });
+    return newUid;
+  }, [parentUid]);
   const [nodes, setNodes] = useState(
     uid
       ? () =>
@@ -82,7 +82,7 @@ const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
           disabled={!activeValue}
           style={{ height: 30, alignSelf: "center" }}
           onClick={() => {
-            const valueUid = createBlock({
+            createBlock({
               parentUid: rootUid,
               order: nodes.length,
               node: {
@@ -92,11 +92,12 @@ const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
                   { text: new Date().valueOf().toString() },
                 ],
               },
-            });
-            setNodes([
-              ...nodes,
-              { type: activeType, value: activeUid.current, uid: valueUid },
-            ]);
+            }).then((valueUid) =>
+              setNodes([
+                ...nodes,
+                { type: activeType, value: activeUid.current, uid: valueUid },
+              ])
+            );
           }}
         />
       </div>

@@ -474,12 +474,15 @@ const QueryDrawerContent = ({
     () => tree.find((t) => toFlexRegex("scratch").test(t.text)),
     [tree]
   );
-  const scratchNodeUid = useMemo(
-    () =>
-      scratchNode?.uid ||
-      createBlock({ node: { text: "scratch" }, parentUid: blockUid }),
-    [scratchNode, blockUid]
-  );
+  const scratchNodeUid = useMemo(() => {
+    if (scratchNode?.uid) return scratchNode?.uid;
+    const newUid = window.roamAlphaAPI.util.generateUID();
+    createBlock({
+      node: { text: "scratch", uid: newUid },
+      parentUid: blockUid,
+    });
+    return newUid;
+  }, [scratchNode, blockUid]);
   const scratchNodeChildren = useMemo(
     () => scratchNode?.children || [],
     [scratchNode]
@@ -512,12 +515,15 @@ const QueryDrawerContent = ({
       scratchNodeChildren.find((t) => toFlexRegex("conditions").test(t.text)),
     [scratchNodeChildren]
   );
-  const conditionsNodeUid = useMemo(
-    () =>
-      conditionsNode?.uid ||
-      createBlock({ node: { text: "conditions" }, parentUid: scratchNodeUid }),
-    [conditionsNode, scratchNodeUid]
-  );
+  const conditionsNodeUid = useMemo(() => {
+    if (conditionsNode?.uid) return conditionsNode?.uid;
+    const newUid = window.roamAlphaAPI.util.generateUID();
+    createBlock({
+      node: { text: "conditions", uid: newUid },
+      parentUid: scratchNodeUid,
+    });
+    return newUid;
+  }, [conditionsNode, scratchNodeUid]);
   const conditionsNodeChildren = useMemo(
     () => conditionsNode?.children || [],
     [conditionsNode]
@@ -726,31 +732,30 @@ const QueryDrawerContent = ({
         value,
         key: "return",
       });
-      const conditionNodesWithUids = conditionNodes.map(
-        ({ source, relation, target }, order) => {
-          return {
+      Promise.all(
+        conditionNodes.map(({ source, relation, target }, order) =>
+          createBlock({
+            parentUid: conditionsNodeUid,
+            order,
+            node: {
+              text: `${order}`,
+              children: [
+                { text: "source", children: [{ text: source }] },
+                { text: "relation", children: [{ text: relation }] },
+                { text: "target", children: [{ text: target }] },
+              ],
+            },
+          }).then((uid) => ({
             source,
             relation,
             target,
-            uid: createBlock({
-              parentUid: conditionsNodeUid,
-              order,
-              node: {
-                text: `${order}`,
-                children: [
-                  { text: "source", children: [{ text: source }] },
-                  { text: "relation", children: [{ text: relation }] },
-                  { text: "target", children: [{ text: target }] },
-                ],
-              },
-            }),
-          };
-        }
-      );
-      setTimeout(() => {
+            uid,
+          }))
+        )
+      ).then((conditionNodesWithUids) => {
         setReturnNode(value);
         setConditions(conditionNodesWithUids);
-      }, 1);
+      });
     },
     [relationLabels, setReturnNode, setConditions]
   );
@@ -844,17 +849,18 @@ const QueryDrawerContent = ({
           rightIcon={"plus"}
           text={"Add Condition"}
           onClick={() => {
-            const uid = createBlock({
+            createBlock({
               parentUid: conditionsNodeUid,
               order: conditions.length,
               node: {
                 text: `${conditions.length}`,
               },
-            });
-            setConditions([
-              ...conditions,
-              { uid, source: "", relation: "", target: "" },
-            ]);
+            }).then((uid) =>
+              setConditions([
+                ...conditions,
+                { uid, source: "", relation: "", target: "" },
+              ])
+            );
           }}
         />
         <Button
@@ -879,7 +885,7 @@ const QueryDrawerContent = ({
               <Button
                 icon={"pin"}
                 onClick={() => {
-                  const newSavedUid = createBlock({
+                  createBlock({
                     node: {
                       text: savedQueryLabel,
                       children: [
@@ -906,28 +912,32 @@ const QueryDrawerContent = ({
                       ],
                     },
                     parentUid: blockUid,
-                  });
-                  conditions.forEach((c) => deleteBlock(c.uid));
-                  setInputSetting({
-                    blockUid: scratchNodeUid,
-                    value: "",
-                    key: "return",
-                  });
-
-                  setTimeout(() => {
-                    setSavedQueryLabel(
-                      // temporary
-                      savedQueryLabel
-                        .split(" ")
-                        .map((s) => (s === "Query" ? s : `${Number(s) + 1}`))
-                        .join(" ")
-                    );
-                    setReturnNode("");
-                    setConditions([]);
-                    setSavedQueries([...savedQueries, newSavedUid]);
-                    setShowResults(false);
-                    setResults([]);
-                  }, 1);
+                  }).then((newSavedUid) =>
+                    Promise.all(conditions.map((c) => deleteBlock(c.uid)))
+                      .then(() =>
+                        setInputSetting({
+                          blockUid: scratchNodeUid,
+                          value: "",
+                          key: "return",
+                        })
+                      )
+                      .then(() => {
+                        setSavedQueryLabel(
+                          // temporary
+                          savedQueryLabel
+                            .split(" ")
+                            .map((s) =>
+                              s === "Query" ? s : `${Number(s) + 1}`
+                            )
+                            .join(" ")
+                        );
+                        setReturnNode("");
+                        setConditions([]);
+                        setSavedQueries([...savedQueries, newSavedUid]);
+                        setShowResults(false);
+                        setResults([]);
+                      })
+                  );
                 }}
                 minimal
               />

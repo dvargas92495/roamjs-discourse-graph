@@ -81,9 +81,13 @@ const useTreeFieldUid = ({
 }) =>
   useMemo(() => {
     const node = tree.find((t) => toFlexRegex(field).test(t.text));
-    const uid = node?.uid || createBlock({ node: { text: field }, parentUid });
     const children = node?.children || [];
-    return [uid, children] as const;
+    if (node?.uid) {
+      return [node?.uid, children] as const;
+    }
+    const newUid = window.roamAlphaAPI.util.generateUID();
+    createBlock({ node: { text: field, uid: newUid }, parentUid });
+    return [newUid, children] as const;
   }, [tree, field, parentUid]);
 
 const DEFAULT_SELECTED_RELATION = {
@@ -109,7 +113,12 @@ const COLORS = [
 const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
 
-const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRenderProps }: Props) => {
+const CytoscapePlayground = ({
+  title,
+  previewEnabled,
+  globalRefs,
+  ...exportRenderProps
+}: Props) => {
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const allPages = useMemo(getAllPageNames, []);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,7 +334,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
                     source,
                     target,
                   };
-                  const id = createBlock({
+                  createBlock({
                     node: {
                       text,
                       children: Object.entries(rest).map(([k, v]) => ({
@@ -334,11 +343,12 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
                       })),
                     },
                     parentUid: elementsUid,
+                  }).then((id) => {
+                    const edge = cyRef.current.add({
+                      data: { id, label: text, ...rest },
+                    });
+                    edgeCallback(edge);
                   });
-                  const edge = cyRef.current.add({
-                    data: { id, label: text, ...rest },
-                  });
-                  edgeCallback(edge);
                 } else {
                   renderToast({
                     id: "roamjs-discourse-relation-error",
@@ -356,8 +366,10 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
             }
           } else {
             const title = n.data("label");
-            const uid = getPageUidByPageTitle(title) || createPage({ title });
-            setTimeout(() => openBlockInSidebar(uid), 1);
+            const uid = getPageUidByPageTitle(title);
+            (uid ? Promise.resolve(uid) : createPage({ title })).then((uid) =>
+              openBlockInSidebar(uid)
+            );
           }
         } else {
           clearSourceRef();
@@ -429,7 +441,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
   );
   const createNode = useCallback(
     (text: string, position: { x: number; y: number }, color: string) => {
-      const uid = createBlock({
+      createBlock({
         node: {
           text,
           children: [
@@ -439,12 +451,13 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
           ],
         },
         parentUid: elementsUid,
+      }).then((uid) => {
+        const node = cyRef.current.add({
+          data: { id: uid, label: text, color },
+          position,
+        })[0];
+        nodeTapCallback(node);
       });
-      const node = cyRef.current.add({
-        data: { id: uid, label: text, color },
-        position,
-      })[0];
-      nodeTapCallback(node);
     },
     [nodeTapCallback, cyRef, elementsUid, nodeColorRef]
   );
@@ -737,18 +750,26 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
                       defaultPageTitle: `Auto generated from ${title}`,
                       toPage: (title: string, blocks: InputTextNode[]) => {
                         const parentUid =
-                          getPageUidByPageTitle(title) ||
-                          recentPageRef[title] ||
-                          (recentPageRef[title] = createPage({
-                            title: title,
-                          }));
-                        blocks.forEach((node, order) =>
-                          createBlock({ node, order, parentUid })
-                        );
-                        if (!recentlyOpened.has(parentUid)) {
-                          recentlyOpened.add(parentUid);
-                          setTimeout(() => openBlockInSidebar(parentUid), 1000);
-                        }
+                          getPageUidByPageTitle(title) || recentPageRef[title];
+                        (parentUid
+                          ? Promise.resolve(parentUid)
+                          : createPage({
+                              title: title,
+                            }).then(
+                              (parentUid) => (recentPageRef[title] = parentUid)
+                            )
+                        ).then((parentUid) => {
+                          blocks.forEach((node, order) =>
+                            createBlock({ node, order, parentUid })
+                          );
+                          if (!recentlyOpened.has(parentUid)) {
+                            recentlyOpened.add(parentUid);
+                            setTimeout(
+                              () => openBlockInSidebar(parentUid),
+                              1000
+                            );
+                          }
+                        });
                       },
                     })
                   );
@@ -806,7 +827,7 @@ const CytoscapePlayground = ({ title, previewEnabled, globalRefs, ...exportRende
                         label: n.relation,
                       })),
                   },
-                  ...exportRenderProps
+                  ...exportRenderProps,
                 });
               }}
             />
