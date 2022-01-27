@@ -23,7 +23,7 @@ import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
-import { initializeDataWorker, refreshDiscourseData } from "./dataWorkerClient";
+import { initializeDataWorker, refreshDiscourseData, updateDiscourseData } from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
@@ -650,7 +650,9 @@ runExtension("discourse-graph", async () => {
         !d.getAttribute("data-roamjs-discourse-context")
       ) {
         d.setAttribute("data-roamjs-discourse-context", "true");
-        const parent = d.querySelector("div.rm-reference-container");
+        const parent =
+          d.querySelector("div.rm-reference-container") ||
+          d.children[0]?.children[0];
         if (parent) {
           const p = document.createElement("div");
           parent.parentElement.insertBefore(p, parent);
@@ -688,6 +690,10 @@ runExtension("discourse-graph", async () => {
       window.roamAlphaAPI.ui.commandPalette.addCommand({
         label: "Refresh Discourse Data",
         callback: refreshDiscourseData,
+      });
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Update Discourse Data",
+        callback: updateDiscourseData,
       });
       initializeDataWorker();
       pageRefObservers.add(overlayPageRefHandler);

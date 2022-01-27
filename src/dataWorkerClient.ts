@@ -4,11 +4,7 @@ import localStorageGet from "roamjs-components/util/localStorageGet";
 import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
 import { render as renderToast } from "roamjs-components/components/Toast";
-import { Intent } from "@blueprintjs/core";
-import { PullBlock } from "roamjs-components/types";
-import getUids from "roamjs-components/dom/getUids";
-import createBlockObserver from "roamjs-components/dom/createBlockObserver";
-import { createHTMLObserver } from "roamjs-components";
+import { Intent, Position } from "@blueprintjs/core";
 
 const dataWorkerUrl = (document.currentScript as HTMLScriptElement).src.replace(
   /\/main\.js$/,
@@ -19,14 +15,35 @@ const dataWorker: { current: Worker; init: boolean } = {
   init: false,
 };
 export const listeners: { [name: string]: (a: unknown) => void } = {};
-const loadGraph = () =>
+const loadGraph = (update = false) =>
   new Promise<void>((resolve) => {
+    const closeLoadingToast: { current?: () => void } = {
+      current: undefined,
+    };
     listeners["init"] = ({ graph }: { graph?: string }) => {
       delete listeners["init"];
       dataWorker.init = true;
+      document.body.dispatchEvent(new Event("roamjs:data-worked:init"));
+      closeLoadingToast.current?.();
       if (graph) {
         try {
+          //@ts-ignore
+          window.data = JSON.parse(graph);
+          //@ts-ignore
+          window.calcs = Object.entries(window.data.discourseRelations)
+            .map(([id, stuff]) => ({
+              //@ts-ignore
+              runtime: stuff.runtime,
+              //@ts-ignore
+              title: window.data.edges.pagesById[id],
+            }))
+            .sort((a, b) => b.runtime - a.runtime);
           localStorageSet("graph-cache", graph);
+          renderToast({
+            id: "localstorage-success",
+            content: `Successfully loaded graph into cache! (${graph.length})`,
+            intent: Intent.SUCCESS,
+          });
         } catch (e) {
           if (e.name === "QuotaExceededError") {
             renderToast({
@@ -42,11 +59,6 @@ const loadGraph = () =>
             });
           }
         }
-        renderToast({
-          id: "localstorage-success",
-          content: `Successfully loaded graph into cache!`,
-          intent: Intent.SUCCESS,
-        });
       } else {
         renderToast({
           id: "localstorage-success",
@@ -67,13 +79,30 @@ const loadGraph = () =>
                 (pull ?b 
                   [:db/id [:node/title :as "text"] [:block/string :as "text"] :block/page :block/refs :block/uid :block/children [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]
                 ) 
-                :where [?b :block/uid]]`);
+                :where ${
+                  update
+                    ? `[?b :edit/time ?t] [(< ${localStorage.getItem(
+                        "graph-timestamp"
+                      )} ?t)]`
+                    : "[?b :block/uid]"
+                }]`);
+                if (update) {
+                  console.log(blocks);
+                }
                 innerResolve(blocks);
               },
               content: "Please wait as we load your graph's discourse data...",
             });
           })
     ).then((blocks) => {
+      localStorageSet("graph-timestamp", new Date().valueOf().toString());
+      closeLoadingToast.current = renderToast({
+        id: "dataworker-loading",
+        content: `Graph is continuing to build in the background...`,
+        intent: Intent.PRIMARY,
+        position: Position.BOTTOM_RIGHT,
+        timeout: 0,
+      });
       dataWorker.current.postMessage({
         method: "init",
         blocks,
@@ -88,84 +117,31 @@ export const initializeDataWorker = () =>
       const { method, ...data } = e.data;
       listeners[method]?.(data);
     };
-    loadGraph().then(() => {
-      const blocksWatched: {
-        [uid: string]: {
-          pattern: string;
-          entityId: string;
-          callback: (before: PullBlock, after: PullBlock) => void;
-        };
-      } = {};
-      const watchUid = (b: HTMLDivElement | HTMLTextAreaElement) => {
-        const { blockUid } = getUids(b);
-        if (!blocksWatched[blockUid]) {
-          blocksWatched[blockUid] = {
-            pattern: "[*]",
-            entityId: `[:block/uid "${blockUid}"]`,
-            callback: (before, after) => {
-              dataWorker.current.postMessage({
-                method: "update",
-                before,
-                after,
-              });
-            },
-          };
-          window.roamAlphaAPI.data.addPullWatch(
-            blocksWatched[blockUid].pattern,
-            blocksWatched[blockUid].entityId,
-            blocksWatched[blockUid].callback
-          );
-        }
-      };
-      const unwatchUid = (b: HTMLDivElement | HTMLTextAreaElement) => {
-        const { blockUid } = getUids(b);
-        if (blocksWatched[blockUid]) {
-          window.roamAlphaAPI.data.removePullWatch(
-            blocksWatched[blockUid].pattern,
-            blocksWatched[blockUid].entityId,
-            blocksWatched[blockUid].callback
-          );
-          delete blocksWatched[blockUid];
-        }
-      };
-      createHTMLObserver({
-        tag: "DIV",
-        className: "roam-block-container",
-        callback: (t: HTMLDivElement) => {
-          watchUid(
-            t.querySelector(".rm-block-main .roam-block") ||
-              t.querySelector(".rm-block-main textarea")
-          );
-        },
-        removeCallback: (t: HTMLDivElement) => {
-          unwatchUid(
-            t.querySelector(".rm-block-main .roam-block") ||
-              t.querySelector(".rm-block-main textarea")
-          );
-        },
-      });
-    });
+    loadGraph();
   });
 
-export const getDataWorker = (attempt = 1): Promise<Worker> =>
+export const getDataWorker = (): Promise<Worker> =>
   dataWorker.current && dataWorker.init
     ? Promise.resolve(dataWorker.current)
-    : attempt < 100
-    ? new Promise((resolve) =>
-        setTimeout(() => resolve(getDataWorker(attempt + 1)), attempt * 10)
-      )
-    : Promise.reject("Failed to load data worker");
+    : new Promise((resolve) =>
+        document.body.addEventListener("roamjs:data-worked:init", () =>
+          resolve(dataWorker.current)
+        )
+      );
 
 export const refreshUi: { [k: string]: () => void } = {};
+const refreshAllUi = () =>
+  Object.entries(refreshUi).forEach(([k, v]) => {
+    if (document.getElementById(k)) {
+      v();
+    } else {
+      delete refreshUi[k];
+    }
+  });
 export const refreshDiscourseData = () => {
   localStorageRemove("graph-cache");
-  loadGraph().then(() =>
-    Object.entries(refreshUi).forEach(([k, v]) => {
-      if (document.getElementById(k)) {
-        v();
-      } else {
-        delete refreshUi[k];
-      }
-    })
-  );
+  loadGraph().then(refreshAllUi);
+};
+export const updateDiscourseData = () => {
+  loadGraph(true).then(refreshAllUi);
 };
