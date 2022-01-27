@@ -27,17 +27,6 @@ const loadGraph = (update = false) =>
       closeLoadingToast.current?.();
       if (graph) {
         try {
-          //@ts-ignore
-          window.data = JSON.parse(graph);
-          //@ts-ignore
-          window.calcs = Object.entries(window.data.discourseRelations)
-            .map(([id, stuff]) => ({
-              //@ts-ignore
-              runtime: stuff.runtime,
-              //@ts-ignore
-              title: window.data.edges.pagesById[id],
-            }))
-            .sort((a, b) => b.runtime - a.runtime);
           localStorageSet("graph-cache", graph);
           renderToast({
             id: "localstorage-success",
