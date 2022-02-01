@@ -99,25 +99,6 @@ const loadGraph = (update = false) =>
     });
   });
 
-export const initializeDataWorker = () =>
-  axios.get(dataWorkerUrl, { responseType: "blob" }).then((r) => {
-    dataWorker.current = new Worker(window.URL.createObjectURL(r.data));
-    dataWorker.current.onmessage = (e) => {
-      const { method, ...data } = e.data;
-      listeners[method]?.(data);
-    };
-    loadGraph();
-  });
-
-export const getDataWorker = (): Promise<Worker> =>
-  dataWorker.current && dataWorker.init
-    ? Promise.resolve(dataWorker.current)
-    : new Promise((resolve) =>
-        document.body.addEventListener("roamjs:data-worked:init", () =>
-          resolve(dataWorker.current)
-        )
-      );
-
 export const refreshUi: { [k: string]: () => void } = {};
 const refreshAllUi = () =>
   Object.entries(refreshUi).forEach(([k, v]) => {
@@ -127,10 +108,49 @@ const refreshAllUi = () =>
       delete refreshUi[k];
     }
   });
-export const refreshDiscourseData = () => {
-  localStorageRemove("graph-cache");
-  loadGraph().then(refreshAllUi);
+
+export const initializeDataWorker = () =>
+  axios
+    .get(dataWorkerUrl, { responseType: "blob" })
+    .then((r) => {
+      dataWorker.current = new Worker(window.URL.createObjectURL(r.data));
+      dataWorker.current.onmessage = (e) => {
+        const { method, ...data } = e.data;
+        listeners[method]?.(data);
+      };
+      return loadGraph();
+    })
+    .then(() => {
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Refresh Discourse Data",
+        callback: () => {
+          localStorageRemove("graph-cache");
+          loadGraph().then(refreshAllUi);
+        },
+      });
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Update Discourse Data",
+        callback: () => {
+          loadGraph(true).then(refreshAllUi);
+        },
+      });
+    });
+
+export const shutdownDataWorker = () => {
+  window.roamAlphaAPI.ui.commandPalette.removeCommand({
+    label: "Refresh Discourse Data",
+  });
+  window.roamAlphaAPI.ui.commandPalette.removeCommand({
+    label: "Update Discourse Data",
+  });
+  dataWorker.current.terminate();
 };
-export const updateDiscourseData = () => {
-  loadGraph(true).then(refreshAllUi);
-};
+
+export const getDataWorker = (): Promise<Worker> =>
+  dataWorker.current && dataWorker.init
+    ? Promise.resolve(dataWorker.current)
+    : new Promise((resolve) =>
+        document.body.addEventListener("roamjs:data-worked:init", () =>
+          resolve(dataWorker.current)
+        )
+      );

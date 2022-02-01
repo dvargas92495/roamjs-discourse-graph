@@ -22,8 +22,11 @@ import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
-import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
-import { initializeDataWorker, refreshDiscourseData, updateDiscourseData } from "./dataWorkerClient";
+import {
+  getExperimentalOverlayMode,
+  render as discourseOverlayRender,
+} from "./components/DiscourseContextOverlay";
+import { initializeDataWorker, shutdownDataWorker } from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
@@ -340,7 +343,13 @@ runExtension("discourse-graph", async () => {
               description:
                 "Whether to overlay discourse context information over node references",
               options: {
-                onChange: onPageRefObserverChange(overlayPageRefHandler),
+                onChange: (val) => {
+                  if (getExperimentalOverlayMode()) {
+                    if (val) initializeDataWorker();
+                    else shutdownDataWorker();
+                  }
+                  onPageRefObserverChange(overlayPageRefHandler)(val);
+                },
               },
             },
           ],
@@ -687,15 +696,7 @@ runExtension("discourse-graph", async () => {
   setTimeout(() => {
     if (isFlagEnabled("preview")) pageRefObservers.add(previewPageRefHandler);
     if (isFlagEnabled("grammar.overlay")) {
-      window.roamAlphaAPI.ui.commandPalette.addCommand({
-        label: "Refresh Discourse Data",
-        callback: refreshDiscourseData,
-      });
-      window.roamAlphaAPI.ui.commandPalette.addCommand({
-        label: "Update Discourse Data",
-        callback: updateDiscourseData,
-      });
-      initializeDataWorker();
+      if (getExperimentalOverlayMode()) initializeDataWorker();
       pageRefObservers.add(overlayPageRefHandler);
     }
     if (pageRefObservers.size) enablePageRefObserver();

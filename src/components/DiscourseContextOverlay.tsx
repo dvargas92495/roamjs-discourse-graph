@@ -3,28 +3,89 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
-import { getDiscourseContextResults } from "../util";
+import { getDiscourseContextResults, isFlagEnabled } from "../util";
 import { useInViewport } from "react-in-viewport";
-import { getDataWorker, listeners, refreshUi } from "../dataWorkerClient";
+import {
+  getDataWorker,
+  initializeDataWorker,
+  listeners,
+  refreshUi,
+  shutdownDataWorker,
+} from "../dataWorkerClient";
+import { render as renderToast } from "roamjs-components/components/Toast";
+import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
 
 type DiscourseData = {
   results: ReturnType<typeof getDiscourseContextResults>;
   refs: number;
 };
 
+let experimentalOverlayMode = false;
+
+document.addEventListener("keydown", (e) => {
+  if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && e.key === "M") {
+    experimentalOverlayMode = !experimentalOverlayMode;
+    if (isFlagEnabled("grammar.overlay")) {
+      if (experimentalOverlayMode) {
+        initializeDataWorker();
+      } else {
+        shutdownDataWorker();
+      }
+    }
+    renderToast({
+      id: "experimental",
+      content: `${
+        experimentalOverlayMode ? "En" : "Dis"
+      }abled Experimental Overlay Mode`,
+    });
+  }
+});
+
+export const getExperimentalOverlayMode = () => experimentalOverlayMode;
+
+const cache: {
+  [title: string]: DiscourseData;
+} = {};
+const overlayQueue: (() => void)[] = [];
 const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
-  return new Promise<DiscourseData>((resolve) => {
-    listeners[`discourse-${tag}`] = (args: DiscourseData) => {
-      resolve(args);
-      delete listeners[`discourse-${tag}`];
-    };
-    getDataWorker().then((worker) =>
-      worker.postMessage({
-        method: `discourse`,
-        tag,
-      })
-    );
-  });
+  if (experimentalOverlayMode) {
+    return new Promise<DiscourseData>((resolve) => {
+      listeners[`discourse-${tag}`] = (args: DiscourseData) => {
+        resolve(args);
+        delete listeners[`discourse-${tag}`];
+      };
+      getDataWorker().then((worker) =>
+        worker.postMessage({
+          method: `discourse`,
+          tag,
+        })
+      );
+    });
+  } else {
+    if (cache[tag]) return Promise.resolve(cache[tag]);
+    return new Promise((resolve) => {
+      const triggerNow = overlayQueue.length === 0;
+      overlayQueue.push(() => {
+        const start = new Date();
+        const output = (cache[tag] = {
+          results: getDiscourseContextResults(tag),
+          refs: window.roamAlphaAPI.q(
+            `[:find ?a :where [?b :node/title "${normalizePageTitle(
+              tag
+            )}"] [?a :block/refs ?b]]`
+          ).length,
+        });
+        const runTime = differenceInMilliseconds(new Date(), start);
+        setTimeout(() => {
+          overlayQueue.splice(0, 1);
+          overlayQueue[0]?.();
+        }, runTime * 4);
+        resolve(output);
+      });
+      if (triggerNow) overlayQueue[0]();
+    });
+  }
 };
 
 const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
