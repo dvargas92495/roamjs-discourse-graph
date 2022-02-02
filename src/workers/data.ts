@@ -51,6 +51,8 @@ const graph: {
     timeById: Record<number, { createdTime: number; editedTime: number }>;
     referencesById: Record<number, number[]>;
     linkedReferencesById: Record<number, number[]>;
+    createUserById: Record<number, number>;
+    userDisplayById: Record<number, string>;
   };
   discourseRelations: {
     [pageId: number]: {
@@ -79,6 +81,8 @@ const graph: {
     timeById: {},
     referencesById: {},
     linkedReferencesById: {},
+    createUserById: {},
+userDisplayById:{},
   },
 };
 
@@ -94,6 +98,8 @@ const init = (
           children?: { id: number }[];
           createdTime: number;
           editedTime: number;
+          displayName?: string;
+          createdBy?: number;
         }
       ][]
     | string
@@ -109,14 +115,13 @@ const init = (
     return;
   }
   blocks.forEach(
-    ([{ id, page, refs, text, children, uid, createdTime, editedTime }]) => {
-      if (!text) {
-        // users are blocks that get pulled by our query. Skip them
-        return;
-      }
+    ([{ id, page, refs, text, children, uid, createdTime, editedTime, displayName, createdBy }]) => {
       graph.edges.uidsById[id] = uid;
+      graph.edges.createUserById[id] = createdBy;
       graph.edges.timeById[id] = { createdTime, editedTime };
-      if (!page) {
+      if (!text) {
+        graph.edges.userDisplayById[id] = displayName;
+      } else if (!page) {
         graph.edges.pagesById[id] = text;
         graph.edges.pageIdByTitle[text] = id;
         if (text === "roam/js/discourse-graph") {

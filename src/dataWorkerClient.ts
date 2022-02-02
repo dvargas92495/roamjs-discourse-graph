@@ -66,7 +66,19 @@ const loadGraph = (update = false) =>
               operation: () => {
                 const blocks = window.roamAlphaAPI.q(`[:find 
                 (pull ?b 
-                  [:db/id [:node/title :as "text"] [:block/string :as "text"] :block/page :block/refs :block/uid :block/children [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]
+                  [
+                    :db/id 
+                    [:node/title :as "text"] 
+                    [:block/string :as "text"] 
+                    :block/page 
+                    :block/refs 
+                    :block/uid 
+                    :block/children 
+                    [:create/time :as "createdTime"] 
+                    [:edit/time :as "editedTime"]
+                    [:user/display-name :as "displayName"]
+                    [:create/user :as "createdBy"]
+                  ]
                 ) 
                 :where ${
                   update

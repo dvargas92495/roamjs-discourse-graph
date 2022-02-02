@@ -489,6 +489,10 @@ export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
       )}-String]) [(clojure.string/includes? ${freeVar(
         src
       )}-String "${normalizePageTitle(dest)}")]`,
+    "created by": (src, dest) =>
+      `[${freeVar(src)} :create/user ${freeVar(src)}-User] [${freeVar(
+        src
+      )}-User :user/display-name "${normalizePageTitle(dest)}"]`,
   };
 };
 
