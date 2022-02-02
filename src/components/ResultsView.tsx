@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import { Result } from "../util";
 import fuzzy from "fuzzy";
-import { Button, Icon } from "@blueprintjs/core";
 import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
+import { Button, Tooltip } from "@blueprintjs/core";
+import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 
 const SEARCH_HIGHLIGHT = "#C26313";
 
@@ -22,6 +24,113 @@ const SORT_OPTIONS: {
 const SORT_FCN_BY_LABEL = Object.fromEntries(
   SORT_OPTIONS.map(({ label, fcn }) => [label, fcn])
 );
+
+const ResultView = ({
+  ResultIcon,
+  ...r
+}: Result & {
+  ResultIcon: (props: { result: Result }) => React.ReactElement;
+}) => {
+  const [contextOpen, setContextOpen] = useState(false);
+  const contextPageTitle = useMemo(
+    () => r.context && getPageTitleByPageUid(r.context),
+    [r.context]
+  );
+  const contextChildren = useMemo(
+    () =>
+      r.context &&
+      (contextPageTitle
+        ? getShallowTreeByParentUid(r.context).map(({ uid }) => uid)
+        : [r.context]),
+    [r.context, contextPageTitle, r.uid]
+  );
+  const contextElement = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (contextOpen) {
+      setTimeout(() => {
+        contextChildren.forEach((uid) => {
+          window.roamAlphaAPI.ui.components.renderBlock({
+            uid,
+            el: contextElement.current.querySelector(`div[data-uid="${uid}"]`),
+          });
+        });
+      }, 1);
+    }
+  }, [contextOpen, contextElement, r.uid, contextPageTitle]);
+  return (
+    <li>
+      <span
+        style={{
+          display: "flex",
+          width: "100%",
+          justifyContent: "space-between",
+          alignItems: "center",
+          overflow: "hidden",
+        }}
+      >
+        <a
+          className={"rm-page-ref"}
+          href={getRoamUrl(r.uid)}
+          onClick={(e) => {
+            if (e.ctrlKey || e.shiftKey) {
+              openBlockInSidebar(r.uid);
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+        >
+          {r.text.split("<span>").map((s, i) => (
+            <span
+              key={i}
+              className={
+                i % 2 === 0 ? "" : "roamjs-discourse-hightlighted-result"
+              }
+            >
+              {s}
+            </span>
+          ))}
+        </a>
+        <ResultIcon result={r} />
+        {r.context && (
+          <Tooltip content={"Context"}>
+            <Button
+              onClick={() => setContextOpen(!contextOpen)}
+              active={contextOpen}
+              style={{
+                opacity: 0.5,
+                fontSize: "0.8em",
+                ...(contextOpen
+                  ? { opacity: 1, color: "#8A9BA8", backgroundColor: "#F5F8FA" }
+                  : {}),
+              }}
+              minimal
+              icon="info-sign"
+            />
+          </Tooltip>
+        )}
+      </span>
+      {contextOpen && (
+        <div
+          ref={contextElement}
+          style={{
+            position: "relative",
+            backgroundColor: "#F5F8FA",
+            padding: 16,
+            maxHeight: 240,
+            overflowY: "scroll",
+          }}
+        >
+          {contextPageTitle && (
+            <h3 style={{ margin: 0 }}>{contextPageTitle}</h3>
+          )}
+          {contextChildren.map((uid) => (
+            <div data-uid={uid}></div>
+          ))}
+        </div>
+      )}
+    </li>
+  );
+};
 
 const ResultsView = ({
   Header,
@@ -133,43 +242,7 @@ const ResultsView = ({
                 }}
               >
                 {sortedResults.map((r) => (
-                  <li key={r.uid}>
-                    <span
-                      style={{
-                        display: "flex",
-                        width: "100%",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <a
-                        className={"rm-page-ref"}
-                        href={getRoamUrl(r.uid)}
-                        onClick={(e) => {
-                          if (e.ctrlKey || e.shiftKey) {
-                            openBlockInSidebar(r.uid);
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }
-                        }}
-                      >
-                        {r.text.split("<span>").map((s, i) => (
-                          <span
-                            key={i}
-                            className={
-                              i % 2 === 0
-                                ? ""
-                                : "roamjs-discourse-hightlighted-result"
-                            }
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      </a>
-                      <ResultIcon result={r} />
-                    </span>
-                  </li>
+                  <ResultView key={r.uid} {...r} ResultIcon={ResultIcon} />
                 ))}
               </ul>
             </>

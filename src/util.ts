@@ -541,6 +541,7 @@ export type Result = {
   uid: string;
   createdTime: number;
   editedTime: number;
+  context?: string;
 };
 
 export const getDiscourseContextResults = (
@@ -574,20 +575,27 @@ export const getDiscourseContextResults = (
         )
         .map(({ r, destinationTriple, sourceTriple }) => {
           const lastPlaceholder = freeVar(destinationTriple[0]);
+          const whereClause = triplesToQuery(
+            [
+              [sourceTriple[0], "Has Title", title],
+              [destinationTriple[0], destinationTriple[1], r.destination],
+              ...r.triples.filter(
+                (t) => t !== sourceTriple && t !== destinationTriple
+              ),
+            ],
+            englishToDatalog(nodes)
+          );
+          const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
           return {
             label: r.label,
             target: r.destination,
             results: window.roamAlphaAPI.q(
-              `[:find (pull ${lastPlaceholder} ${pull}) :where ${triplesToQuery(
-                [
-                  [sourceTriple[0], "Has Title", title],
-                  [destinationTriple[0], destinationTriple[1], r.destination],
-                  ...r.triples.filter(
-                    (t) => t !== sourceTriple && t !== destinationTriple
-                  ),
-                ],
-                englishToDatalog(nodes)
-              )}]`
+              `[:find 
+                (pull ${lastPlaceholder} ${pull})
+                ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
+                :where 
+                ${whereClause}
+              ]`
             ),
           };
         }),
@@ -608,20 +616,27 @@ export const getDiscourseContextResults = (
         )
         .map(({ r, sourceTriple, destinationTriple }) => {
           const firstPlaceholder = freeVar(sourceTriple[0]);
+          const whereClause = triplesToQuery(
+            [
+              [destinationTriple[0], "Has Title", title],
+              [sourceTriple[0], sourceTriple[1], r.source],
+              ...r.triples.filter(
+                (t) => t !== destinationTriple && t !== sourceTriple
+              ),
+            ],
+            englishToDatalog(nodes)
+          );
+          const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
           return {
             label: r.complement,
             target: r.source,
             results: window.roamAlphaAPI.q(
-              `[:find (pull ${firstPlaceholder} ${pull}) :where ${triplesToQuery(
-                [
-                  [destinationTriple[0], "Has Title", title],
-                  [sourceTriple[0], sourceTriple[1], r.source],
-                  ...r.triples.filter(
-                    (t) => t !== destinationTriple && t !== sourceTriple
-                  ),
-                ],
-                englishToDatalog(nodes)
-              )}]`
+              `[:find 
+                (pull ${firstPlaceholder} ${pull})
+                ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
+                :where 
+                ${whereClause}
+              ]`
             ),
           };
         }),
@@ -629,12 +644,18 @@ export const getDiscourseContextResults = (
     const groupedResults = Object.fromEntries(
       rawResults.map((r) => [
         r.label,
-        {} as Record<string, Partial<Result & { target: string }>>,
+        {} as Record<
+          string,
+          Partial<Result & { target: string; }>
+        >,
       ])
     );
     rawResults.forEach((r) =>
       (r.results as unknown[])
-        .map(([a]: [Result]) => a)
+        .map(([a, context]: [Result, { uid: string } | undefined]) => ({
+          ...a,
+          context: context?.uid,
+        }))
         .filter((a) => a.text !== title)
         .forEach(
           (res) =>

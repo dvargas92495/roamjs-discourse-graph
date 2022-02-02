@@ -229,7 +229,7 @@ const previewPageRefHandler = (s: HTMLSpanElement) => {
 };
 
 const overlayPageRefHandler = (s: HTMLSpanElement) => {
-  if (!s.parentElement.closest(".rm-page-ref")) {
+  if (s.parentElement && !s.parentElement.closest(".rm-page-ref")) {
     const tag =
       s.getAttribute("data-tag") ||
       s.parentElement.getAttribute("data-link-title");

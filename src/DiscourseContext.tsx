@@ -82,9 +82,6 @@ const ContextTab = ({
   );
 };
 
-//@ts-ignore
-window.getDiscourseContextResults = getDiscourseContextResults;
-
 export const ContextContent = ({ title, results }: Props) => {
   const queryResults = useMemo(
     () =>
