@@ -22,10 +22,7 @@ import { v4 } from "uuid";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 
-type Props = Pick<
-  ReturnType<typeof setupMultiplayer>,
-  "sendToGraph" | "addGraphListener" | "removeGraphListener"
-> & {
+type Props = {
   graphs: string[];
   uid?: string;
 };
@@ -34,9 +31,6 @@ const SendQueryRequest = ({
   onClose,
   graphs,
   uid,
-  sendToGraph,
-  addGraphListener,
-  removeGraphListener,
 }: RoamOverlayProps<Props>) => {
   const [loading, setLoading] = useState(false);
   const [graph, setGraph] = useState<string>(graphs[0]);
@@ -81,12 +75,12 @@ const SendQueryRequest = ({
             intent={Intent.PRIMARY}
             onClick={() => {
               setLoading(true);
-              sendToGraph({
+              window.roamjs.extension.multiplayer.sendToGraph({
                 graph,
                 operation: "QUERY_REQUEST",
                 data: { page, requestId },
               });
-              addGraphListener({
+              window.roamjs.extension.multiplayer.addGraphListener({
                 operation: "QUERY_REQUEST_RECEIVED",
                 handler: (_, g) => {
                   if (g === graph) {
@@ -95,11 +89,11 @@ const SendQueryRequest = ({
                       content: `Query Successfully Requested From ${g}`,
                       intent: Intent.SUCCESS,
                     });
-                    removeGraphListener({
+                    window.roamjs.extension.multiplayer.removeGraphListener({
                       operation: "QUERY_REQUEST_RECEIVED",
                     });
                     const operation = `QUERY_RESPONSE/${requestId}`;
-                    addGraphListener({
+                    window.roamjs.extension.multiplayer.addGraphListener({
                       operation,
                       handler: (json, g) => {
                         if (g === graph) {
@@ -123,8 +117,8 @@ const SendQueryRequest = ({
                             content: `New Query Response From ${g}!`,
                             intent: Intent.SUCCESS,
                           });
-                          removeGraphListener({ operation });
-                          sendToGraph({
+                          window.roamjs.extension.multiplayer.removeGraphListener({ operation });
+                          window.roamjs.extension.multiplayer.sendToGraph({
                             graph,
                             operation: `QUERY_RESPONSE_RECEIVED/${requestId}`,
                           });

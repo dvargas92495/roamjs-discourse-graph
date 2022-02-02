@@ -29,7 +29,7 @@ import { render as renderToast } from "roamjs-components/components/Toast";
 import setInputSetting from "roamjs-components/util/setInputSetting";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
-import { render as exportRender, ExportRenderProps } from "./ExportDialog";
+import { render as exportRender } from "./ExportDialog";
 import { getNodes, getRelations, getRelationTriples } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
@@ -68,7 +68,7 @@ type Props = {
   title: string;
   previewEnabled: boolean;
   globalRefs: { [key: string]: (...args: string[]) => void };
-} & ExportRenderProps;
+};
 
 const useTreeFieldUid = ({
   tree,

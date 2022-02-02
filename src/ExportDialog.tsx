@@ -5,7 +5,6 @@ import {
   InputGroup,
   Intent,
   Label,
-  ProgressBar,
   Spinner,
   SpinnerSize,
 } from "@blueprintjs/core";
@@ -33,7 +32,6 @@ import {
 import format from "date-fns/format";
 import download from "downloadjs";
 import JSZip from "jszip";
-import type { setupMultiplayer } from "./Multiplayer";
 
 type Props = {
   fromQuery?: {
@@ -44,8 +42,6 @@ type Props = {
       label: string;
     }[];
   };
-  getGraphs?: () => string[];
-  sendToGraph?: ReturnType<typeof setupMultiplayer>["sendToGraph"];
 };
 
 const uniqJsonArray = <T extends unknown>(arr: T[]) =>
@@ -107,8 +103,6 @@ const toMarkdown = ({
 const ExportDialog = ({
   onClose,
   fromQuery,
-  getGraphs = () => [],
-  sendToGraph = console.log,
 }: {
   onClose: () => void;
 } & Props) => {
@@ -120,7 +114,7 @@ const ExportDialog = ({
   const [activeExportType, setActiveExportType] = useState<
     typeof EXPORT_TYPES[number]
   >(EXPORT_TYPES[0]);
-  const graphs = useMemo(getGraphs, [getGraphs]);
+  const graphs = useMemo(() => window.roamjs.extension?.multiplayer?.getConnectedGraphs?.() || [], []);
   const [graph, setGraph] = useState<string>(graphs[0]);
   return (
     <Dialog
@@ -365,7 +359,7 @@ const ExportDialog = ({
                       )
                     );
                     if (activeExportType === "graph") {
-                      sendToGraph({
+                      window.roamjs.extension.multiplayer.sendToGraph({
                         operation: "IMPORT_DISCOURSE_GRAPH",
                         data: {
                           grammar,

@@ -46,7 +46,6 @@ import {
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
-import { setupMultiplayer } from "./Multiplayer";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
 import getSubTree from "roamjs-components/util/getSubTree";
 import { Intent } from "@blueprintjs/core";
@@ -57,6 +56,7 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import getUids from "roamjs-components/dom/getUids";
 import { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
+import { addRoamJSDependency } from "roamjs-components";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -277,14 +277,6 @@ const onPageRefObserverChange =
   };
 
 runExtension("discourse-graph", async () => {
-  const {
-    addGraphListener,
-    getConnectedGraphs,
-    sendToGraph,
-    enable,
-    disable,
-    removeGraphListener,
-  } = setupMultiplayer();
   const { pageUid } = await createConfigObserver({
     title: CONFIG,
     config: {
@@ -371,7 +363,10 @@ runExtension("discourse-graph", async () => {
               type: "flag",
               description: "Whether or not to enable Multiplayer on this graph",
               options: {
-                onChange: (f) => (f ? enable() : disable()),
+                onChange: (f) =>
+                  f
+                    ? window.roamjs.extension.multiplayer.enable()
+                    : window.roamjs.extension.multiplayer.disable(),
               },
             },
           ],
@@ -385,65 +380,94 @@ runExtension("discourse-graph", async () => {
   const configTree = getBasicTreeByParentUid(pageUid);
   setTimeout(refreshConfigTree, 1);
 
-  const isEnabled = getSubTree({
-    tree: configTree,
-    key: "subscriptions",
-  }).children.some((s) => toFlexRegex("multiplayer").test(s.text));
-  if (isEnabled) enable();
-  addGraphListener({
-    operation: "IMPORT_DISCOURSE_GRAPH",
-    handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {
-      importDiscourseGraph(data);
-      const todayUid = toRoamDateUid(new Date());
-      const todayOrder = getChildrenLengthByPageUid(todayUid);
-      createBlock({
-        parentUid: todayUid,
-        order: todayOrder,
-        node: {
-          text: `Imported discourse graph from [[${graph}]]`,
-          children: [{ text: `[[${data.title}]]` }],
+  document.body.addEventListener("roamjs:multiplayer:loaded", () => {
+    const isEnabled = getSubTree({
+      tree: configTree,
+      key: "subscriptions",
+    }).children.some((s) => toFlexRegex("multiplayer").test(s.text));
+    if (isEnabled) {
+      window.roamjs.extension.multiplayer.enable();
+      window.roamjs.extension.multiplayer.addGraphListener({
+        operation: "IMPORT_DISCOURSE_GRAPH",
+        handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {
+          importDiscourseGraph(data);
+          const todayUid = toRoamDateUid(new Date());
+          const todayOrder = getChildrenLengthByPageUid(todayUid);
+          createBlock({
+            parentUid: todayUid,
+            order: todayOrder,
+            node: {
+              text: `Imported discourse graph from [[${graph}]]`,
+              children: [{ text: `[[${data.title}]]` }],
+            },
+          });
+          window.roamjs.extension.multiplayer.sendToGraph({
+            operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+            graph,
+          });
         },
       });
-      sendToGraph({ operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM", graph });
-    },
-  });
-  addGraphListener({
-    operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
-    handler: (_, graph) =>
-      renderToast({
-        id: "import-p2p-success",
-        content: `${graph} successfully imported your discourse graph!`,
-      }),
-  });
-  addGraphListener({
-    operation: "QUERY_REQUEST",
-    handler: (json, graph) => {
-      const { page, requestId } = json as { page: string; requestId: string };
-      const todayUid = toRoamDateUid();
-      const bottom = getChildrenLengthByPageUid(todayUid);
-      createBlock({
-        parentUid: todayUid,
-        order: bottom,
-        node: {
-          text: `New [[query request]] from [[${graph}]]`,
-          children: [
-            {
-              text: `Get full page contents of [[${page}]]`,
+      window.roamjs.extension.multiplayer.addGraphListener({
+        operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+        handler: (_, graph) =>
+          renderToast({
+            id: "import-p2p-success",
+            content: `${graph} successfully imported your discourse graph!`,
+          }),
+      });
+      window.roamjs.extension.multiplayer.addGraphListener({
+        operation: "QUERY_REQUEST",
+        handler: (json, graph) => {
+          const { page, requestId } = json as {
+            page: string;
+            requestId: string;
+          };
+          const todayUid = toRoamDateUid();
+          const bottom = getChildrenLengthByPageUid(todayUid);
+          createBlock({
+            parentUid: todayUid,
+            order: bottom,
+            node: {
+              text: `New [[query request]] from [[${graph}]]`,
+              children: [
+                {
+                  text: `Get full page contents of [[${page}]]`,
+                },
+                {
+                  text: `{{Accept:${graph}:${requestId}:${page}}}`,
+                },
+              ],
             },
-            {
-              text: `{{Accept:${graph}:${requestId}:${page}}}`,
-            },
-          ],
+          });
+          renderToast({
+            id: "new-query-request",
+            content: `New query request from ${graph}`,
+            intent: Intent.PRIMARY,
+          });
+          window.roamjs.extension.multiplayer.sendToGraph({
+            operation: "QUERY_REQUEST_RECEIVED",
+            graph,
+          });
         },
       });
-      renderToast({
-        id: "new-query-request",
-        content: `New query request from ${graph}`,
-        intent: Intent.PRIMARY,
+      window.roamjs.extension.multiplayer.addGraphListener({
+        operation: "QUERY_REF",
+        handler: (e, graph) => {
+          const { uid } = e as { uid: string };
+          const node = getFullTreeByParentUid(uid);
+          window.roamjs.extension.multiplayer.sendToGraph({
+            operation: `QUERY_REF_RESPONSE/${uid}`,
+            data: {
+              found: !!node.text,
+              node,
+            },
+            graph,
+          });
+        },
       });
-      sendToGraph({ operation: "QUERY_REQUEST_RECEIVED", graph });
-    },
+    }
   });
+  addRoamJSDependency("multiplayer", "discourse-graph");
 
   const trigger = getSettingValueFromTree({
     tree: configTree,
@@ -466,8 +490,7 @@ runExtension("discourse-graph", async () => {
 
   window.roamAlphaAPI.ui.commandPalette.addCommand({
     label: "Export Discourse Graph",
-    callback: () =>
-      exportRender({ getGraphs: getConnectedGraphs, sendToGraph }),
+    callback: () => exportRender({}),
   });
 
   window.roamAlphaAPI.ui.commandPalette.addCommand({
@@ -478,7 +501,7 @@ runExtension("discourse-graph", async () => {
   window.roamAlphaAPI.ui.commandPalette.addCommand({
     label: "Send Query Request",
     callback: () => {
-      const graphs = getConnectedGraphs();
+      const graphs = window.roamjs.extension.multiplayer.getConnectedGraphs();
       if (!graphs.length) {
         renderToast({
           id: "discouse-no-graphs",
@@ -489,9 +512,6 @@ runExtension("discourse-graph", async () => {
         queryRequestRender({
           uid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
           graphs,
-          sendToGraph,
-          addGraphListener,
-          removeGraphListener,
         });
       }
     },
@@ -508,7 +528,7 @@ runExtension("discourse-graph", async () => {
           const title = page.join(":");
           const uid = getPageUidByPageTitle(title);
           const tree = getFullTreeByParentUid(uid).children;
-          sendToGraph({
+          window.roamjs.extension.multiplayer.sendToGraph({
             graph,
             operation: `QUERY_RESPONSE/${requestId}`,
             data: {
@@ -520,7 +540,7 @@ runExtension("discourse-graph", async () => {
             },
           });
           const operation = `QUERY_RESPONSE_RECEIVED/${requestId}`;
-          addGraphListener({
+          window.roamjs.extension.multiplayer.addGraphListener({
             operation,
             handler: (_, g) => {
               if (g === graph) {
@@ -529,7 +549,7 @@ runExtension("discourse-graph", async () => {
                   content: `Graph ${g} Successfully Received the query`,
                   intent: Intent.SUCCESS,
                 });
-                removeGraphListener({
+                window.roamjs.extension.multiplayer.removeGraphListener({
                   operation,
                 });
                 updateBlock({ uid: blockUid, text: "Sent" });
@@ -605,8 +625,6 @@ runExtension("discourse-graph", async () => {
             title,
             previewEnabled: isFlagEnabled("preview"),
             globalRefs,
-            getGraphs: getConnectedGraphs,
-            sendToGraph,
           });
         }
       }
@@ -644,8 +662,6 @@ runExtension("discourse-graph", async () => {
       queryRender({
         blockUid: getQueriesUid(),
         clearOnClick,
-        getGraphs: getConnectedGraphs,
-        sendToGraph,
       }),
   });
 
@@ -800,10 +816,12 @@ runExtension("discourse-graph", async () => {
             renderConnectedReference();
           } else {
             const operation = `QUERY_REF_RESPONSE/${uid}`;
-            addGraphListener({
+            window.roamjs.extension.multiplayer.addGraphListener({
               operation,
               handler: (e, graph) => {
-                removeGraphListener({ operation });
+                window.roamjs.extension.multiplayer.removeGraphListener({
+                  operation,
+                });
                 const { found, node } = e as {
                   found: boolean;
                   node: InputTextNode;
@@ -856,28 +874,18 @@ runExtension("discourse-graph", async () => {
                 }
               },
             });
-            getConnectedGraphs().forEach((graph) =>
-              sendToGraph({ operation: "QUERY_REF", graph, data: { uid } })
-            );
+            window.roamjs.extension.multiplayer
+              .getConnectedGraphs()
+              .forEach((graph) =>
+                window.roamjs.extension.multiplayer.sendToGraph({
+                  operation: "QUERY_REF",
+                  graph,
+                  data: { uid },
+                })
+              );
           }
         }
       });
     }
-  });
-
-  addGraphListener({
-    operation: "QUERY_REF",
-    handler: (e, graph) => {
-      const { uid } = e as { uid: string };
-      const node = getFullTreeByParentUid(uid);
-      sendToGraph({
-        operation: `QUERY_REF_RESPONSE/${uid}`,
-        data: {
-          found: !!node.text,
-          node,
-        },
-        graph,
-      });
-    },
   });
 });

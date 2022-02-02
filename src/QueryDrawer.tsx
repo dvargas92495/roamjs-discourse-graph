@@ -9,7 +9,7 @@ import {
   Popover,
   PopoverPosition,
 } from "@blueprintjs/core";
-import { render as exportRender, ExportRenderProps } from "./ExportDialog";
+import { render as exportRender } from "./ExportDialog";
 import React, {
   useCallback,
   useEffect,
@@ -52,7 +52,7 @@ import ResultsView from "./components/ResultsView";
 type Props = {
   blockUid: string;
   clearOnClick: (s: string, m: string) => void;
-} & ExportRenderProps;
+};
 
 type Condition = {
   relation: string;
@@ -181,7 +181,6 @@ const SavedQueryNew = ({
   clearOnClick,
   setResultsReferenced,
   editSavedQuery,
-  ...exportRenderProps
 }: {
   uid: string;
   parseQuery: (s: string[]) => {
@@ -193,7 +192,7 @@ const SavedQueryNew = ({
   clearOnClick: (s: string, t: string) => void;
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string[]) => void;
-} & ExportRenderProps) => {
+}) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const query = useMemo(
     () => getSettingValuesFromTree({ tree, key: "query" }),
@@ -294,7 +293,6 @@ const SavedQueryNew = ({
                             .filter((c) => !!c.uid)
                         ),
                     },
-                    ...exportRenderProps,
                   });
                 }}
               />
@@ -361,7 +359,6 @@ const SavedQueriesContainer = ({
   clearOnClick,
   editSavedQuery,
   parseQuery,
-  ...exportRenderProps
 }: {
   savedQueries: string[];
   setSavedQueries: (s: string[]) => void;
@@ -371,7 +368,7 @@ const SavedQueriesContainer = ({
     returnNode: string;
     conditionNodes: Omit<Condition, "uid">[];
   };
-} & ExportRenderProps) => {
+}) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
       const title = getPageTitleByPageUid(pageUid);
@@ -436,7 +433,6 @@ const SavedQueriesContainer = ({
           setResultsReferenced={setResultsReferenced}
           editSavedQuery={editSavedQuery}
           parseQuery={parseQuery}
-          {...exportRenderProps}
         />
       ))}
     </>
