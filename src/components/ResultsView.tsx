@@ -4,7 +4,7 @@ import { Result } from "../util";
 import fuzzy from "fuzzy";
 import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
-import { Button, Tooltip } from "@blueprintjs/core";
+import { Button, Icon, Tooltip } from "@blueprintjs/core";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 
@@ -34,6 +34,20 @@ const ResultView = ({
   const [contextOpen, setContextOpen] = useState(false);
   const contextPageTitle = useMemo(
     () => r.context && getPageTitleByPageUid(r.context),
+    [r.context]
+  );
+  const contextBreadCrumbs = useMemo(
+    () =>
+      r.context
+        ? window.roamAlphaAPI
+            .q(
+              `[:find (pull ?p [[:node/title :as "text"] [:block/string :as "text"] :block/uid]) :where 
+              [?b :block/uid "${r.context}"]
+              [?b :block/parents ?p]
+            ]`
+            )
+            .map((a) => a[0] as { text: string; uid: string })
+        : [],
     [r.context]
   );
   const contextChildren = useMemo(
@@ -120,8 +134,17 @@ const ResultView = ({
             overflowY: "scroll",
           }}
         >
-          {contextPageTitle && (
+          {contextPageTitle ? (
             <h3 style={{ margin: 0 }}>{contextPageTitle}</h3>
+          ) : (
+            <div className="rm-zoom">
+              {contextBreadCrumbs.map((bc) => (
+                <div key={bc.uid} className="rm-zoom-item">
+                  <span className="rm-zoom-item-content">{bc.text}</span>
+                  <Icon icon={"chevron-right"} />
+                </div>
+              ))}
+            </div>
           )}
           {contextChildren.map((uid) => (
             <div data-uid={uid}></div>
