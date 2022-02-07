@@ -12,7 +12,6 @@ import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import PageInput from "roamjs-components/components/PageInput";
 import type { RoamOverlayProps } from "roamjs-components/util/createOverlayRender";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
-import type { setupMultiplayer } from "../Multiplayer";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import createBlock from "roamjs-components/writes/createBlock";
