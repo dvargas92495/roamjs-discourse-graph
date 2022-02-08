@@ -82,7 +82,7 @@ const graph: {
     referencesById: {},
     linkedReferencesById: {},
     createUserById: {},
-userDisplayById:{},
+    userDisplayById: {},
   },
 };
 
@@ -93,7 +93,8 @@ const init = (
           id: number;
           page?: { id: number };
           refs?: { id: number }[];
-          text?: string;
+          title?: string;
+          string?: string;
           uid: string;
           children?: { id: number }[];
           createdTime: number;
@@ -115,20 +116,34 @@ const init = (
     return;
   }
   blocks.forEach(
-    ([{ id, page, refs, text, children, uid, createdTime, editedTime, displayName, createdBy }]) => {
+    ([
+      {
+        id,
+        page,
+        refs,
+        title,
+        string,
+        children,
+        uid,
+        createdTime,
+        editedTime,
+        displayName,
+        createdBy,
+      },
+    ]) => {
       graph.edges.uidsById[id] = uid;
       graph.edges.createUserById[id] = createdBy;
       graph.edges.timeById[id] = { createdTime, editedTime };
-      if (!text) {
+      if (!title && !string) {
         graph.edges.userDisplayById[id] = displayName;
       } else if (!page) {
-        graph.edges.pagesById[id] = text;
-        graph.edges.pageIdByTitle[text] = id;
-        if (text === "roam/js/discourse-graph") {
+        graph.edges.pagesById[id] = title;
+        graph.edges.pageIdByTitle[title] = id;
+        if (title === "roam/js/discourse-graph") {
           graph.config.id = id;
         }
       } else {
-        graph.edges.blocksById[id] = text;
+        graph.edges.blocksById[id] = string;
         graph.edges.blocksPageById[id] = page.id;
       }
       if (refs) {
@@ -643,8 +658,7 @@ type Result = {
 };
 
 const getDiscourseContextResults = (title: string) => {
-  const rawResults =
-    graph.discourseRelations[graph.edges.pageIdByTitle[title]];
+  const rawResults = graph.discourseRelations[graph.edges.pageIdByTitle[title]];
   if (!rawResults) return [];
   const nodeTextByType = Object.fromEntries(
     graph.config.nodes.map(({ type, text }) => [type, text])

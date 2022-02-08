@@ -68,8 +68,8 @@ const loadGraph = (update = false) =>
                 (pull ?b 
                   [
                     :db/id 
-                    [:node/title :as "text"] 
-                    [:block/string :as "text"] 
+                    :node/title 
+                    :block/string 
                     :block/page 
                     :block/refs 
                     :block/uid 

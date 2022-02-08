@@ -635,17 +635,17 @@ const QueryDrawerContent = ({
       })
       .join("\n");
     const query = `[:find (pull ?${returnNode} [
-      [:block/string :as "text"] 
-      [:node/title :as "text"] 
+      :block/string
+      :node/title 
       [:block/uid :as "pageUid"]
       [:create/time :as "createdTime"]
       [:edit/time :as "editedTime"]
     ]) :where ${where}]`;
     try {
       const results = where
-        ? window.roamAlphaAPI.q(query).map((a) => a[0] as SearchResult)
+        ? window.roamAlphaAPI.q(query).map((a) => a[0] as Omit<SearchResult, 'text'> & {title?: string, string?: string})
         : [];
-      setResults(results);
+      setResults(results.map(r => ({...r, text: r.string || r.title || ''})));
     } catch (e) {
       console.error("Error from Roam:");
       console.error(e.message);

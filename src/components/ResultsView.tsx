@@ -41,12 +41,15 @@ const ResultView = ({
       r.context
         ? window.roamAlphaAPI
             .q(
-              `[:find (pull ?p [[:node/title :as "text"] [:block/string :as "text"] :block/uid]) :where 
+              `[:find (pull ?p [:node/title :block/string :block/uid]) :where 
               [?b :block/uid "${r.context}"]
               [?b :block/parents ?p]
             ]`
             )
-            .map((a) => a[0] as { text: string; uid: string })
+            .map(
+              (a) => a[0] as { string?: string; title?: string; uid: string }
+            )
+            .map((a) => ({ uid: a.uid, text: a.string || a.title || "" }))
         : [],
     [r.context]
   );
