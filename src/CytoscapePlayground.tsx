@@ -568,375 +568,366 @@ const CytoscapePlayground = ({
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
   return (
-    <>
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          border: "1px solid gray",
-          background: "white",
-          zIndex: 1,
-          ...(maximized ? { inset: 0, position: "absolute" } : {}),
-        }}
-        ref={containerRef}
-      >
-        <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
-          <span
-            style={{
-              transform: `scale(${colorPickerOpen ? 1 : 0}, 1)`,
-              transition: "transform 0.25s linear, left 0.25s linear",
-              display: "inline-flex",
-              position: "relative",
-              left: colorPickerOpen ? 0 : 60,
-              height: "100%",
-              verticalAlign: "middle",
-            }}
-          >
-            {coloredNodes
-              .filter((f) => f !== selectedNode)
-              .map((n) => (
-                <Tooltip
-                  content={n.text}
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        border: "1px solid gray",
+        background: "white",
+        zIndex: 1,
+        ...(maximized ? { inset: 0, position: "absolute" } : {}),
+      }}
+      ref={containerRef}
+    >
+      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
+        <span
+          style={{
+            transform: `scale(${colorPickerOpen ? 1 : 0}, 1)`,
+            transition: "transform 0.25s linear, left 0.25s linear",
+            display: "inline-flex",
+            position: "relative",
+            left: colorPickerOpen ? 0 : 60,
+            height: "100%",
+            verticalAlign: "middle",
+          }}
+        >
+          {coloredNodes
+            .filter((f) => f !== selectedNode)
+            .map((n) => (
+              <Tooltip content={n.text} key={n.text} position={Position.BOTTOM}>
+                <NodeIcon
+                  {...n}
+                  onClick={() => {
+                    nodeColorRef.current = n.color;
+                    setSelectedNode(n);
+                    setColorPickerOpen(false);
+                  }}
                   key={n.text}
-                  position={Position.BOTTOM}
-                >
-                  <NodeIcon
-                    {...n}
-                    onClick={() => {
-                      nodeColorRef.current = n.color;
-                      setSelectedNode(n);
-                      setColorPickerOpen(false);
-                    }}
-                    key={n.text}
-                  />
-                </Tooltip>
-              ))}
-          </span>
-          <Tooltip content={"Node Picker"} position={Position.BOTTOM}>
-            <Button
-              icon={<NodeIcon {...selectedNode} />}
-              onClick={() => setColorPickerOpen(!colorPickerOpen)}
-              style={{ marginRight: 8, padding: "7px 5px" }}
-            />
-          </Tooltip>
-          {maximized ? (
-            <>
-              <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
-              <Tooltip content={"Minimize"} position={Position.BOTTOM}>
-                <Button icon={"minimize"} onClick={minimize} />
-              </Tooltip>
-            </>
-          ) : (
-            <Tooltip content={"Maximize"} position={Position.BOTTOM}>
-              <Button icon={"maximize"} onClick={maximize} />
-            </Tooltip>
-          )}
-          <Tooltip content={"Generate Roam Blocks"} position={Position.BOTTOM}>
-            <Button
-              style={{ marginLeft: 8, maxWidth: 30 }}
-              icon={
-                <img
-                  src={"https://roamresearch.com/favicon.ico"}
-                  height={16}
-                  width={16}
                 />
-              }
-              onClick={() => {
-                const elementsTree = getBasicTreeByParentUid(elementsUid);
-                const relationData = getRelations();
-                const recentPageRef: Record<string, string> = {};
-                const recentlyOpened = new Set<string>();
-                const connectedNodeUids = new Set<string>();
-                elementsTree
-                  .map((n) => {
-                    const sourceUid = n.children.find((c) =>
-                      toFlexRegex("source").test(c.text)
-                    )?.children?.[0]?.text;
-                    const targetUid = n.children.find((c) =>
-                      toFlexRegex("target").test(c.text)
-                    )?.children?.[0]?.text;
-                    const getNodeType = (t: RoamBasicNode) =>
-                      nodeTypeByColor[
-                        (t?.children || []).find((s) =>
-                          toFlexRegex("color").test(s.text)
-                        )?.children?.[0]?.text
-                      ];
-                    if (sourceUid && targetUid) {
-                      const sourceNode = elementsTree.find(
-                        (b) => b.uid === sourceUid
-                      );
-                      const targetNode = elementsTree.find(
-                        (b) => b.uid === targetUid
-                      );
-                      connectedNodeUids.add(sourceUid);
-                      connectedNodeUids.add(targetUid);
-                      return {
-                        source: {
-                          text: sourceNode?.text || "",
-                          type: getNodeType(sourceNode),
-                        },
-                        target: {
-                          text: targetNode?.text || "",
-                          type: getNodeType(targetNode),
-                        },
-                        relation: n.text,
-                      };
-                    }
-                    return { node: n.text, uid: n.uid, type: getNodeType(n) };
-                  })
-                  .map((e) => {
-                    if (!e.relation)
-                      return connectedNodeUids.has(e.uid)
-                        ? []
-                        : e.type === TEXT_TYPE
-                        ? [
-                            {
-                              source: "block",
-                              target: e.node,
-                              relation: "with text",
-                            },
-                          ]
-                        : [
-                            {
-                              source: "block",
-                              target: "page",
-                              relation: "references",
-                            },
-                            {
-                              source: "page",
-                              relation: "has title",
-                              target: e.node,
-                            },
-                          ];
-                    const found = relationData.find(
-                      (r) =>
-                        (r.label === e.relation &&
-                          [TEXT_TYPE, r.source].includes(e.source.type) &&
-                          [TEXT_TYPE, r.destination].includes(e.target.type)) ||
-                        (r.complement === e.relation &&
-                          [TEXT_TYPE, r.source].includes(e.target.type) &&
-                          [TEXT_TYPE, r.destination].includes(e.source.type))
-                    );
-                    if (!found) return [];
-                    const { triples, label, source, destination } = found;
-                    const isOriginal = label === e.relation;
-                    const newTriples = triples.map((t) => {
-                      if (/is a/i.test(t[1])) {
-                        const targetNode =
-                          ((t[2] === "source" || t[2] === source) &&
-                            isOriginal) ||
-                          ((t[2] === "destination" || t[2] === destination) &&
-                            !isOriginal)
-                            ? e.source
-                            : e.target;
-                        return [
-                          t[0],
-                          targetNode.type === TEXT_TYPE
-                            ? "with text"
-                            : "has title",
-                          targetNode.text,
-                        ];
-                      }
-                      return t.slice(0);
-                    });
-                    return newTriples.map(([source, relation, target]) => ({
-                      source,
-                      relation,
-                      target,
-                    }));
-                  })
-                  .forEach(
-                    triplesToBlocks({
-                      defaultPageTitle: `Auto generated from ${title}`,
-                      toPage: (title: string, blocks: InputTextNode[]) => {
-                        const parentUid =
-                          getPageUidByPageTitle(title) || recentPageRef[title];
-                        (parentUid
-                          ? Promise.resolve(parentUid)
-                          : createPage({
-                              title: title,
-                            }).then(
-                              (parentUid) => (recentPageRef[title] = parentUid)
-                            )
-                        ).then((parentUid) => {
-                          blocks.forEach((node, order) =>
-                            createBlock({ node, order, parentUid })
-                          );
-                          if (!recentlyOpened.has(parentUid)) {
-                            recentlyOpened.add(parentUid);
-                            setTimeout(
-                              () => openBlockInSidebar(parentUid),
-                              1000
-                            );
-                          }
-                        });
-                      },
-                    })
-                  );
-              }}
-            />
+              </Tooltip>
+            ))}
+        </span>
+        <Tooltip content={"Node Picker"} position={Position.BOTTOM}>
+          <Button
+            icon={<NodeIcon {...selectedNode} />}
+            onClick={() => setColorPickerOpen(!colorPickerOpen)}
+            style={{ marginRight: 8, padding: "7px 5px" }}
+          />
+        </Tooltip>
+        {maximized ? (
+          <>
+            <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
+            <Tooltip content={"Minimize"} position={Position.BOTTOM}>
+              <Button icon={"minimize"} onClick={minimize} />
+            </Tooltip>
+          </>
+        ) : (
+          <Tooltip content={"Maximize"} position={Position.BOTTOM}>
+            <Button icon={"maximize"} onClick={maximize} />
           </Tooltip>
-          <Tooltip content={"Export"} position={Position.BOTTOM}>
-            <Button
-              style={{ marginLeft: 8 }}
-              icon={"export"}
-              onClick={() => {
-                const elementsTree = getBasicTreeByParentUid(elementsUid);
-                const elementTextByUid = Object.fromEntries(
-                  elementsTree.map(({ uid, text }) => [uid, text])
-                );
-                const nodesOrRelations = elementsTree.map((n) => {
-                  const sourceUid = getSettingValueFromTree({
-                    tree: n.children,
-                    key: "source",
-                  });
-                  const targetUid = getSettingValueFromTree({
-                    tree: n.children,
-                    key: "target",
-                  });
+        )}
+        <Tooltip content={"Generate Roam Blocks"} position={Position.BOTTOM}>
+          <Button
+            style={{ marginLeft: 8, maxWidth: 30 }}
+            icon={
+              <img
+                src={"https://roamresearch.com/favicon.ico"}
+                height={16}
+                width={16}
+              />
+            }
+            onClick={() => {
+              const elementsTree = getBasicTreeByParentUid(elementsUid);
+              const relationData = getRelations();
+              const recentPageRef: Record<string, string> = {};
+              const recentlyOpened = new Set<string>();
+              const connectedNodeUids = new Set<string>();
+              elementsTree
+                .map((n) => {
+                  const sourceUid = n.children.find((c) =>
+                    toFlexRegex("source").test(c.text)
+                  )?.children?.[0]?.text;
+                  const targetUid = n.children.find((c) =>
+                    toFlexRegex("target").test(c.text)
+                  )?.children?.[0]?.text;
+                  const getNodeType = (t: RoamBasicNode) =>
+                    nodeTypeByColor[
+                      (t?.children || []).find((s) =>
+                        toFlexRegex("color").test(s.text)
+                      )?.children?.[0]?.text
+                    ];
                   if (sourceUid && targetUid) {
+                    const sourceNode = elementsTree.find(
+                      (b) => b.uid === sourceUid
+                    );
+                    const targetNode = elementsTree.find(
+                      (b) => b.uid === targetUid
+                    );
+                    connectedNodeUids.add(sourceUid);
+                    connectedNodeUids.add(targetUid);
                     return {
-                      source: elementTextByUid[sourceUid],
-                      target: elementTextByUid[targetUid],
+                      source: {
+                        text: sourceNode?.text || "",
+                        type: getNodeType(sourceNode),
+                      },
+                      target: {
+                        text: targetNode?.text || "",
+                        type: getNodeType(targetNode),
+                      },
                       relation: n.text,
                     };
                   }
-                  return { node: n.text };
-                });
-                const nodes = nodesOrRelations
-                  .filter((n) => !!n.node)
-                  .map((n) => n.node as string);
-                const nodeUids = Object.fromEntries(
-                  nodes.map((n) => [
-                    n,
-                    getPageUidByPageTitle(n) ||
-                      window.roamAlphaAPI.util.generateUID(),
-                  ])
+                  return { node: n.text, uid: n.uid, type: getNodeType(n) };
+                })
+                .map((e) => {
+                  if (!e.relation)
+                    return connectedNodeUids.has(e.uid)
+                      ? []
+                      : e.type === TEXT_TYPE
+                      ? [
+                          {
+                            source: "block",
+                            target: e.node,
+                            relation: "with text",
+                          },
+                        ]
+                      : [
+                          {
+                            source: "block",
+                            target: "page",
+                            relation: "references",
+                          },
+                          {
+                            source: "page",
+                            relation: "has title",
+                            target: e.node,
+                          },
+                        ];
+                  const found = relationData.find(
+                    (r) =>
+                      (r.label === e.relation &&
+                        [TEXT_TYPE, r.source].includes(e.source.type) &&
+                        [TEXT_TYPE, r.destination].includes(e.target.type)) ||
+                      (r.complement === e.relation &&
+                        [TEXT_TYPE, r.source].includes(e.target.type) &&
+                        [TEXT_TYPE, r.destination].includes(e.source.type))
+                  );
+                  if (!found) return [];
+                  const { triples, label, source, destination } = found;
+                  const isOriginal = label === e.relation;
+                  const newTriples = triples.map((t) => {
+                    if (/is a/i.test(t[1])) {
+                      const targetNode =
+                        ((t[2] === "source" || t[2] === source) &&
+                          isOriginal) ||
+                        ((t[2] === "destination" || t[2] === destination) &&
+                          !isOriginal)
+                          ? e.source
+                          : e.target;
+                      return [
+                        t[0],
+                        targetNode.type === TEXT_TYPE
+                          ? "with text"
+                          : "has title",
+                        targetNode.text,
+                      ];
+                    }
+                    return t.slice(0);
+                  });
+                  return newTriples.map(([source, relation, target]) => ({
+                    source,
+                    relation,
+                    target,
+                  }));
+                })
+                .forEach(
+                  triplesToBlocks({
+                    defaultPageTitle: `Auto generated from ${title}`,
+                    toPage: (title: string, blocks: InputTextNode[]) => {
+                      const parentUid =
+                        getPageUidByPageTitle(title) || recentPageRef[title];
+                      (parentUid
+                        ? Promise.resolve(parentUid)
+                        : createPage({
+                            title: title,
+                          }).then(
+                            (parentUid) => (recentPageRef[title] = parentUid)
+                          )
+                      ).then((parentUid) => {
+                        blocks.forEach((node, order) =>
+                          createBlock({ node, order, parentUid })
+                        );
+                        if (!recentlyOpened.has(parentUid)) {
+                          recentlyOpened.add(parentUid);
+                          setTimeout(() => openBlockInSidebar(parentUid), 1000);
+                        }
+                      });
+                    },
+                  })
                 );
-                exportRender({
-                  fromQuery: {
-                    nodes: nodes.map((title) => ({
-                      title,
-                      uid: nodeUids[title],
-                    })),
-                    relations: nodesOrRelations
-                      .filter((n) => !n.node)
-                      .map((n) => ({
-                        source: nodeUids[n.source],
-                        target: nodeUids[n.target],
-                        label: n.relation,
-                      })),
-                  },
-                  ...exportRenderProps,
-                });
-              }}
-            />
-          </Tooltip>
-        </div>
-        <Menu
-          style={{
-            position: "absolute",
-            ...selectedRelation,
-            zIndex: 1,
-            background: "#eeeeee",
-          }}
-        >
-          {filteredRelations.length ? (
-            Array.from(new Set(filteredRelations.map((k) => k.relation)))
-              .sort()
-              .map((k) => (
-                <MenuItem
-                  key={k}
-                  text={k}
-                  onClick={() => {
-                    const edge = cyRef.current.edges(
-                      `#${selectedRelation.id}`
-                    ) as cytoscape.EdgeSingular;
-                    updateBlock({ uid: edge.id(), text: k });
-                    edge.data("label", k);
-                    clearEditingRelation();
-                    clearEditingRef();
-                  }}
-                />
-              ))
-          ) : (
-            <MenuItem
-              text={"No other relation could connect these nodes"}
-              disabled
-            />
-          )}
-        </Menu>
-        <div style={{ width: 0, overflow: "hidden" }}>
-          <input
-            ref={shadowInputRef}
-            style={{ opacity: 0, position: "absolute" }}
-            value={editingNodeValue}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                clearEditingRef();
-                shadowInputRef.current.blur();
-              } else if (e.key === "ArrowUp") {
-                const val = Number(
-                  editingRef.current.style("text-max-width").replace(/px$/, "")
-                );
-                editingRef.current.style("height", val * 1.1);
-                editingRef.current.style("width", val * 1.1);
-                editingRef.current.style(
-                  "text-max-width",
-                  (val * 1.1).toString()
-                );
-              } else if (e.key === "ArrowDown") {
-                const val = Number(
-                  editingRef.current.style("text-max-width").replace(/px$/, "")
-                );
-                editingRef.current.style("height", val / 1.1);
-                editingRef.current.style("width", val / 1.1);
-                editingRef.current.style(
-                  "text-max-width",
-                  (val / 1.1).toString()
-                );
-              }
-            }}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              editingRef.current.data("label", newValue);
-              setEditingNodeValue(newValue);
-              updateBlock({ uid: editingRef.current.id(), text: newValue });
             }}
           />
-        </div>
-        {!!filteredPages.length && (
-          <Menu
-            style={{
-              position: "absolute",
-              top: shadowInputRef.current.style.top,
-              left: shadowInputRef.current.style.left,
-              zIndex: 1,
-              background: "#eeeeee",
+        </Tooltip>
+        <Tooltip content={"Export"} position={Position.BOTTOM}>
+          <Button
+            style={{ marginLeft: 8 }}
+            icon={"export"}
+            onClick={() => {
+              const elementsTree = getBasicTreeByParentUid(elementsUid);
+              const elementTextByUid = Object.fromEntries(
+                elementsTree.map(({ uid, text }) => [uid, text])
+              );
+              const nodesOrRelations = elementsTree.map((n) => {
+                const sourceUid = getSettingValueFromTree({
+                  tree: n.children,
+                  key: "source",
+                });
+                const targetUid = getSettingValueFromTree({
+                  tree: n.children,
+                  key: "target",
+                });
+                if (sourceUid && targetUid) {
+                  return {
+                    source: elementTextByUid[sourceUid],
+                    target: elementTextByUid[targetUid],
+                    relation: n.text,
+                  };
+                }
+                return { node: n.text };
+              });
+              const nodes = nodesOrRelations
+                .filter((n) => !!n.node)
+                .map((n) => n.node as string);
+              const nodeUids = Object.fromEntries(
+                nodes.map((n) => [
+                  n,
+                  getPageUidByPageTitle(n) ||
+                    window.roamAlphaAPI.util.generateUID(),
+                ])
+              );
+              exportRender({
+                fromQuery: {
+                  nodes: nodes.map((title) => ({
+                    title,
+                    uid: nodeUids[title],
+                  })),
+                  relations: nodesOrRelations
+                    .filter((n) => !n.node)
+                    .map((n) => ({
+                      source: nodeUids[n.source],
+                      target: nodeUids[n.target],
+                      label: n.relation,
+                    })),
+                },
+                ...exportRenderProps,
+              });
             }}
-          >
-            {filteredPages.map((k) => (
+          />
+        </Tooltip>
+      </div>
+      <Menu
+        style={{
+          position: "absolute",
+          ...selectedRelation,
+          zIndex: 1,
+          background: "#eeeeee",
+        }}
+      >
+        {filteredRelations.length ? (
+          Array.from(new Set(filteredRelations.map((k) => k.relation)))
+            .sort()
+            .map((k) => (
               <MenuItem
                 key={k}
                 text={k}
                 onClick={() => {
-                  editingRef.current.data("label", k);
-                  updateBlock({ uid: editingRef.current.id(), text: k });
+                  const edge = cyRef.current.edges(
+                    `#${selectedRelation.id}`
+                  ) as cytoscape.EdgeSingular;
+                  updateBlock({ uid: edge.id(), text: k });
+                  edge.data("label", k);
+                  clearEditingRelation();
                   clearEditingRef();
-                  shadowInputRef.current.blur();
                 }}
               />
-            ))}
-          </Menu>
-        )}
-        {previewEnabled && (
-          <LivePreview
-            tag={livePreviewTag}
-            registerMouseEvents={registerMouseEvents}
+            ))
+        ) : (
+          <MenuItem
+            text={"No other relation could connect these nodes"}
+            disabled
           />
         )}
+      </Menu>
+      <div style={{ width: 0, overflow: "hidden" }}>
+        <input
+          ref={shadowInputRef}
+          style={{ opacity: 0, position: "absolute" }}
+          value={editingNodeValue}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              clearEditingRef();
+              shadowInputRef.current.blur();
+            } else if (e.key === "ArrowUp") {
+              const val = Number(
+                editingRef.current.style("text-max-width").replace(/px$/, "")
+              );
+              editingRef.current.style("height", val * 1.1);
+              editingRef.current.style("width", val * 1.1);
+              editingRef.current.style(
+                "text-max-width",
+                (val * 1.1).toString()
+              );
+            } else if (e.key === "ArrowDown") {
+              const val = Number(
+                editingRef.current.style("text-max-width").replace(/px$/, "")
+              );
+              editingRef.current.style("height", val / 1.1);
+              editingRef.current.style("width", val / 1.1);
+              editingRef.current.style(
+                "text-max-width",
+                (val / 1.1).toString()
+              );
+            }
+          }}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            editingRef.current.data("label", newValue);
+            setEditingNodeValue(newValue);
+            updateBlock({ uid: editingRef.current.id(), text: newValue });
+          }}
+        />
       </div>
-    </>
+      {!!filteredPages.length && (
+        <Menu
+          style={{
+            position: "absolute",
+            top: shadowInputRef.current.style.top,
+            left: shadowInputRef.current.style.left,
+            zIndex: 1,
+            background: "#eeeeee",
+          }}
+        >
+          {filteredPages.map((k) => (
+            <MenuItem
+              key={k}
+              text={k}
+              onClick={() => {
+                editingRef.current.data("label", k);
+                updateBlock({ uid: editingRef.current.id(), text: k });
+                clearEditingRef();
+                shadowInputRef.current.blur();
+              }}
+            />
+          ))}
+        </Menu>
+      )}
+      {previewEnabled && (
+        <LivePreview
+          tag={livePreviewTag}
+          registerMouseEvents={registerMouseEvents}
+        />
+      )}
+    </div>
   );
 };
 

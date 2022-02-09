@@ -28,6 +28,7 @@ import {
 } from "./components/DiscourseContextOverlay";
 import { initializeDataWorker, shutdownDataWorker } from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
+import { render as overviewRender } from "./components/DiscourseGraphOverview";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
 import { render as queryRequestRender } from "./components/SendQueryRequest";
@@ -625,6 +626,21 @@ runExtension("discourse-graph", async () => {
             title,
             previewEnabled: isFlagEnabled("preview"),
             globalRefs,
+          });
+        }
+      } else if (title === "Discourse Graph Overview") {
+        const children = document.querySelector<HTMLDivElement>(
+          ".roam-article .rm-block-children"
+        );
+        if (!children.hasAttribute("data-roamjs-discourse-overview")) {
+          children.setAttribute("data-roamjs-discourse-overview", "true");
+          children.style.display = "none";
+          const p = document.createElement("div");
+          children.parentElement.appendChild(p);
+          p.style.height = "500px";
+          overviewRender({
+            p,
+            pageUid: getPageTitleByPageUid(title),
           });
         }
       }

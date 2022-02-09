@@ -58,6 +58,7 @@ const graph: {
     [pageId: number]: {
       label: string;
       target: string;
+      complement: boolean;
       results: { id: number; mapping: Record<string, number> }[];
     }[];
   };
@@ -582,6 +583,7 @@ const init = (
               return {
                 label: r.label,
                 target: r.destination,
+                complement: false,
                 results: Array.from(programs.assignments).map((dict) => ({
                   id: dict[destinationTriple[0].toLowerCase()],
                   mapping: dict,
@@ -618,6 +620,7 @@ const init = (
               return {
                 label: r.complement,
                 target: r.source,
+                complement: true,
                 results: Array.from(programs.assignments).map((dict) => ({
                   id: dict[sourceTriple[0].toLowerCase()],
                   mapping: dict,
@@ -627,7 +630,8 @@ const init = (
         ].filter((a) => !!a.results.length)
       : undefined;
 
-    graph.discourseRelations[id] = discourseRelations;
+    if (discourseRelations?.length)
+      graph.discourseRelations[id] = discourseRelations;
   });
 
   postMessage({ method: "init", graph: JSON.stringify(graph) });
@@ -696,10 +700,43 @@ const discourse = (tag: string) => {
   });
 };
 
+const overview = () => {
+  const edges = Object.entries(graph.discourseRelations).flatMap(
+    ([source, relations]) =>
+      relations
+        .filter((r) => !r.complement)
+        .flatMap((info) =>
+          info.results.map((target) => ({
+            source: Number(source),
+            label: info.label,
+            target: target.id,
+          }))
+        )
+  );
+  const nodes = Array.from(
+    new Set(
+      edges.flatMap(({ source, target }) => [
+        {
+          label: graph.edges.pagesById[source],
+          id: source.toString(),
+        },
+        { label: graph.edges.pagesById[target], id: target.toString() },
+      ])
+    )
+  );
+  postMessage({
+    method: "overview",
+    nodes,
+    edges,
+  });
+};
+
 onmessage = (e) => {
   const { data } = e;
   if (data.method === "discourse") {
     discourse(data.tag);
+  } else if (data.method === "overview") {
+    overview();
   } else if (data.method === "init") {
     init(data.blocks);
   }

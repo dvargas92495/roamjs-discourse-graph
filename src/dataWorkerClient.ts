@@ -146,6 +146,7 @@ export const initializeDataWorker = () =>
           loadGraph(true).then(refreshAllUi);
         },
       });
+      return dataWorker.current
     });
 
 export const shutdownDataWorker = () => {
