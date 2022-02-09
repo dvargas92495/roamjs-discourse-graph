@@ -9,7 +9,7 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@types/cytoscape": "^3.14.15",
+    "@types/cytoscape": "^3.19.4",
     "@types/downloadjs": "^1.4.2",
     "@types/react": "^17.0.9",
     "@types/react-dom": "^17.0.6",
@@ -21,7 +21,7 @@
     "@blueprintjs/core": "^3.45.0",
     "@blueprintjs/select": "^3.16.4",
     "axios": "^0.24.0",
-    "cytoscape": "^3.19.0",
+    "cytoscape": "^3.21.0",
     "date-fns": "^2.27.0",
     "downloadjs": "^1.4.7",
     "fuzzy": "^0.1.3",

@@ -15,13 +15,16 @@ import {
 import { render as renderToast } from "roamjs-components/components/Toast";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
+import localStorageGet from "roamjs-components/util/localStorageGet";
+import localStorageSet from "roamjs-components/util/localStorageSet";
+import localStorageRemove from "roamjs-components/util/localStorageRemove";
 
 type DiscourseData = {
   results: ReturnType<typeof getDiscourseContextResults>;
   refs: number;
 };
 
-let experimentalOverlayMode = false;
+let experimentalOverlayMode = localStorageGet("experimental") === "true";
 
 document.addEventListener("keydown", (e) => {
   if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && e.key === "M") {
@@ -32,6 +35,11 @@ document.addEventListener("keydown", (e) => {
       } else {
         shutdownDataWorker();
       }
+    }
+    if (experimentalOverlayMode) {
+      localStorageSet("experimental", "true");
+    } else {
+      localStorageRemove("experimental");
     }
     renderToast({
       id: "experimental",

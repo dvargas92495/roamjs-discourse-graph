@@ -589,6 +589,7 @@ export const getDiscourseContextResults = (
           return {
             label: r.label,
             target: r.destination,
+            complement: false,
             results: window.roamAlphaAPI.q(
               `[:find 
                 (pull ${lastPlaceholder} ${pull})
@@ -629,6 +630,7 @@ export const getDiscourseContextResults = (
           const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
           return {
             label: r.complement,
+            complement: true,
             target: r.source,
             results: window.roamAlphaAPI.q(
               `[:find 
@@ -646,7 +648,7 @@ export const getDiscourseContextResults = (
         r.label,
         {} as Record<
           string,
-          Partial<Result & { target: string; }>
+          Partial<Result & { target: string; complement: boolean }>
         >,
       ])
     );
@@ -662,6 +664,7 @@ export const getDiscourseContextResults = (
             (groupedResults[r.label][res.uid] = {
               ...res,
               target: nodeTextByType[r.target],
+              complement: r.complement,
             })
         )
     );

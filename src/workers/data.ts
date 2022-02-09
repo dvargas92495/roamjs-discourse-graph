@@ -707,9 +707,9 @@ const overview = () => {
         .filter((r) => !r.complement)
         .flatMap((info) =>
           info.results.map((target) => ({
-            source: Number(source),
+            source: source,
             label: info.label,
-            target: target.id,
+            target: target.id.toString(),
           }))
         )
   );
@@ -717,10 +717,10 @@ const overview = () => {
     new Set(
       edges.flatMap(({ source, target }) => [
         {
-          label: graph.edges.pagesById[source],
-          id: source.toString(),
+          label: graph.edges.pagesById[Number(source)],
+          id: source,
         },
-        { label: graph.edges.pagesById[target], id: target.toString() },
+        { label: graph.edges.pagesById[Number(target)], id: target },
       ])
     )
   );
