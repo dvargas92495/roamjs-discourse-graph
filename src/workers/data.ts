@@ -60,6 +60,7 @@ const graph: {
       target: string;
       complement: boolean;
       results: { id: number; mapping: Record<string, number> }[];
+      id: string;
     }[];
   };
 } = {
@@ -191,7 +192,7 @@ const init = (
       format: graph.edges.blocksById[n],
       type: graph.edges.uidsById[n],
       text: graph.edges.blocksById[nchildren[0]] || "",
-      shortcut: graph.edges.blocksById[nchildren[0]] || "",
+      shortcut: graph.edges.blocksById[nchildren[1]] || "",
     };
   });
   graph.config.relations = (
@@ -583,6 +584,7 @@ const init = (
               return {
                 label: r.label,
                 target: r.destination,
+                id: r.id,
                 complement: false,
                 results: Array.from(programs.assignments).map((dict) => ({
                   id: dict[destinationTriple[0].toLowerCase()],
@@ -620,6 +622,7 @@ const init = (
               return {
                 label: r.complement,
                 target: r.source,
+                id: r.id,
                 complement: true,
                 results: Array.from(programs.assignments).map((dict) => ({
                   id: dict[sourceTriple[0].toLowerCase()],
@@ -630,8 +633,7 @@ const init = (
         ].filter((a) => !!a.results.length)
       : undefined;
 
-    if (discourseRelations?.length)
-      graph.discourseRelations[id] = discourseRelations;
+    if (discourseRelations) graph.discourseRelations[id] = discourseRelations;
   });
 
   postMessage({ method: "init", graph: JSON.stringify(graph) });
@@ -706,28 +708,32 @@ const overview = () => {
       relations
         .filter((r) => !r.complement)
         .flatMap((info) =>
-          info.results.map((target) => ({
-            source: source,
-            label: info.label,
-            target: target.id.toString(),
-          }))
+          info.results
+            .filter((target) => target.id !== Number(source))
+            .map((target) => ({
+              source: source,
+              label: info.label,
+              target: target.id.toString(),
+              id: info.id,
+            }))
         )
   );
-  const nodes = Array.from(
-    new Set(
-      edges.flatMap(({ source, target }) => [
-        {
-          label: graph.edges.pagesById[Number(source)],
-          id: source,
-        },
-        { label: graph.edges.pagesById[Number(target)], id: target },
-      ])
-    )
-  );
+  const nodes = Object.entries(graph.edges.pagesById)
+    .map(([id, title]) => ({
+      id,
+      label: title,
+      filterId: graph.config.nodes.find(({ format }) =>
+        matchNode({ format, title })
+      )?.type,
+    }))
+    .filter(({ filterId }) => !!filterId);
   postMessage({
     method: "overview",
-    nodes,
-    edges,
+    elements: {
+      nodes,
+      edges,
+    },
+    config: graph.config,
   });
 };
 

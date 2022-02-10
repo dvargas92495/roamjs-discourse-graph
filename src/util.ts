@@ -590,6 +590,7 @@ export const getDiscourseContextResults = (
             label: r.label,
             target: r.destination,
             complement: false,
+            id: r.id,
             results: window.roamAlphaAPI.q(
               `[:find 
                 (pull ${lastPlaceholder} ${pull})
@@ -632,6 +633,7 @@ export const getDiscourseContextResults = (
             label: r.complement,
             complement: true,
             target: r.source,
+            id: r.id,
             results: window.roamAlphaAPI.q(
               `[:find 
                 (pull ${firstPlaceholder} ${pull})
@@ -648,7 +650,7 @@ export const getDiscourseContextResults = (
         r.label,
         {} as Record<
           string,
-          Partial<Result & { target: string; complement: boolean }>
+          Partial<Result & { target: string; complement: boolean; id: string }>
         >,
       ])
     );
@@ -665,6 +667,7 @@ export const getDiscourseContextResults = (
               ...res,
               target: nodeTextByType[r.target],
               complement: r.complement,
+              id: r.id,
             })
         )
     );
