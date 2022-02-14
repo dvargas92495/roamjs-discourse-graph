@@ -36,6 +36,7 @@ import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
   getNodeReferenceChildren,
+  getNodes,
   getPageMetadata,
   getQueriesUid,
   getSubscribedBlocks,
@@ -57,7 +58,7 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import getUids from "roamjs-components/dom/getUids";
 import { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
-import { addRoamJSDependency } from "roamjs-components";
+import { addRoamJSDependency, deleteBlock } from "roamjs-components";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -316,7 +317,6 @@ runExtension("discourse-graph", async () => {
               title: "nodes",
               type: "custom",
               description: "The types of nodes in your discourse graph",
-              defaultValue: DEFAULT_NODE_VALUES,
               options: {
                 component: NodeConfigPanel,
               },
@@ -379,7 +379,59 @@ runExtension("discourse-graph", async () => {
   });
 
   const configTree = getBasicTreeByParentUid(pageUid);
-  setTimeout(refreshConfigTree, 1);
+  const grammarTree = getSubTree({ tree: configTree, key: "grammar" }).children;
+  const nodeTree = getSubTree({ tree: grammarTree, key: "nodes" }).children;
+  await Promise.all(
+    nodeTree.map((n) => {
+      const nodeFormat = n.text;
+      const nodeName = n.children[0]?.text || "";
+      const nodeShortcut = n.children[1]?.text || "";
+      const formatTree = getBasicTreeByParentUid(
+        getPageUidByPageTitle(nodeFormat)
+      );
+      const templateUid = window.roamAlphaAPI.util.generateUID();
+      return deleteBlock(n.uid)
+        .then(() =>
+          createPage({
+            title: `discourse-graph/nodes/${nodeName}`,
+            tree: [
+              { text: "Format", children: [{ text: nodeFormat }] },
+              { text: "Shortcut", children: [{ text: nodeShortcut }] },
+              { text: "Template", uid: templateUid },
+            ],
+            uid: n.uid,
+          })
+        )
+        .then(() =>
+          Promise.all(
+            formatTree.map((node, order) =>
+              window.roamAlphaAPI.moveBlock({
+                location: {
+                  "parent-uid": templateUid,
+                  order,
+                },
+                block: { uid: node.uid },
+              })
+            )
+          )
+        );
+    })
+  );
+  refreshConfigTree();
+  if (getNodes().length === 0) {
+    await Promise.all(
+      DEFAULT_NODE_VALUES.map((n) =>
+        createPage({
+          title: `discourse-graph/nodes/${n.text}`,
+          uid: n.type,
+          tree: [
+            { text: "Format", children: [{ text: n.format }] },
+            { text: "Shortcut", children: [{ text: n.shortcut }] },
+          ],
+        })
+      )
+    ).then(refreshConfigTree);
+  }
 
   document.body.addEventListener("roamjs:multiplayer:loaded", () => {
     const isEnabled = getSubTree({

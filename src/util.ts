@@ -14,6 +14,7 @@ import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromT
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
+import { getPageTitlesStartingWithPrefix } from "roamjs-components";
 
 export type PanelProps = {
   uid: string;
@@ -22,12 +23,29 @@ export type PanelProps = {
 };
 export type Panel = (props: PanelProps) => React.ReactElement;
 
-let treeRef: { tree: RoamBasicNode[] } = { tree: [] };
+let treeRef: {
+  tree: RoamBasicNode[];
+  nodes: { [uid: string]: { text: string; children: RoamBasicNode[] } };
+} = { tree: [], nodes: {} };
 
-export const refreshConfigTree = () =>
-  (treeRef.tree = getBasicTreeByParentUid(
+export const refreshConfigTree = () => {
+  treeRef.tree = getBasicTreeByParentUid(
     getPageUidByPageTitle("roam/js/discourse-graph")
-  ));
+  );
+  const titles = getPageTitlesStartingWithPrefix("discourse-graph/nodes");
+  treeRef.nodes = Object.fromEntries(
+    titles.map((title) => {
+      const uid = getPageUidByPageTitle(title);
+      return [
+        uid,
+        {
+          text: title.substring("discourse-graph/nodes/".length),
+          children: getBasicTreeByParentUid(uid),
+        },
+      ];
+    })
+  );
+};
 
 export const getSubscribedBlocks = () =>
   treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
@@ -70,26 +88,30 @@ export const isFlagEnabled = (
     );
 };
 
-export const DEFAULT_NODE_VALUES: InputTextNode[] = [
+export const DEFAULT_NODE_VALUES = [
   {
-    uid: "_CLM-node",
-    text: "[[CLM]] - {content}",
-    children: [{ text: "Claim" }, { text: "C" }],
+    type: "_CLM-node",
+    format: "[[CLM]] - {content}",
+    text: "Claim",
+    shortcut: "C",
   },
   {
-    uid: "_QUE-node",
-    text: "[[QUE]] - {content}",
-    children: [{ text: "Question" }, { text: "Q" }],
+    type: "_QUE-node",
+    format: "[[QUE]] - {content}",
+    text: "Question",
+    shortcut: "Q",
   },
   {
-    uid: "_EVD-node",
-    text: "[[EVD]] - {content} - {Source}",
-    children: [{ text: "Evidence" }, { text: "E" }],
+    type: "_EVD-node",
+    format: "[[EVD]] - {content} - {Source}",
+    text: "Evidence",
+    shortcut: "E",
   },
   {
-    uid: "_SRC-node",
-    text: "@{content}",
-    children: [{ text: "Source" }, { text: "S" }],
+    type: "_SRC-node",
+    format: "@{content}",
+    text: "Source",
+    shortcut: "S",
   },
 ];
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
@@ -373,17 +395,11 @@ export const nodeFormatToDatalog = ({
 };
 
 export const getNodes = () =>
-  (
-    (
-      treeRef.tree.find((t) => toFlexRegex("grammar").test(t.text))?.children ||
-      []
-    ).find((t) => toFlexRegex("nodes").test(t.text))?.children ||
-    DEFAULT_NODE_VALUES
-  ).map((n: InputTextNode) => ({
-    format: n.text,
-    text: n.children[0]?.text || "",
-    shortcut: n.children[1]?.text || "",
-    type: n.uid,
+  Object.entries(treeRef.nodes).map(([type, { text, children }]) => ({
+    format: getSettingValueFromTree({ tree: children, key: "format" }),
+    text,
+    shortcut: getSettingValueFromTree({ tree: children, key: "shortcut" }),
+    type,
   }));
 
 export const getRelations = () =>

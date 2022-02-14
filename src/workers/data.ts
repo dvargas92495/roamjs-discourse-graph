@@ -184,17 +184,25 @@ const init = (
       )
     ] || [];
 
-  graph.config.nodes = (
-    graph.edges.childrenById[grammarChildren.find(findChild("nodes"))] || []
-  ).map((n) => {
-    const nchildren = graph.edges.childrenById[n] || [];
-    return {
-      format: graph.edges.blocksById[n],
-      type: graph.edges.uidsById[n],
-      text: graph.edges.blocksById[nchildren[0]] || "",
-      shortcut: graph.edges.blocksById[nchildren[1]] || "",
-    };
-  });
+  graph.config.nodes = Object.entries(graph.edges.pagesById)
+    .filter(([, title]) => title.startsWith("discourse-graph/nodes/"))
+    .map(([_id, text]) => {
+      const id = Number(_id);
+      const nchildren = graph.edges.childrenById[id] || [];
+      return {
+        format:
+          graph.edges.blocksById[
+            (graph.edges.childrenById[nchildren.find(findChild("format"))] ||
+              [])[0]
+          ],
+        type: graph.edges.uidsById[id],
+        text,
+        shortcut: graph.edges.blocksById[
+          (graph.edges.childrenById[nchildren.find(findChild("shortcut"))] ||
+            [])[0]
+        ],
+      };
+    });
   graph.config.relations = (
     graph.edges.childrenById[grammarChildren.find(findChild("relations"))] || []
   ).flatMap((r, i) => {

@@ -17,6 +17,8 @@ import updateBlock from "roamjs-components/writes/updateBlock";
 import { getCoordsFromTextarea } from "roamjs-components/components/CursorMenu";
 import { getNodes, nodeFormatToDatalog } from "./util";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
+import getSubTree from "roamjs-components/util/getSubTree";
+import { InputTextNode, RoamBasicNode } from "roamjs-components/types";
 
 type Props = {
   textarea: HTMLTextAreaElement;
@@ -34,9 +36,10 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const onSelect = useCallback(
     (index) => {
-      const format = menuRef.current.children[index]
-        .querySelector(".bp3-menu-item")
-        .getAttribute("data-format");
+      const menuItem =
+        menuRef.current.children[index].querySelector(".bp3-menu-item");
+      const format = menuItem.getAttribute("data-format");
+      const nodeUid = menuItem.getAttribute("data-node");
       const highlighted = textarea.value.substring(
         textarea.selectionStart,
         textarea.selectionEnd
@@ -72,34 +75,41 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
               getPageUidByPageTitle(pagename) || createPage({ title: pagename })
           )
           .then((pageUid) => {
-            const nodes = getFullTreeByParentUid(
-              getPageUidByPageTitle(format)
-            ).children;
-            Promise.all(
-              nodes.map(
-                ({ text, textAlign, heading, viewType, children }, order) =>
-                  createBlock({
-                    node: { text, textAlign, heading, viewType, children },
-                    order,
-                    parentUid: pageUid,
-                  })
+            const nodeTree = getFullTreeByParentUid(nodeUid).children;
+            const nodes = getSubTree({
+              tree: nodeTree,
+              key: "template",
+            }).children;
+            const stripUid = (n: RoamBasicNode[]): InputTextNode[] =>
+              n.map(({ uid, children, ...c }) => ({
+                ...c,
+                children: stripUid(children),
+              }));
+            return Promise.all(
+              stripUid(nodes).map(({ uid, ...node }, order) =>
+                createBlock({
+                  node,
+                  order,
+                  parentUid: pageUid,
+                })
               )
-            ).then(() => {
-              openBlockInSidebar(pageUid);
-              setTimeout(() => {
-                const sidebarTitle = document.querySelector(
-                  ".rm-sidebar-outline .rm-title-display"
-                );
-                sidebarTitle.dispatchEvent(
-                  new MouseEvent("mousedown", { bubbles: true })
-                );
+            )
+              .then(() =>  openBlockInSidebar(pageUid))
+              .then(() => {
                 setTimeout(() => {
-                  const ta = document.activeElement as HTMLTextAreaElement;
-                  const index = ta.value.length;
-                  ta.setSelectionRange(index, index);
-                }, 1);
-              }, 100);
-            });
+                  const sidebarTitle = document.querySelector(
+                    ".rm-sidebar-outline .rm-title-display"
+                  );
+                  sidebarTitle.dispatchEvent(
+                    new MouseEvent("mousedown", { bubbles: true })
+                  );
+                  setTimeout(() => {
+                    const ta = document.activeElement as HTMLTextAreaElement;
+                    const index = ta.value.length;
+                    ta.setSelectionRange(index, index);
+                  }, 1);
+                }, 100);
+              });
           });
       });
       onClose();
@@ -156,6 +166,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
               <MenuItem
                 key={item.text}
                 data-format={item.format}
+                data-node={item.type}
                 text={`${item.text} - (${item.shortcut})`}
                 active={i === activeIndex}
                 onMouseEnter={() => setActiveIndex(i)}
