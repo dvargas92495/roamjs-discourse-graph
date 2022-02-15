@@ -37,29 +37,15 @@ import getSubTree from "roamjs-components/util/getSubTree";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import setInputSetting from "roamjs-components/util/setInputSetting";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
-// import localStorageSet from "roamjs-components/util/localStorageSet";
-// import localStorageGet from "roamjs-components/util/localStorageGet";
 import useSubTree from "roamjs-components/hooks/useSubTree";
-import { englishToDatalog, Panel } from "./util";
+import { englishToDatalog, getNodes, Panel, refreshConfigTree } from "./util";
 import triplesToBlocks from "./utils/triplesToBlocks";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import { render as renderToast } from "roamjs-components/components/Toast";
+import { createPage, getPageTitleByPageUid } from "roamjs-components";
 
-interface Array<T> {
-  filter<U extends T>(pred: (a: T) => a is U): U[];
-}
-
-export const NodeConfigPanel: Panel = ({ uid }) => {
-  const [nodes, setNodes] = useState(() =>
-    uid
-      ? getBasicTreeByParentUid(uid).map((n) => ({
-          format: n.text,
-          uid: n.uid,
-          label: n.children?.[0]?.text,
-          shortcut: n.children?.[1]?.text,
-        }))
-      : []
-  );
+export const NodeConfigPanel: Panel = ({}) => {
+  const [nodes, setNodes] = useState(getNodes);
   const [format, setFormat] = useState("");
   const [label, setLabel] = useState("");
   const [shortcut, setShortcut] = useState("");
@@ -102,15 +88,18 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
         style={{ marginBottom: 8 }}
         disabled={!format || !shortcut || !label}
         onClick={() => {
-          createBlock({
-            parentUid: uid,
-            order: nodes.length,
-            node: {
-              text: format,
-              children: [{ text: label }, { text: shortcut }],
-            },
+          createPage({
+            title: `discourse-graph/nodes/${label}`,
+            tree: [
+              { text: "Shortcut", children: [{ text: shortcut }] },
+              { text: "Format", children: [{ text: format }] },
+            ],
           }).then((valueUid) => {
-            setNodes([...nodes, { format, uid: valueUid, label, shortcut }]);
+            setNodes([
+              ...nodes,
+              { format, type: valueUid, text: label, shortcut },
+            ]);
+            refreshConfigTree();
             setFormat("");
             setLabel("");
             setShortcut("");
@@ -126,10 +115,10 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
         {nodes.map((n) => {
           return (
             <li
-              key={n.uid}
+              key={n.type}
               style={{ border: "1px dashed #80808080", padding: 4 }}
             >
-              <H6 style={{ margin: 0 }}>{n.label}</H6>
+              <H6 style={{ margin: 0 }}>{n.text}</H6>
               <div
                 style={{
                   display: "flex",
@@ -146,8 +135,12 @@ export const NodeConfigPanel: Panel = ({ uid }) => {
                 <Button
                   icon={"trash"}
                   onClick={() => {
-                    setNodes(nodes.filter((nn) => nn.uid !== n.uid));
-                    deleteBlock(n.uid);
+                    window.roamAlphaAPI
+                      .deletePage({ page: { uid: n.type } })
+                      .then(() => {
+                        setNodes(nodes.filter((nn) => nn.type !== n.type));
+                        refreshConfigTree();
+                      });
                   }}
                   style={{ minWidth: 30 }}
                 />
@@ -240,7 +233,11 @@ const RelationEditPanel = ({
     []
   );
   const initialSource = useMemo(
-    () => getFirstChildTextByBlockUid(initialSourceUid),
+    () =>
+      getPageTitleByPageUid(initialSourceUid).replace(
+        /^discourse-graph\/nodes\//,
+        ""
+      ),
     [initialSourceUid]
   );
   const [source, setSource] = useState(initialSourceUid);
@@ -253,7 +250,11 @@ const RelationEditPanel = ({
     []
   );
   const initialDestination = useMemo(
-    () => getFirstChildTextByBlockUid(initialDestinationUid),
+    () =>
+      getPageTitleByPageUid(initialDestinationUid).replace(
+        /^discourse-graph\/nodes\//,
+        ""
+      ),
     [initialDestinationUid]
   );
   const [destination, setDestination] = useState(initialDestinationUid);
@@ -1004,18 +1005,7 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
   const nodes = useMemo(
     () =>
       Object.fromEntries(
-        getSubTree({
-          tree: getSubTree({
-            tree: getBasicTreeByParentUid(
-              getPageUidByPageTitle("roam/js/discourse-graph")
-            ),
-            key: "grammar",
-          }).children,
-          key: "nodes",
-        }).children.map((n) => [
-          n.uid,
-          { label: n.children[0].text, format: n.text },
-        ])
+        getNodes().map((n) => [n.type, { label: n.text, format: n.format }])
       ),
     []
   );

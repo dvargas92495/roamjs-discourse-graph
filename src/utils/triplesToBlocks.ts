@@ -17,26 +17,26 @@ const triplesToBlocks =
       relation: string;
     }[]
   ) => {
-      const relationToTitle = (source: string) => {
-        const rel = triples.find(
-          (h) =>
-            h.source === source &&
-            [/is a/i, /has title/i, /with text/i].some((r) => r.test(h.relation))
-        ) || {
-          relation: "",
-          target: "",
-        };
-        return /is a/i.test(rel.relation)
-          ? nodeFormatsByLabel[rel.target].replace(
-              "{content}",
-              `This is a ${rel.target} page.`
-            )
-          : /has title/i.test(rel.relation)
-          ? rel.target
-          : /with text/i.test(rel.relation)
-          ? rel.target
-          : source;
+    const relationToTitle = (source: string) => {
+      const rel = triples.find(
+        (h) =>
+          h.source === source &&
+          [/is a/i, /has title/i, /with text/i].some((r) => r.test(h.relation))
+      ) || {
+        relation: "",
+        target: "",
       };
+      return /is a/i.test(rel.relation)
+        ? (nodeFormatsByLabel[rel.target] || "").replace(
+            "{content}",
+            `This is a ${rel.target} page.`
+          )
+        : /has title/i.test(rel.relation)
+        ? rel.target
+        : /with text/i.test(rel.relation)
+        ? rel.target
+        : source;
+    };
     const blockReferences = new Set<{
       uid: string;
       text: string;
