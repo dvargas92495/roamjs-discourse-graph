@@ -24,8 +24,6 @@ import React, {
 import createBlock from "roamjs-components/writes/createBlock";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
-import getFirstChildTextByBlockUid from "roamjs-components/queries/getFirstChildTextByBlockUid";
-import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 import type {
   InputTextNode,
@@ -33,7 +31,6 @@ import type {
   TreeNode,
 } from "roamjs-components/types";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import getSubTree from "roamjs-components/util/getSubTree";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import setInputSetting from "roamjs-components/util/setInputSetting";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
@@ -118,7 +115,16 @@ export const NodeConfigPanel: Panel = ({}) => {
               key={n.type}
               style={{ border: "1px dashed #80808080", padding: 4 }}
             >
-              <H6 style={{ margin: 0 }}>{n.text}</H6>
+              <H6
+                style={{ margin: 0, cursor: "pointer" }}
+                onClick={() =>
+                  window.roamAlphaAPI.ui.mainWindow.openPage({
+                    page: { uid: n.type },
+                  })
+                }
+              >
+                {n.text}
+              </H6>
               <div
                 style={{
                   display: "flex",

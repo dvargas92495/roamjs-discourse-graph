@@ -13,7 +13,10 @@ import toConfig from "roamjs-components/util/toConfigPageName";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
 import getBlockUidsReferencingPage from "roamjs-components/queries/getBlockUidsReferencingPage";
-import { createConfigObserver } from "roamjs-components/components/ConfigPage";
+import {
+  createConfigObserver,
+  render as configPageRender,
+} from "roamjs-components/components/ConfigPage";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
@@ -35,6 +38,7 @@ import { render as queryRequestRender } from "./components/SendQueryRequest";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
+  englishToDatalog,
   getNodeReferenceChildren,
   getNodes,
   getPageMetadata,
@@ -59,6 +63,7 @@ import getUids from "roamjs-components/dom/getUids";
 import { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
 import { addRoamJSDependency, deleteBlock } from "roamjs-components";
+import React from "react";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -695,6 +700,79 @@ runExtension("discourse-graph", async () => {
             pageUid: getPageTitleByPageUid(title),
           });
         }
+      } else if (title.startsWith("discourse-graph/nodes/")) {
+        const nodeText = title.substring("discourse-graph/nodes/".length);
+        const allNodes = getNodes();
+        const node = allNodes.find(({ text }) => text === nodeText);
+        if (node) {
+          configPageRender({
+            h: h1,
+            title,
+            config: {
+              tabs: [
+                {
+                  id: "home",
+                  fields: [
+                    {
+                      title: "Index",
+                      description:
+                        "Index of all of the pages in your graph of this type",
+                      type: "custom",
+                      options: {
+                        component: () =>
+                          React.createElement(
+                            "div",
+                            {},
+                            ...window.roamAlphaAPI
+                              .q(
+                                `[:find (pull ?${nodeText} [
+                          :node/title 
+                          [:block/uid :as "pageUid"]
+                          [:create/time :as "createdTime"]
+                          [:edit/time :as "editedTime"]
+                        ]) :where ${englishToDatalog(allNodes)["is a"](
+                          nodeText,
+                          node.type
+                        )}]`
+                              )
+                              .map((a) =>
+                                React.createElement(
+                                  "div",
+                                  {},
+                                  a[0].title as string
+                                )
+                              )
+                          ),
+                      },
+                    },
+                    {
+                      title: "Format",
+                      description: `The format ${nodeText} pages should have.`,
+                      defaultValue: "\\",
+                      type: "text",
+                    },
+                    {
+                      title: "Shortcut",
+                      description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
+                      defaultValue: "\\",
+                      type: "text",
+                    },
+                    {
+                      title: "Description",
+                      description: `Describing what the ${nodeText} node represents in your graph.`,
+                      type: "text",
+                    },
+                    {
+                      title: "Template",
+                      description: `The template that auto fills ${nodeText} page when generated.`,
+                      type: "block",
+                    },
+                  ],
+                },
+              ],
+            },
+          });
+        }
       }
     },
   });
@@ -828,7 +906,10 @@ runExtension("discourse-graph", async () => {
   };
 
   window.addEventListener("hashchange", (e) => {
-    if (e.oldURL.endsWith(pageUid)) {
+    if (
+      e.oldURL.endsWith(pageUid) ||
+      getNodes().some(({ type }) => e.oldURL.endsWith(type))
+    ) {
       refreshConfigTree();
     }
     const oldIcon = document.getElementById(
