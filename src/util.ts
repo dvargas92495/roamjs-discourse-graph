@@ -14,7 +14,7 @@ import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromT
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
-import { getPageTitlesStartingWithPrefix } from "roamjs-components";
+import getPageTitlesStartingWithPrefix from "roamjs-components/queries/getPageTitlesStartingWithPrefix";
 
 export type PanelProps = {
   uid: string;

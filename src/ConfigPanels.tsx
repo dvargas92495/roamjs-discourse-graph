@@ -39,7 +39,8 @@ import { englishToDatalog, getNodes, Panel, refreshConfigTree } from "./util";
 import triplesToBlocks from "./utils/triplesToBlocks";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import { render as renderToast } from "roamjs-components/components/Toast";
-import { createPage, getPageTitleByPageUid } from "roamjs-components";
+import createPage from "roamjs-components/writes/createPage";
+import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 
 export const NodeConfigPanel: Panel = ({}) => {
   const [nodes, setNodes] = useState(getNodes);
