@@ -62,7 +62,8 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import getUids from "roamjs-components/dom/getUids";
 import { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
-import { addRoamJSDependency, deleteBlock } from "roamjs-components";
+import addRoamJSDependency from "roamjs-components/dom/addRoamJSDependency";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
 import React from "react";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
