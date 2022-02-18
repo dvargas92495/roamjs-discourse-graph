@@ -65,6 +65,7 @@ import createPage from "roamjs-components/writes/createPage";
 import addRoamJSDependency from "roamjs-components/dom/addRoamJSDependency";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import React from "react";
+import NodeIndex from "./components/NodeIndex";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -721,29 +722,7 @@ runExtension("discourse-graph", async () => {
                       type: "custom",
                       options: {
                         component: () =>
-                          React.createElement(
-                            "div",
-                            {},
-                            ...window.roamAlphaAPI
-                              .q(
-                                `[:find (pull ?${nodeText} [
-                          :node/title 
-                          [:block/uid :as "pageUid"]
-                          [:create/time :as "createdTime"]
-                          [:edit/time :as "editedTime"]
-                        ]) :where ${englishToDatalog(allNodes)["is a"](
-                          nodeText,
-                          node.type
-                        )}]`
-                              )
-                              .map((a) =>
-                                React.createElement(
-                                  "div",
-                                  {},
-                                  a[0].title as string
-                                )
-                              )
-                          ),
+                          React.createElement(NodeIndex, { node, allNodes }),
                       },
                     },
                     {
@@ -766,7 +745,7 @@ runExtension("discourse-graph", async () => {
                     {
                       title: "Template",
                       description: `The template that auto fills ${nodeText} page when generated.`,
-                      type: "block",
+                      type: "blocks",
                     },
                   ],
                 },
