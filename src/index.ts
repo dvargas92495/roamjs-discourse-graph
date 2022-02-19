@@ -19,6 +19,7 @@ import {
 } from "roamjs-components/components/ConfigPage";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import { render as renderToast } from "roamjs-components/components/Toast";
+import { render as renderAlert } from "roamjs-components/components/SimpleAlert";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render } from "./NodeMenu";
 import { render as exportRender } from "./ExportDialog";
@@ -388,42 +389,53 @@ runExtension("discourse-graph", async () => {
   const configTree = getBasicTreeByParentUid(pageUid);
   const grammarTree = getSubTree({ tree: configTree, key: "grammar" }).children;
   const nodeTree = getSubTree({ tree: grammarTree, key: "nodes" }).children;
-  await Promise.all(
-    nodeTree.map((n) => {
-      const nodeFormat = n.text;
-      const nodeName = n.children[0]?.text || "";
-      const nodeShortcut = n.children[1]?.text || "";
-      const formatTree = getBasicTreeByParentUid(
-        getPageUidByPageTitle(nodeFormat)
-      );
-      const templateUid = window.roamAlphaAPI.util.generateUID();
-      return deleteBlock(n.uid)
-        .then(() =>
-          createPage({
-            title: `discourse-graph/nodes/${nodeName}`,
-            tree: [
-              { text: "Format", children: [{ text: nodeFormat }] },
-              { text: "Shortcut", children: [{ text: nodeShortcut }] },
-              { text: "Template", uid: templateUid },
-            ],
-            uid: n.uid,
-          })
-        )
-        .then(() =>
+  if (nodeTree.length) {
+    await new Promise((resolve) =>
+      renderAlert({
+        content: `As part of improving the flexibility of Discourse Graph Nodes, we are migrating the nodes stored as blocks in your roam/js/discourse-graph page to be stored as pages prefixed with discourse-graph/nodes/*.
+
+We expect that there will be no disruption in functionality. If you see issues after hitting confirm, please try refreshing. If issues persist, please reach out to support@roamjs.com.`,
+        onConfirm: () => {
           Promise.all(
-            formatTree.map((node, order) =>
-              window.roamAlphaAPI.moveBlock({
-                location: {
-                  "parent-uid": templateUid,
-                  order,
-                },
-                block: { uid: node.uid },
-              })
-            )
-          )
-        );
-    })
-  );
+            nodeTree.map((n) => {
+              const nodeFormat = n.text;
+              const nodeName = n.children[0]?.text || "";
+              const nodeShortcut = n.children[1]?.text || "";
+              const formatTree = getBasicTreeByParentUid(
+                getPageUidByPageTitle(nodeFormat)
+              );
+              const templateUid = window.roamAlphaAPI.util.generateUID();
+              return deleteBlock(n.uid)
+                .then(() =>
+                  createPage({
+                    title: `discourse-graph/nodes/${nodeName}`,
+                    tree: [
+                      { text: "Format", children: [{ text: nodeFormat }] },
+                      { text: "Shortcut", children: [{ text: nodeShortcut }] },
+                      { text: "Template", uid: templateUid },
+                    ],
+                    uid: n.uid,
+                  })
+                )
+                .then(() =>
+                  Promise.all(
+                    formatTree.map((node, order) =>
+                      window.roamAlphaAPI.moveBlock({
+                        location: {
+                          "parent-uid": templateUid,
+                          order,
+                        },
+                        block: { uid: node.uid },
+                      })
+                    )
+                  )
+                );
+            })
+          ).then(resolve);
+        },
+      })
+    );
+  }
   refreshConfigTree();
   if (getNodes().length === 0) {
     await Promise.all(

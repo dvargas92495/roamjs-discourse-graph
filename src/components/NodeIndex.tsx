@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { openBlockInSidebar } from "roamjs-components";
+import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
 import { englishToDatalog, getNodes } from "../util";
 
 const NodeIndex = ({
