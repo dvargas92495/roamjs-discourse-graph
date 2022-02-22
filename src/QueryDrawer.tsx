@@ -236,7 +236,7 @@ const SavedQueryNew = ({
       }}
     >
       <ResultsView
-        Header={({ sortComponent }) => (
+        header={
           <>
             {isEditingLabel ? (
               <InputGroup
@@ -266,7 +266,6 @@ const SavedQueryNew = ({
               </span>
             )}
             <div>
-              {sortComponent}
               <Button
                 icon={"export"}
                 minimal
@@ -305,9 +304,14 @@ const SavedQueryNew = ({
               <Button icon={"cross"} onClick={onDelete} minimal />
             </div>
           </>
-        )}
+        }
         hideResults={minimized}
-        results={results.map((r) => ({ ...r, uid: r.pageUid }))}
+        results={results.map((a) => ({
+          ...a,
+          uid: a.pageUid,
+          createdTime: new Date(a.createdTime),
+          editedTime: new Date(a.editedTime),
+        }))}
         resultFilter={resultFilter}
         ResultIcon={({ result: r }) => (
           <Button
@@ -643,9 +647,17 @@ const QueryDrawerContent = ({
     ]) :where ${where}]`;
     try {
       const results = where
-        ? window.roamAlphaAPI.q(query).map((a) => a[0] as Omit<SearchResult, 'text'> & {title?: string, string?: string})
+        ? window.roamAlphaAPI.q(query).map(
+            (a) =>
+              a[0] as Omit<SearchResult, "text"> & {
+                title?: string;
+                string?: string;
+              }
+          )
         : [];
-      setResults(results.map(r => ({...r, text: r.string || r.title || ''})));
+      setResults(
+        results.map((r) => ({ ...r, text: r.string || r.title || "" }))
+      );
     } catch (e) {
       console.error("Error from Roam:");
       console.error(e.message);

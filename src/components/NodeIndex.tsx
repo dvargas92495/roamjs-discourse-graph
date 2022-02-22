@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
 import { englishToDatalog, getNodes } from "../util";
+import ResultsView from "./ResultsView";
 
 const NodeIndex = ({
   node,
@@ -14,32 +14,28 @@ const NodeIndex = ({
       window.roamAlphaAPI
         .q(
           `[:find (pull ?${node.text} [
-:node/title 
+[:node/title :as "text"] 
 :block/uid
+[:create/time :as "createdTime"]
+[:edit/time :as "editedTime"]
 ]) :where ${englishToDatalog(allNodes)["is a"](node.text, node.type)}]`
         )
-        .map((a) => a[0] as { title: string; uid: string }),
+        .map(
+          (a) => 
+            a[0] as {
+              text: string;
+              uid: string;
+              createdTime: number;
+              editedTime: number;
+            }
+        ).map(a => ({
+          ...a,
+          createdTime: new Date(a.createdTime),
+          editedTime: new Date(a.editedTime),
+        })),
     [node, allNodes]
   );
-  return (
-    <div>
-      {results.map((r) => (
-        <div key={r.uid}>
-          <a
-            onClick={(e) =>
-              e.shiftKey
-                ? openBlockInSidebar(r.uid)
-                : window.roamAlphaAPI.ui.mainWindow.openPage({
-                    page: { uid: r.uid },
-                  })
-            }
-          >
-            {r.title}
-          </a>
-        </div>
-      ))}
-    </div>
-  );
+  return <ResultsView results={results} />;
 };
 
 export default NodeIndex;

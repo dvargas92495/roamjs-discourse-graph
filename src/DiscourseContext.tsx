@@ -42,12 +42,17 @@ const ContextTab = ({
   );
   const resultsView = (
     <ResultsView
-      results={Object.values(results).map((r) => r as Result)}
-      Header={({ sortComponent }) => (
+      results={Object.values(results).map((a) => ({
+        context: a.context,
+        uid: a.uid || "",
+        text: a.text || "",
+        createdTime: new Date(a.createdTime),
+        editedTime: new Date(a.editedTime),
+      }))}
+      header={() => (
         <>
           <span>{r.label}</span>
           <span style={{ display: "flex", alignItems: "center" }}>
-            {sortComponent}
             <Switch
               label="Group By Target"
               checked={groupByTarget}
