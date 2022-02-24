@@ -166,6 +166,58 @@ const QueryCondition = ({
   );
 };
 
+const QuerySelection = ({
+  sel,
+  setSelections,
+  selections,
+}: {
+  sel: { uid: string; text: string };
+  setSelections: (cons: { uid: string; text: string }[]) => void;
+  selections: { uid: string; text: string }[];
+}) => {
+  const debounceRef = useRef(0);
+  return (
+    <div style={{ display: "flex", margin: "8px 0", alignItems: "baseline" }}>
+      <span
+        style={{
+          minWidth: 120,
+          display: "inline-block",
+          textAlign: "center",
+          fontWeight: 600,
+        }}
+      >
+        Select
+      </span>
+      <div style={{ flexGrow: 1 }}>
+        <InputGroup
+          value={sel.text}
+          style={{ width: 152 }}
+          onChange={(e) => {
+            window.clearTimeout(debounceRef.current);
+            setSelections(
+              selections.map((c) =>
+                c.uid === sel.uid ? { ...sel, text: e.target.value } : c
+              )
+            );
+            debounceRef.current = window.setTimeout(() => {
+              updateBlock(sel);
+            }, 1000);
+          }}
+        />
+      </div>
+      <Button
+        icon={"trash"}
+        onClick={() => {
+          deleteBlock(sel.uid);
+          setSelections(selections.filter((c) => c.uid !== sel.uid));
+        }}
+        minimal
+        style={{ alignSelf: "end" }}
+      />
+    </div>
+  );
+};
+
 type SearchResult = {
   text: string;
   pageUid: string;
@@ -306,9 +358,9 @@ const SavedQueryNew = ({
           </>
         }
         hideResults={minimized}
-        results={results.map((a) => ({
+        results={results.map(({ pageUid, ...a }) => ({
           ...a,
-          uid: a.pageUid,
+          uid: pageUid,
           createdTime: new Date(a.createdTime),
           editedTime: new Date(a.editedTime),
         }))}
@@ -539,6 +591,34 @@ const QueryDrawerContent = ({
       ),
     }));
   });
+
+  const selectionsNode = useMemo(
+    () =>
+      scratchNodeChildren.find((t) => toFlexRegex("selections").test(t.text)),
+    [scratchNodeChildren]
+  );
+  const selectionsNodeUid = useMemo(() => {
+    if (selectionsNode?.uid) return selectionsNode?.uid;
+    const newUid = window.roamAlphaAPI.util.generateUID();
+    createBlock({
+      node: { text: "conditions", uid: newUid },
+      parentUid: scratchNodeUid,
+    });
+    return newUid;
+  }, [selectionsNode, scratchNodeUid]);
+  const selectionsNodeChildren = useMemo(
+    () => selectionsNode?.children || [],
+    [selectionsNode]
+  );
+  const [selections, setSelections] = useState<{ uid: string; text: string }[]>(
+    () => {
+      return selectionsNodeChildren.map(({ uid, text }) => ({
+        uid,
+        text,
+      }));
+    }
+  );
+
   const debounceRef = useRef(0);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -718,54 +798,86 @@ const QueryDrawerContent = ({
     (q: string[]) => {
       const [findWhere, ...conditions] = q;
       const returnNode = findWhere.split(" ")[1];
-      const conditionNodes = conditions.map((c) => {
-        const [source, rest] = c.split(/ (.+)/);
-        const relation = relationLabels.find((l) => rest.startsWith(l));
-        const target = rest.substring(relation.length + 1);
-        return {
-          source,
-          relation,
-          target,
-        };
-      });
-      return { returnNode, conditionNodes };
+      const conditionNodes = conditions
+        .filter((s) => !s.startsWith("Select"))
+        .map((c) => {
+          const [source, rest] = c.split(/ (.+)/);
+          const relation = relationLabels.find((l) => rest.startsWith(l));
+          const target = rest.substring(relation.length + 1);
+          return {
+            source,
+            relation,
+            target,
+          };
+        });
+      const selectionNodes = conditions.filter((s) => s.startsWith("Select"));
+      return { returnNode, conditionNodes, selectionNodes };
     },
     [relationLabels]
   );
   const editSavedQuery = useCallback(
     (q: string[]) => {
-      const { returnNode: value, conditionNodes } = parseQuery(q);
+      const {
+        returnNode: value,
+        conditionNodes,
+        selectionNodes,
+      } = parseQuery(q);
       setInputSetting({
         blockUid: scratchNodeUid,
         value,
         key: "return",
       });
-      Promise.all(
-        conditionNodes.map(({ source, relation, target }, order) =>
-          createBlock({
-            parentUid: conditionsNodeUid,
-            order,
-            node: {
-              text: `${order}`,
-              children: [
-                { text: "source", children: [{ text: source }] },
-                { text: "relation", children: [{ text: relation }] },
-                { text: "target", children: [{ text: target }] },
-              ],
-            },
-          }).then((uid) => ({
-            source,
-            relation,
-            target,
-            uid,
-          }))
-        )
-      ).then((conditionNodesWithUids) => {
+      Promise.all([
+        Promise.all(
+          conditionNodes.map(({ source, relation, target }, order) =>
+            createBlock({
+              parentUid: conditionsNodeUid,
+              order,
+              node: {
+                text: `${order}`,
+                children: [
+                  { text: "source", children: [{ text: source }] },
+                  { text: "relation", children: [{ text: relation }] },
+                  { text: "target", children: [{ text: target }] },
+                ],
+              },
+            }).then((uid) => ({
+              source,
+              relation,
+              target,
+              uid,
+            }))
+          )
+        ),
+        Promise.all(
+          selectionNodes.map((text, order) =>
+            createBlock({
+              parentUid: selectionsNodeUid,
+              order,
+              node: {
+                text,
+              },
+            }).then((uid) => ({
+              text,
+              uid,
+            }))
+          )
+        ),
+      ]).then(([conditionNodesWithUids, selections]) => {
         setReturnNode(value);
         setConditions(conditionNodesWithUids);
+        setSelections(selections);
       });
     },
-    [relationLabels, setReturnNode, setConditions]
+    [
+      relationLabels,
+      setReturnNode,
+      setConditions,
+      conditionsNodeUid,
+      selectionsNodeUid,
+      setSelections,
+      scratchNodeUid,
+    ]
   );
   return (
     <>
@@ -852,10 +964,19 @@ const QueryDrawerContent = ({
           setConditions={setConditions}
         />
       ))}
+      {selections.map((sel) => (
+        <QuerySelection
+          key={sel.uid}
+          sel={sel}
+          selections={selections}
+          setSelections={setSelections}
+        />
+      ))}
       <div style={{ display: "flex", justifyContent: "space-between" }}>
         <Button
           rightIcon={"plus"}
           text={"Add Condition"}
+          style={{ maxHeight: 32 }}
           onClick={() => {
             createBlock({
               parentUid: conditionsNodeUid,
@@ -872,10 +993,25 @@ const QueryDrawerContent = ({
           }}
         />
         <Button
+          rightIcon={"plus"}
+          text={"Add Selection"}
+          style={{ maxHeight: 32 }}
+          onClick={() => {
+            createBlock({
+              parentUid: selectionsNodeUid,
+              order: selections.length,
+              node: {
+                text: ``,
+              },
+            }).then((uid) => setSelections([...selections, { uid, text: "" }]));
+          }}
+        />
+        <Button
           text={"Query"}
           onClick={() => {
             fireQuery();
           }}
+          style={{ maxHeight: 32 }}
           intent={"primary"}
           disabled={
             !conditions.length ||
@@ -914,6 +1050,9 @@ const QueryDrawerContent = ({
                             { text: `Find ${returnNode} Where` },
                             ...conditions.map((c) => ({
                               text: `${c.source} ${c.relation} ${c.target}`,
+                            })),
+                            ...selections.map((s) => ({
+                              text: `Select ${s.text}`,
                             })),
                           ],
                         },

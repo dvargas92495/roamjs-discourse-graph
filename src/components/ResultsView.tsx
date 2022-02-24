@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
+// import { Column, Table } from "react-virtualized";
 import fuzzy from "fuzzy";
 import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
@@ -35,9 +35,11 @@ const sortFunction =
 const ResultView = ({
   ResultIcon,
   r,
+  colSpan,
 }: {
   r: Result;
   ResultIcon: (props: { result: Result }) => React.ReactElement;
+  colSpan: number;
 }) => {
   const rowCells = Object.keys(r).filter((k) => !defaultFields.includes(k));
   const [contextOpen, setContextOpen] = useState(false);
@@ -88,11 +90,8 @@ const ResultView = ({
       <tr>
         <td
           style={{
-            display: "flex",
-            width: "100%",
-            justifyContent: "space-between",
-            alignItems: "center",
-            overflow: "hidden",
+            textOverflow: "ellipsis",
+            overflow: 'hidden',
           }}
         >
           <a
@@ -121,7 +120,16 @@ const ResultView = ({
         </td>
         {rowCells.map((k) => {
           const v = r[k];
-          return <td key={k}>{v instanceof Date ? toRoamDate(v) : v}</td>;
+          return (
+            <td
+              style={{
+                textOverflow: "ellipsis",
+              }}
+              key={k}
+            >
+              {v instanceof Date ? toRoamDate(v) : v}
+            </td>
+          );
         })}
         {r.context && (
           <td>
@@ -158,7 +166,7 @@ const ResultView = ({
               maxHeight: 240,
               overflowY: "scroll",
             }}
-            colSpan={rowCells.length + 1}
+            colSpan={colSpan}
           >
             {contextPageTitle ? (
               <h3 style={{ margin: 0 }}>{contextPageTitle}</h3>
@@ -288,7 +296,8 @@ const ResultsView = ({
                 style={{
                   maxHeight: "400px",
                   overflowY: "scroll",
-                  paddingRight: 10,
+                  width: "100%",
+                  tableLayout: "fixed",
                 }}
                 striped
                 interactive
@@ -329,7 +338,12 @@ const ResultsView = ({
                 </thead>
                 <tbody>
                   {sortedResults.map((r) => (
-                    <ResultView key={r.uid} r={r} ResultIcon={ResultIcon} />
+                    <ResultView
+                      key={r.uid}
+                      r={r}
+                      colSpan={columns.length}
+                      ResultIcon={ResultIcon}
+                    />
                   ))}
                 </tbody>
               </HTMLTable>
