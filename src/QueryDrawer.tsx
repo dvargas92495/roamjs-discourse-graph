@@ -47,7 +47,7 @@ import {
   triplesToQuery,
 } from "./util";
 import ResultsView, { Result as SearchResult } from "./components/ResultsView";
-import { normalizePageTitle } from "roamjs-components";
+import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 
 type Props = {
   blockUid: string;
