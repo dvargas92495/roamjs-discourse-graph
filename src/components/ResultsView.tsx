@@ -10,7 +10,7 @@ import toRoamDate from "roamjs-components/date/toRoamDate";
 
 const SEARCH_HIGHLIGHT = "#C26313";
 
-type Result = { text: string; uid: string } & Record<
+export type Result = { text: string; uid: string } & Record<
   string,
   string | number | Date
 >;

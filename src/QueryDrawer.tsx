@@ -46,8 +46,8 @@ import {
   Result,
   triplesToQuery,
 } from "./util";
-import fuzzy from "fuzzy";
-import ResultsView from "./components/ResultsView";
+import ResultsView, { Result as SearchResult } from "./components/ResultsView";
+import { normalizePageTitle } from "roamjs-components";
 
 type Props = {
   blockUid: string;
@@ -218,66 +218,62 @@ const QuerySelection = ({
   );
 };
 
-type SearchResult = {
-  text: string;
-  pageUid: string;
-  createdTime: number;
-  editedTime: number;
-};
-
-const SavedQueryNew = ({
+const SavedQuery = ({
   uid,
   onDelete,
   parseQuery,
+  fireQuery,
   resultsReferenced,
   clearOnClick,
   setResultsReferenced,
   editSavedQuery,
+  initialResults,
 }: {
   uid: string;
   parseQuery: (s: string[]) => {
     returnNode: string;
-    conditionNodes: Omit<Condition, "uid">[];
+    conditionNodes: Condition[];
+    selectionNodes: string[];
   };
+  fireQuery: (args: {
+    returnNode: string;
+    conditions: Condition[];
+    selections: string[];
+  }) => SearchResult[];
   onDelete: () => void;
   resultsReferenced: Set<string>;
   clearOnClick: (s: string, t: string) => void;
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string[]) => void;
+  initialResults?: SearchResult[];
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const query = useMemo(
     () => getSettingValuesFromTree({ tree, key: "query" }),
     []
   );
-  const results = useMemo(
-    () =>
-      window.roamAlphaAPI
-        .q(
-          `[:find ?u (pull ?p [
-      [:node/title :as "text"]
-      [:create/time :as "createdTime"]
-      [:edit/time :as "editedTime"]
-    ]) (pull ?c [:block/uid]) :where [?b :block/uid "${
-      getSubTree({ tree, key: "results" })?.uid
-    }"] [?b :block/children ?c] [?c :block/string ?u] [?p :block/uid ?u]]`
-        )
-        .map(
-          (r) =>
-            ({ pageUid: r[0], ...r[1], ...r[2] } as SearchResult & {
-              uid: string;
-            })
-        ),
-    []
-  );
+  const [results, setResults] = useState<SearchResult[]>(initialResults || []);
   const resultFilter = useCallback(
     (r: Result) => !resultsReferenced.has(r.text),
     [resultsReferenced]
   );
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(!initialResults);
+  const [initialQuery, setInitialQuery] = useState(!!initialResults);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const returnNode = /^Find (.*) Where$/.exec(query[0])?.[1];
+  useEffect(() => {
+    if (!initialQuery && !minimized) {
+      setInitialQuery(true);
+      const { returnNode, conditionNodes, selectionNodes } = parseQuery(query);
+      const results = fireQuery({
+        returnNode,
+        conditions: conditionNodes,
+        selections: selectionNodes,
+      });
+      setResults(results);
+    }
+  }, [initialQuery, minimized, setInitialQuery, setResults, parseQuery]);
   return (
     <div
       style={{
@@ -334,9 +330,9 @@ const SavedQueryNew = ({
                   exportRender({
                     fromQuery: {
                       nodes: results
-                        .map(({ text, pageUid }) => ({
+                        .map(({ text, uid }) => ({
                           title: text,
-                          uid: pageUid,
+                          uid,
                         }))
                         .concat(
                           conditions
@@ -358,12 +354,7 @@ const SavedQueryNew = ({
           </>
         }
         hideResults={minimized}
-        results={results.map(({ pageUid, ...a }) => ({
-          ...a,
-          uid: pageUid,
-          createdTime: new Date(a.createdTime),
-          editedTime: new Date(a.editedTime),
-        }))}
+        results={results.map(({ id, ...a }) => a)}
         resultFilter={resultFilter}
         ResultIcon={({ result: r }) => (
           <Button
@@ -409,21 +400,85 @@ const SavedQueryNew = ({
   );
 };
 
+const predefinedSelections: {
+  test: RegExp;
+  text: string;
+  mapper: (r: SearchResult, key: string) => SearchResult;
+}[] = [
+  {
+    test: /created?\s*date/i,
+    text: '[:create/time :as "createdTime"]',
+    mapper: (r, key) => {
+      r[key] = new Date(r.createdTime);
+      delete r.createdTime;
+      return r;
+    },
+  },
+  {
+    test: /edit(ed)?\s*date/i,
+    text: '[:edit/time :as "editedTime"]',
+    mapper: (r, key) => {
+      r[key] = new Date(r.editedTime);
+      delete r.editedTime;
+      return r;
+    },
+  },
+  {
+    test: /author/i,
+    text: '[:create/user :as "author"]',
+    mapper: (r, key) => {
+      // @ts-ignore
+      r[key] = window.roamAlphaAPI.pull("[:user/display-name]", r.author)[
+        ":user/display-name"
+      ];
+      delete r.createdTime;
+      return r;
+    },
+  },
+  {
+    test: /.*/,
+    text: "",
+    mapper: (r, key) => {
+      r[key] = (
+        window.roamAlphaAPI.q(
+          `[:find (pull ?b [:block/string]) :where [?a :node/title "${normalizePageTitle(
+            key
+          )}"] [?p :block/uid "${
+            r.uid
+          }"] [?b :block/refs ?a] [?b :block/page ?p]]`
+        )?.[0]?.[0]?.string || ""
+      )
+        .slice(key.length + 2)
+        .trim();
+      return r;
+    },
+  },
+];
+
 const SavedQueriesContainer = ({
   savedQueries,
   setSavedQueries,
   clearOnClick,
   editSavedQuery,
   parseQuery,
+  fireQuery,
 }: {
-  savedQueries: string[];
-  setSavedQueries: (s: string[]) => void;
+  savedQueries: { uid: string; text: string; results?: SearchResult[] }[];
+  setSavedQueries: (
+    s: { uid: string; text: string; results?: SearchResult[] }[]
+  ) => void;
   clearOnClick: (s: string, t: string) => void;
   editSavedQuery: (s: string[]) => void;
   parseQuery: (s: string[]) => {
     returnNode: string;
-    conditionNodes: Omit<Condition, "uid">[];
+    conditionNodes: Condition[];
+    selectionNodes: string[];
   };
+  fireQuery: (args: {
+    returnNode: string;
+    conditions: Condition[];
+    selections: string[];
+  }) => SearchResult[];
 }) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
@@ -477,18 +532,20 @@ const SavedQueriesContainer = ({
       <hr />
       <H3>Saved Queries</H3>
       {savedQueries.map((sq) => (
-        <SavedQueryNew
-          uid={sq}
-          key={sq}
+        <SavedQuery
+          uid={sq.uid}
+          key={sq.uid}
           clearOnClick={clearOnClick}
           onDelete={() => {
             setSavedQueries(savedQueries.filter((s) => s !== sq));
-            deleteBlock(sq);
+            deleteBlock(sq.uid);
           }}
           resultsReferenced={resultsReferenced}
           setResultsReferenced={setResultsReferenced}
           editSavedQuery={editSavedQuery}
           parseQuery={parseQuery}
+          fireQuery={fireQuery}
+          initialResults={sq.results}
         />
       ))}
     </>
@@ -601,7 +658,7 @@ const QueryDrawerContent = ({
     if (selectionsNode?.uid) return selectionsNode?.uid;
     const newUid = window.roamAlphaAPI.util.generateUID();
     createBlock({
-      node: { text: "conditions", uid: newUid },
+      node: { text: "selections", uid: newUid },
       parentUid: scratchNodeUid,
     });
     return newUid;
@@ -623,130 +680,158 @@ const QueryDrawerContent = ({
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const translator = useMemo(englishToDatalog, []);
-  const fireQuery = useCallback(() => {
-    const where = conditions
-      .flatMap((c) => {
-        const native = translator[c.relation];
-        const targetType = nodeTypeByLabel[c.target.toLowerCase()];
-        if (native) {
-          if (/is a/.test(c.relation)) {
-            return native(c.source, targetType);
-          }
-          const sourceType = nodeTypeByLabel[c.source.toLowerCase()];
-          const prefix = sourceType
-            ? translator["is a"](c.source, sourceType)
-            : "";
-          const suffix = targetType
-            ? translator["is a"](c.target, targetType)
-            : "";
-          return `${prefix}${native(c.source, c.target)}${suffix}`;
-        }
-        const doesRelationMatchCondition = (
-          relation: { source: string; destination: string },
-          condition: { source: string; target: string }
-        ) => {
-          const sourceMatches =
-            nodeLabelByType[relation.source] === condition.source;
-          const targetMatches =
-            relation.destination === nodeLabelByType[condition.target] ||
-            matchNode({
-              format: nodeFormatByType[relation.destination],
-              title: condition.target,
-            });
-          if (sourceMatches) {
-            return (
-              targetMatches ||
-              (!nodeTypeByLabel[condition.target.toLowerCase()] &&
-                Object.values(nodeFormatByType).every(
-                  (format) => !matchNode({ format, title: condition.target })
-                ))
-            );
-          }
-          if (targetMatches) {
-            return (
-              sourceMatches || !nodeTypeByLabel[condition.source.toLowerCase()]
-            );
-          }
-          return false;
-        };
-        const conditionTarget = targetType || c.target;
-        const filteredRelations = discourseRelations
-          .map((r) =>
-            (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
-            doesRelationMatchCondition(r, c)
-              ? { ...r, forward: true }
-              : doesRelationMatchCondition(
-                  { source: r.destination, destination: r.source },
-                  c
-                ) &&
-                (r.complement === c.relation || ANY_REGEX.test(c.relation))
-              ? { ...r, forward: false }
-              : undefined
-          )
-          .filter((r) => !!r);
-        if (!filteredRelations.length) return "";
-        return `(or-join [?${c.source}] ${filteredRelations.map(
-          ({ triples, source, destination, forward }) => {
-            const queryTriples = triples.map((t) => t.slice(0));
-            const sourceTriple = queryTriples.find((t) => t[2] === "source");
-            const destinationTriple = queryTriples.find(
-              (t) => t[2] === "destination"
-            );
-            if (!sourceTriple || !destinationTriple) return "";
-            let sourceNodeVar = "";
-            if (forward) {
-              destinationTriple[1] = "Has Title";
-              destinationTriple[2] = conditionTarget;
-              sourceTriple[2] = source;
-              sourceNodeVar = sourceTriple[0];
-            } else {
-              sourceTriple[1] = "Has Title";
-              sourceTriple[2] = conditionTarget;
-              destinationTriple[2] = destination;
-              sourceNodeVar = destinationTriple[0];
+  const fireQuery = useCallback(
+    ({
+      conditions,
+      returnNode,
+      selections,
+    }: {
+      returnNode: string;
+      conditions: Condition[];
+      selections: string[];
+    }) => {
+      const where = conditions
+        .flatMap((c) => {
+          const native = translator[c.relation];
+          const targetType = nodeTypeByLabel[c.target.toLowerCase()];
+          if (native) {
+            if (/is a/.test(c.relation)) {
+              return native(c.source, targetType);
             }
-            const subQuery = triplesToQuery(queryTriples, translator);
-            const andQuery = `\n  (and ${subQuery.replace(
-              /([\s|\[]\?)/g,
-              `$1${c.uid}-`
-            )})`;
-            return andQuery.replace(
-              new RegExp(`\\?${c.uid}-${sourceNodeVar}`, "g"),
-              `?${c.source}`
-            );
+            const sourceType = nodeTypeByLabel[c.source.toLowerCase()];
+            const prefix = sourceType
+              ? translator["is a"](c.source, sourceType)
+              : "";
+            const suffix = targetType
+              ? translator["is a"](c.target, targetType)
+              : "";
+            return `${prefix}${native(c.source, c.target)}${suffix}`;
           }
-        )}\n)`;
-      })
-      .join("\n");
-    const query = `[:find (pull ?${returnNode} [
-      :block/string
-      :node/title 
-      [:block/uid :as "pageUid"]
-      [:create/time :as "createdTime"]
-      [:edit/time :as "editedTime"]
-    ]) :where ${where}]`;
-    try {
-      const results = where
-        ? window.roamAlphaAPI.q(query).map(
-            (a) =>
-              a[0] as Omit<SearchResult, "text"> & {
-                title?: string;
-                string?: string;
+          const doesRelationMatchCondition = (
+            relation: { source: string; destination: string },
+            condition: { source: string; target: string }
+          ) => {
+            const sourceMatches =
+              nodeLabelByType[relation.source] === condition.source;
+            const targetMatches =
+              relation.destination === nodeLabelByType[condition.target] ||
+              matchNode({
+                format: nodeFormatByType[relation.destination],
+                title: condition.target,
+              });
+            if (sourceMatches) {
+              return (
+                targetMatches ||
+                (!nodeTypeByLabel[condition.target.toLowerCase()] &&
+                  Object.values(nodeFormatByType).every(
+                    (format) => !matchNode({ format, title: condition.target })
+                  ))
+              );
+            }
+            if (targetMatches) {
+              return (
+                sourceMatches ||
+                !nodeTypeByLabel[condition.source.toLowerCase()]
+              );
+            }
+            return false;
+          };
+          const conditionTarget = targetType || c.target;
+          const filteredRelations = discourseRelations
+            .map((r) =>
+              (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
+              doesRelationMatchCondition(r, c)
+                ? { ...r, forward: true }
+                : doesRelationMatchCondition(
+                    { source: r.destination, destination: r.source },
+                    c
+                  ) &&
+                  (r.complement === c.relation || ANY_REGEX.test(c.relation))
+                ? { ...r, forward: false }
+                : undefined
+            )
+            .filter((r) => !!r);
+          if (!filteredRelations.length) return "";
+          return `(or-join [?${c.source}] ${filteredRelations.map(
+            ({ triples, source, destination, forward }) => {
+              const queryTriples = triples.map((t) => t.slice(0));
+              const sourceTriple = queryTriples.find((t) => t[2] === "source");
+              const destinationTriple = queryTriples.find(
+                (t) => t[2] === "destination"
+              );
+              if (!sourceTriple || !destinationTriple) return "";
+              let sourceNodeVar = "";
+              if (forward) {
+                destinationTriple[1] = "Has Title";
+                destinationTriple[2] = conditionTarget;
+                sourceTriple[2] = source;
+                sourceNodeVar = sourceTriple[0];
+              } else {
+                sourceTriple[1] = "Has Title";
+                sourceTriple[2] = conditionTarget;
+                destinationTriple[2] = destination;
+                sourceNodeVar = destinationTriple[0];
               }
+              const subQuery = triplesToQuery(queryTriples, translator);
+              const andQuery = `\n  (and ${subQuery.replace(
+                /([\s|\[]\?)/g,
+                `$1${c.uid}-`
+              )})`;
+              return andQuery.replace(
+                new RegExp(`\\?${c.uid}-${sourceNodeVar}`, "g"),
+                `?${c.source}`
+              );
+            }
+          )}\n)`;
+        })
+        .join("\n");
+
+      const definedSelections = selections
+        .map((s) => ({
+          defined: predefinedSelections.find((p) => p.test.test(s)),
+          s,
+        }))
+        .filter((p) => !!p.defined);
+      const morePullSelections = definedSelections
+        .map((p) => p.defined.text)
+        .join("\n");
+      // const attributePulls =
+      const query = `[:find (pull ?${returnNode} [
+      :block/string
+      :node/title
+      :block/uid
+      ${morePullSelections}
+    ]) :where ${where}]`;
+      try {
+        const results = where
+          ? window.roamAlphaAPI.q(query).map(
+              (a) =>
+                a[0] as {
+                  title?: string;
+                  string?: string;
+                  uid: string;
+                  [k: string]: string | number;
+                }
+            )
+          : [];
+        return results
+          .map(
+            ({ title, string: s, ...r }) =>
+              ({ ...r, text: s || title || "" } as SearchResult)
           )
-        : [];
-      setResults(
-        results.map((r) => ({ ...r, text: r.string || r.title || "" }))
-      );
-    } catch (e) {
-      console.error("Error from Roam:");
-      console.error(e.message);
-      console.error("Query from Roam:");
-      console.error(query);
-      setResults([]);
-    }
-    setShowResults(true);
-  }, [setShowResults, setResults, conditions, returnNode, nodeFormatByLabel]);
+          .map((r) =>
+            definedSelections.reduce((p, c) => c.defined.mapper(p, c.s), r)
+          );
+      } catch (e) {
+        console.error("Error from Roam:");
+        console.error(e.message);
+        console.error("Query from Roam:");
+        console.error(query);
+        return [];
+      }
+    },
+    [setResults, nodeFormatByLabel]
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const returnNodeOnChange = (value: string) => {
     window.clearTimeout(debounceRef.current);
@@ -768,14 +853,20 @@ const QueryDrawerContent = ({
     },
     results: returnSuggestions,
   });
-  const [savedQueries, setSavedQueries] = useState<string[]>(
-    tree.filter((t) => !toFlexRegex("scratch").test(t.text)).map((t) => t.uid)
+  const [savedQueries, setSavedQueries] = useState<
+    { text: string; uid: string; results?: SearchResult[] }[]
+  >(
+    tree
+      .filter((t) => !toFlexRegex("scratch").test(t.text))
+      .map((t) => ({ text: t.text, uid: t.uid }))
   );
   const [savedQueryLabel, setSavedQueryLabel] = useState(
     `Query ${
       savedQueries.reduce(
         (prev, cur) =>
-          prev < Number(cur.split(" ")[1]) ? Number(cur.split(" ")[1]) : prev,
+          prev < Number(cur.text.split(" ")[1])
+            ? Number(cur.text.split(" ")[1])
+            : prev,
         0
       ) + 1
     }`
@@ -808,9 +899,12 @@ const QueryDrawerContent = ({
             source,
             relation,
             target,
+            uid: window.roamAlphaAPI.util.generateUID(),
           };
         });
-      const selectionNodes = conditions.filter((s) => s.startsWith("Select"));
+      const selectionNodes = conditions
+        .filter((s) => s.startsWith("Select"))
+        .map((s) => s.replace(/^Select/i, "").trim());
       return { returnNode, conditionNodes, selectionNodes };
     },
     [relationLabels]
@@ -1009,7 +1103,14 @@ const QueryDrawerContent = ({
         <Button
           text={"Query"}
           onClick={() => {
-            fireQuery();
+            setResults(
+              fireQuery({
+                conditions,
+                returnNode,
+                selections: selections.map((s) => s.text),
+              })
+            );
+            setShowResults(true);
           }}
           style={{ maxHeight: 32 }}
           intent={"primary"}
@@ -1034,17 +1135,6 @@ const QueryDrawerContent = ({
                       text: savedQueryLabel,
                       children: [
                         {
-                          text: "results",
-                          children: results.map((r) => ({
-                            text: r.pageUid,
-                            children: [
-                              { text: r.text },
-                              { text: r.createdTime.toString() },
-                              { text: r.editedTime.toString() },
-                            ],
-                          })),
-                        },
-                        {
                           text: "query",
                           children: [
                             { text: `Find ${returnNode} Where` },
@@ -1060,7 +1150,11 @@ const QueryDrawerContent = ({
                     },
                     parentUid: blockUid,
                   }).then((newSavedUid) =>
-                    Promise.all(conditions.map((c) => deleteBlock(c.uid)))
+                    Promise.all(
+                      conditions
+                        .map((c) => deleteBlock(c.uid))
+                        .concat(selections.map((s) => deleteBlock(s.uid)))
+                    )
                       .then(() =>
                         setInputSetting({
                           blockUid: scratchNodeUid,
@@ -1069,6 +1163,10 @@ const QueryDrawerContent = ({
                         })
                       )
                       .then(() => {
+                        setSavedQueries([
+                          ...savedQueries,
+                          { uid: newSavedUid, text: savedQueryLabel, results },
+                        ]);
                         setSavedQueryLabel(
                           // temporary
                           savedQueryLabel
@@ -1080,9 +1178,9 @@ const QueryDrawerContent = ({
                         );
                         setReturnNode("");
                         setConditions([]);
-                        setSavedQueries([...savedQueries, newSavedUid]);
                         setShowResults(false);
                         setResults([]);
+                        setSelections([]);
                       })
                   );
                 }}
@@ -1103,7 +1201,7 @@ const QueryDrawerContent = ({
               <i style={{ opacity: 0.8 }}>Found {results.length} results</i>
               <ul>
                 {results.map((r) => (
-                  <li key={r.pageUid}>
+                  <li key={r.uid}>
                     <span
                       style={{
                         display: "flex",
@@ -1114,10 +1212,10 @@ const QueryDrawerContent = ({
                     >
                       <a
                         className={"rm-page-ref"}
-                        href={getRoamUrl(r.pageUid)}
+                        href={getRoamUrl(r.uid)}
                         onClick={(e) => {
                           if (e.ctrlKey || e.shiftKey) {
-                            openBlockInSidebar(r.pageUid);
+                            openBlockInSidebar(r.uid);
                             e.preventDefault();
                             e.stopPropagation();
                           }
@@ -1142,6 +1240,7 @@ const QueryDrawerContent = ({
           clearOnClick={clearOnClick}
           editSavedQuery={editSavedQuery}
           parseQuery={parseQuery}
+          fireQuery={fireQuery}
           {...exportRenderProps}
         />
       )}
