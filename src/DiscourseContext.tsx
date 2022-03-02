@@ -2,7 +2,7 @@ import { Switch, Tabs, Tab } from "@blueprintjs/core";
 import React, { useCallback, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import ResultsView from "./components/ResultsView";
-import { getDiscourseContextResults, Result } from "./util";
+import { getDiscourseContextResults } from "./util";
 
 type Props = {
   title: string;
@@ -49,7 +49,7 @@ const ContextTab = ({
         createdTime: new Date(a.createdTime),
         editedTime: new Date(a.editedTime),
       }))}
-      header={() => (
+      header={
         <>
           <span>{r.label}</span>
           <span style={{ display: "flex", alignItems: "center" }}>
@@ -63,7 +63,7 @@ const ContextTab = ({
             />
           </span>
         </>
-      )}
+      }
     />
   );
   return subTabs.length ? (

@@ -1,4 +1,4 @@
-import { Button, Popover, Position } from "@blueprintjs/core";
+import { Button, Popover, Position, Tooltip } from "@blueprintjs/core";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { v4 } from "uuid";
@@ -125,9 +125,22 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
           style={{
             padding: 16,
             maxWidth: 720,
+            position: "relative",
           }}
         >
           <ContextContent title={tag} results={results} />
+          <span style={{ position: "absolute", bottom: "8px", left: "8px" }}>
+            <Tooltip content={"Refresh Overlay"}>
+              <Button
+                icon={"refresh"}
+                minimal
+                onClick={() => {
+                  delete cache[tag];
+                  refresh();
+                }}
+              />
+            </Tooltip>
+          </span>
         </div>
       }
       target={
@@ -144,10 +157,6 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
         />
       }
       position={Position.BOTTOM}
-      modifiers={{
-        flip: { enabled: false },
-        preventOverflow: { enabled: false },
-      }}
     />
   );
 };

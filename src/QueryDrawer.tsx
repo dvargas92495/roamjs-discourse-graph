@@ -31,7 +31,6 @@ import updateBlock from "roamjs-components/writes/updateBlock";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import getSettingValuesFromTree from "roamjs-components/util/getSettingValuesFromTree";
-import getSubTree from "roamjs-components/util/getSubTree";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import PageInput from "roamjs-components/components/PageInput";
 import setInputSetting from "roamjs-components/util/setInputSetting";
@@ -48,6 +47,7 @@ import {
 } from "./util";
 import ResultsView, { Result as SearchResult } from "./components/ResultsView";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import { getFirstChildUidByBlockUid } from "roamjs-components";
 
 type Props = {
   blockUid: string;
@@ -58,6 +58,12 @@ type Condition = {
   relation: string;
   source: string;
   target: string;
+  uid: string;
+};
+
+type Selection = {
+  text: string;
+  label: string;
   uid: string;
 };
 
@@ -171,9 +177,9 @@ const QuerySelection = ({
   setSelections,
   selections,
 }: {
-  sel: { uid: string; text: string };
-  setSelections: (cons: { uid: string; text: string }[]) => void;
-  selections: { uid: string; text: string }[];
+  sel: Selection;
+  setSelections: (cons: Selection[]) => void;
+  selections: Selection[];
 }) => {
   const debounceRef = useRef(0);
   return (
@@ -200,7 +206,37 @@ const QuerySelection = ({
               )
             );
             debounceRef.current = window.setTimeout(() => {
-              updateBlock(sel);
+              updateBlock({ uid: sel.uid, text: sel.text });
+            }, 1000);
+          }}
+        />
+      </div>
+      <span
+        style={{
+          minWidth: 60,
+          display: "inline-block",
+          textAlign: "center",
+          fontWeight: 600,
+        }}
+      >
+        AS
+      </span>
+      <div style={{ flexGrow: 1 }}>
+        <InputGroup
+          value={sel.label}
+          style={{ width: 152 }}
+          onChange={(e) => {
+            window.clearTimeout(debounceRef.current);
+            setSelections(
+              selections.map((c) =>
+                c.uid === sel.uid ? { ...sel, label: e.target.value } : c
+              )
+            );
+            debounceRef.current = window.setTimeout(() => {
+              const firstChild = getFirstChildUidByBlockUid(sel.uid);
+              if (firstChild) updateBlock({ uid: firstChild, text: sel.label });
+              else
+                createBlock({ parentUid: sel.uid, node: { text: sel.label } });
             }, 1000);
           }}
         />
@@ -208,8 +244,9 @@ const QuerySelection = ({
       <Button
         icon={"trash"}
         onClick={() => {
-          deleteBlock(sel.uid);
-          setSelections(selections.filter((c) => c.uid !== sel.uid));
+          deleteBlock(sel.uid).then(() =>
+            setSelections(selections.filter((c) => c.uid !== sel.uid))
+          );
         }}
         minimal
         style={{ alignSelf: "end" }}
@@ -233,12 +270,12 @@ const SavedQuery = ({
   parseQuery: (s: string[]) => {
     returnNode: string;
     conditionNodes: Condition[];
-    selectionNodes: string[];
+    selectionNodes: Selection[];
   };
   fireQuery: (args: {
     returnNode: string;
     conditions: Condition[];
-    selections: string[];
+    selections: Selection[];
   }) => SearchResult[];
   onDelete: () => void;
   resultsReferenced: Set<string>;
@@ -403,43 +440,40 @@ const SavedQuery = ({
 const predefinedSelections: {
   test: RegExp;
   text: string;
-  mapper: (r: SearchResult, key: string) => SearchResult;
+  mapper: (r: SearchResult, key: string) => SearchResult[string];
 }[] = [
   {
     test: /created?\s*date/i,
     text: '[:create/time :as "createdTime"]',
-    mapper: (r, key) => {
-      r[key] = new Date(r.createdTime);
+    mapper: (r) => {
       delete r.createdTime;
-      return r;
+      return new Date(r.createdTime);
     },
   },
   {
     test: /edit(ed)?\s*date/i,
     text: '[:edit/time :as "editedTime"]',
-    mapper: (r, key) => {
-      r[key] = new Date(r.editedTime);
+    mapper: (r) => {
       delete r.editedTime;
-      return r;
+      return new Date(r.editedTime);
     },
   },
   {
     test: /author/i,
     text: '[:create/user :as "author"]',
-    mapper: (r, key) => {
-      // @ts-ignore
-      r[key] = window.roamAlphaAPI.pull("[:user/display-name]", r.author)[
-        ":user/display-name"
-      ];
+    mapper: (r) => {
       delete r.createdTime;
-      return r;
+      return window.roamAlphaAPI.pull(
+        "[:user/display-name]",
+        r.author as number
+      )[":user/display-name"];
     },
   },
   {
     test: /.*/,
     text: "",
     mapper: (r, key) => {
-      r[key] = (
+      return (
         window.roamAlphaAPI.q(
           `[:find (pull ?b [:block/string]) :where [?a :node/title "${normalizePageTitle(
             key
@@ -450,7 +484,6 @@ const predefinedSelections: {
       )
         .slice(key.length + 2)
         .trim();
-      return r;
     },
   },
 ];
@@ -472,12 +505,12 @@ const SavedQueriesContainer = ({
   parseQuery: (s: string[]) => {
     returnNode: string;
     conditionNodes: Condition[];
-    selectionNodes: string[];
+    selectionNodes: Selection[];
   };
   fireQuery: (args: {
     returnNode: string;
     conditions: Condition[];
-    selections: string[];
+    selections: Selection[];
   }) => SearchResult[];
 }) => {
   const refreshResultsReferenced = useCallback(
@@ -667,14 +700,13 @@ const QueryDrawerContent = ({
     () => selectionsNode?.children || [],
     [selectionsNode]
   );
-  const [selections, setSelections] = useState<{ uid: string; text: string }[]>(
-    () => {
-      return selectionsNodeChildren.map(({ uid, text }) => ({
-        uid,
-        text,
-      }));
-    }
-  );
+  const [selections, setSelections] = useState<Selection[]>(() => {
+    return selectionsNodeChildren.map(({ uid, text, children }) => ({
+      uid,
+      text,
+      label: children?.[0]?.text || "",
+    }));
+  });
 
   const debounceRef = useRef(0);
   const [showResults, setShowResults] = useState(false);
@@ -688,7 +720,7 @@ const QueryDrawerContent = ({
     }: {
       returnNode: string;
       conditions: Condition[];
-      selections: string[];
+      selections: Selection[];
     }) => {
       const where = conditions
         .flatMap((c) => {
@@ -788,7 +820,7 @@ const QueryDrawerContent = ({
 
       const definedSelections = selections
         .map((s) => ({
-          defined: predefinedSelections.find((p) => p.test.test(s)),
+          defined: predefinedSelections.find((p) => p.test.test(s.text)),
           s,
         }))
         .filter((p) => !!p.defined);
@@ -820,7 +852,10 @@ const QueryDrawerContent = ({
               ({ ...r, text: s || title || "" } as SearchResult)
           )
           .map((r) =>
-            definedSelections.reduce((p, c) => c.defined.mapper(p, c.s), r)
+            definedSelections.reduce((p, c) => {
+              p[c.s.label] = c.defined.mapper(p, c.s.text);
+              return p;
+            }, r)
           );
       } catch (e) {
         console.error("Error from Roam:");
@@ -904,7 +939,17 @@ const QueryDrawerContent = ({
         });
       const selectionNodes = conditions
         .filter((s) => s.startsWith("Select"))
-        .map((s) => s.replace(/^Select/i, "").trim());
+        .map((s) =>
+          s
+            .replace(/^Select/i, "")
+            .trim()
+            .split(" AS ")
+        )
+        .map(([text, label]) => ({
+          uid: window.roamAlphaAPI.util.generateUID(),
+          text,
+          label,
+        }));
       return { returnNode, conditionNodes, selectionNodes };
     },
     [relationLabels]
@@ -944,17 +989,16 @@ const QueryDrawerContent = ({
           )
         ),
         Promise.all(
-          selectionNodes.map((text, order) =>
+          selectionNodes.map((sel, order) =>
             createBlock({
               parentUid: selectionsNodeUid,
               order,
               node: {
-                text,
+                text: sel.text,
+                uid: sel.uid,
+                children: [{ text: sel.label }],
               },
-            }).then((uid) => ({
-              text,
-              uid,
-            }))
+            }).then(() => sel)
           )
         ),
       ]).then(([conditionNodesWithUids, selections]) => {
@@ -1097,7 +1141,9 @@ const QueryDrawerContent = ({
               node: {
                 text: ``,
               },
-            }).then((uid) => setSelections([...selections, { uid, text: "" }]));
+            }).then((uid) =>
+              setSelections([...selections, { uid, text: "", label: "" }])
+            );
           }}
         />
         <Button
@@ -1107,7 +1153,7 @@ const QueryDrawerContent = ({
               fireQuery({
                 conditions,
                 returnNode,
-                selections: selections.map((s) => s.text),
+                selections,
               })
             );
             setShowResults(true);
@@ -1142,7 +1188,7 @@ const QueryDrawerContent = ({
                               text: `${c.source} ${c.relation} ${c.target}`,
                             })),
                             ...selections.map((s) => ({
-                              text: `Select ${s.text}`,
+                              text: `Select ${s.text} AS ${s.label}`,
                             })),
                           ],
                         },

@@ -138,7 +138,7 @@ const init = (
       graph.edges.timeById[id] = { createdTime, editedTime };
       if (!title && !string) {
         graph.edges.userDisplayById[id] = displayName;
-      } else if (!page) {
+      } else if (!page && title) {
         graph.edges.pagesById[id] = title;
         graph.edges.pageIdByTitle[title] = id;
         if (title === "roam/js/discourse-graph") {

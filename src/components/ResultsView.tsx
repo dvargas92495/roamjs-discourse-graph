@@ -181,7 +181,7 @@ const ResultView = ({
               </div>
             )}
             {contextChildren.map((uid) => (
-              <div data-uid={uid}></div>
+              <div data-uid={uid} key={uid}></div>
             ))}
           </td>
         </tr>

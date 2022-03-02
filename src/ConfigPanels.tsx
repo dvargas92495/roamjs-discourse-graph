@@ -41,6 +41,7 @@ import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParen
 import { render as renderToast } from "roamjs-components/components/Toast";
 import createPage from "roamjs-components/writes/createPage";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import { updateBlock } from "roamjs-components";
 
 export const NodeConfigPanel: Panel = ({}) => {
   const [nodes, setNodes] = useState(getNodes);
@@ -607,20 +608,23 @@ const RelationEditPanel = ({
             ?.data as { node: string }
         )?.node,
       }));
-    getShallowTreeByParentUid(previewUid).forEach(({ uid }) =>
-      deleteBlock(uid)
-    );
-    let order = 0;
-    triplesToBlocks({
-      defaultPageTitle: "Any Page",
-      toPage: (text, children) =>
-        createBlock({
-          node: { text, children, open: true },
-          parentUid: previewUid,
-          order: order++,
-        }),
-      nodeFormatsByLabel,
-    })(triples);
+    Promise.all(
+      getShallowTreeByParentUid(previewUid).map(({ uid }) => deleteBlock(uid))
+    )
+      .then(() => updateBlock({ uid: previewUid, open: true }))
+      .then(() => {
+        let order = 0;
+        triplesToBlocks({
+          defaultPageTitle: "Any Page",
+          toPage: (text, children) =>
+            createBlock({
+              node: { text, children, open: true },
+              parentUid: previewUid,
+              order: order++,
+            }),
+          nodeFormatsByLabel,
+        })(triples);
+      });
   }, [previewUid, tab, elementsRef, nodeFormatsByLabel]);
   return (
     <>
