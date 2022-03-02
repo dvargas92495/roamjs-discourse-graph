@@ -47,7 +47,7 @@ import {
 } from "./util";
 import ResultsView, { Result as SearchResult } from "./components/ResultsView";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
-import { getFirstChildUidByBlockUid } from "roamjs-components";
+import getFirstChildUidByBlockUid from "roamjs-components/queries/getFirstChildUidByBlockUid";
 
 type Props = {
   blockUid: string;

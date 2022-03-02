@@ -41,7 +41,7 @@ import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParen
 import { render as renderToast } from "roamjs-components/components/Toast";
 import createPage from "roamjs-components/writes/createPage";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
-import { updateBlock } from "roamjs-components";
+import updateBlock from "roamjs-components/writes/updateBlock";
 
 export const NodeConfigPanel: Panel = ({}) => {
   const [nodes, setNodes] = useState(getNodes);
