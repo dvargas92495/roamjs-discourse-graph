@@ -130,44 +130,44 @@ const QueryCondition = ({
         emptyValueText={"Choose relationship"}
         ButtonProps={{
           style: {
-            minWidth: 152,
-            width: 152,
-            margin: "0 8px",
             display: "flex",
             justifyContent: "space-between",
+            width: "100%",
           },
         }}
       />
-      <div style={{ flexGrow: 1 }}>
-        <PageInput
-          value={con.target}
-          setValue={(e) => {
-            window.clearTimeout(debounceRef.current);
-            setConditions(
-              conditions.map((c) =>
-                c.uid === con.uid ? { ...con, target: e } : c
-              )
-            );
-            debounceRef.current = window.setTimeout(() => {
-              setInputSetting({
-                blockUid: con.uid,
-                value: e,
-                key: "target",
-                index: 2,
-              });
-            }, 1000);
+      <div className="roamjs-discourse-condition-target">
+        <span style={{ flexGrow: 1 }}>
+          <PageInput
+            value={con.target}
+            setValue={(e) => {
+              window.clearTimeout(debounceRef.current);
+              setConditions(
+                conditions.map((c) =>
+                  c.uid === con.uid ? { ...con, target: e } : c
+                )
+              );
+              debounceRef.current = window.setTimeout(() => {
+                setInputSetting({
+                  blockUid: con.uid,
+                  value: e,
+                  key: "target",
+                  index: 2,
+                });
+              }, 1000);
+            }}
+          />
+        </span>
+        <Button
+          icon={"trash"}
+          onClick={() => {
+            deleteBlock(con.uid);
+            setConditions(conditions.filter((c) => c.uid !== con.uid));
           }}
+          minimal
+          style={{ alignSelf: "end", minWidth: 30 }}
         />
       </div>
-      <Button
-        icon={"trash"}
-        onClick={() => {
-          deleteBlock(con.uid);
-          setConditions(conditions.filter((c) => c.uid !== con.uid));
-        }}
-        minimal
-        style={{ alignSelf: "end" }}
-      />
     </div>
   );
 };
@@ -183,48 +183,19 @@ const QuerySelection = ({
 }) => {
   const debounceRef = useRef(0);
   return (
-    <div style={{ display: "flex", margin: "8px 0", alignItems: "baseline" }}>
+    <div style={{ display: "flex", margin: "8px 0", alignItems: "center" }}>
       <span
         style={{
-          minWidth: 120,
+          minWidth: 144,
           display: "inline-block",
-          textAlign: "center",
-          fontWeight: 600,
-        }}
-      >
-        Select
-      </span>
-      <div style={{ flexGrow: 1 }}>
-        <InputGroup
-          value={sel.text}
-          style={{ width: 152 }}
-          onChange={(e) => {
-            window.clearTimeout(debounceRef.current);
-            setSelections(
-              selections.map((c) =>
-                c.uid === sel.uid ? { ...sel, text: e.target.value } : c
-              )
-            );
-            debounceRef.current = window.setTimeout(() => {
-              updateBlock({ uid: sel.uid, text: sel.text });
-            }, 1000);
-          }}
-        />
-      </div>
-      <span
-        style={{
-          minWidth: 60,
-          display: "inline-block",
-          textAlign: "center",
           fontWeight: 600,
         }}
       >
         AS
       </span>
-      <div style={{ flexGrow: 1 }}>
+      <div style={{ minWidth: 144, paddingRight: 8, maxWidth: 144 }}>
         <InputGroup
           value={sel.label}
-          style={{ width: 152 }}
           onChange={(e) => {
             window.clearTimeout(debounceRef.current);
             setSelections(
@@ -241,16 +212,44 @@ const QuerySelection = ({
           }}
         />
       </div>
-      <Button
-        icon={"trash"}
-        onClick={() => {
-          deleteBlock(sel.uid).then(() =>
-            setSelections(selections.filter((c) => c.uid !== sel.uid))
-          );
-        }}
-        minimal
-        style={{ alignSelf: "end" }}
-      />
+      <div style={{ flexGrow: 1, display: "flex", minWidth: 300, alignItems: 'center' }}>
+        <span
+          style={{
+            minWidth: 56,
+            display: "inline-block",
+            fontWeight: 600,
+          }}
+        >
+          Select
+        </span>
+        <div style={{ flexGrow: 1 }}>
+          <InputGroup
+            value={sel.text}
+            style={{ width: "100%" }}
+            onChange={(e) => {
+              window.clearTimeout(debounceRef.current);
+              setSelections(
+                selections.map((c) =>
+                  c.uid === sel.uid ? { ...sel, text: e.target.value } : c
+                )
+              );
+              debounceRef.current = window.setTimeout(() => {
+                updateBlock({ uid: sel.uid, text: sel.text });
+              }, 1000);
+            }}
+          />
+        </div>
+        <Button
+          icon={"trash"}
+          onClick={() => {
+            deleteBlock(sel.uid).then(() =>
+              setSelections(selections.filter((c) => c.uid !== sel.uid))
+            );
+          }}
+          minimal
+          style={{ alignSelf: "end", minWidth: 30 }}
+        />
+      </div>
     </div>
   );
 };
@@ -298,11 +297,13 @@ const SavedQuery = ({
   const [initialQuery, setInitialQuery] = useState(!!initialResults);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const returnNode = /^Find (.*) Where$/.exec(query[0])?.[1];
+  const { returnNode, conditionNodes, selectionNodes } = useMemo(
+    () => parseQuery(query),
+    [parseQuery, query]
+  );
   useEffect(() => {
     if (!initialQuery && !minimized) {
       setInitialQuery(true);
-      const { returnNode, conditionNodes, selectionNodes } = parseQuery(query);
       const results = fireQuery({
         returnNode,
         conditions: conditionNodes,
@@ -446,27 +447,30 @@ const predefinedSelections: {
     test: /created?\s*date/i,
     text: '[:create/time :as "createdTime"]',
     mapper: (r) => {
+      const value = new Date(r.createdTime);
       delete r.createdTime;
-      return new Date(r.createdTime);
+      return value;
     },
   },
   {
     test: /edit(ed)?\s*date/i,
     text: '[:edit/time :as "editedTime"]',
     mapper: (r) => {
+      const value = new Date(r.editedTime);
       delete r.editedTime;
-      return new Date(r.editedTime);
+      return value;
     },
   },
   {
     test: /author/i,
     text: '[:create/user :as "author"]',
     mapper: (r) => {
-      delete r.createdTime;
-      return window.roamAlphaAPI.pull(
+      const value = window.roamAlphaAPI.pull(
         "[:user/display-name]",
         r.author as number
       )[":user/display-name"];
+      delete r.author;
+      return value;
     },
   },
   {
@@ -853,7 +857,7 @@ const QueryDrawerContent = ({
           )
           .map((r) =>
             definedSelections.reduce((p, c) => {
-              p[c.s.label] = c.defined.mapper(p, c.s.text);
+              p[c.s.label || c.s.text] = c.defined.mapper(p, c.s.text);
               return p;
             }, r)
           );
@@ -1028,15 +1032,15 @@ const QueryDrawerContent = ({
       >
         <span
           style={{
-            minWidth: 120,
+            minWidth: 144,
             display: "inline-block",
-            textAlign: "center",
           }}
         >
           Find
         </span>
         <Popover
-          popoverClassName={"roamjs-discourse-condition-relation"}
+          popoverClassName={"roamjs-discourse-return-node"}
+          className="roamjs-discourse-return-wrapper"
           captureDismiss
           isOpen={isReturnSuggestionsOpen}
           onOpened={openReturnSuggestions}
@@ -1067,6 +1071,7 @@ const QueryDrawerContent = ({
           }
           target={
             <InputGroup
+              autoFocus
               value={returnNode}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -1081,12 +1086,15 @@ const QueryDrawerContent = ({
                 openReturnSuggestions();
               }}
               placeholder={"Enter Label..."}
-              style={{ marginLeft: 8, width: 152 }}
             />
           }
         />
         <span
-          style={{ flexGrow: 1, display: "inline-block", textAlign: "center" }}
+          style={{
+            flexGrow: 1,
+            display: "inline-block",
+            minWidth: 300,
+          }}
         >
           Where
         </span>
@@ -1110,62 +1118,71 @@ const QueryDrawerContent = ({
           setSelections={setSelections}
         />
       ))}
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <Button
-          rightIcon={"plus"}
-          text={"Add Condition"}
-          style={{ maxHeight: 32 }}
-          onClick={() => {
-            createBlock({
-              parentUid: conditionsNodeUid,
-              order: conditions.length,
-              node: {
-                text: `${conditions.length}`,
-              },
-            }).then((uid) =>
-              setConditions([
-                ...conditions,
-                { uid, source: "", relation: "", target: "" },
-              ])
-            );
-          }}
-        />
-        <Button
-          rightIcon={"plus"}
-          text={"Add Selection"}
-          style={{ maxHeight: 32 }}
-          onClick={() => {
-            createBlock({
-              parentUid: selectionsNodeUid,
-              order: selections.length,
-              node: {
-                text: ``,
-              },
-            }).then((uid) =>
-              setSelections([...selections, { uid, text: "", label: "" }])
-            );
-          }}
-        />
-        <Button
-          text={"Query"}
-          onClick={() => {
-            setResults(
-              fireQuery({
-                conditions,
-                returnNode,
-                selections,
-              })
-            );
-            setShowResults(true);
-          }}
-          style={{ maxHeight: 32 }}
-          intent={"primary"}
-          disabled={
-            !conditions.length ||
-            !conditions.every((c) => !!c.relation && !!c.target) ||
-            !returnNode
-          }
-        />
+      <div style={{ display: "flex" }}>
+        <span style={{ minWidth: 144, display: "inline-block" }}>
+          <Button
+            rightIcon={"plus"}
+            text={"Add Condition"}
+            style={{ maxHeight: 32 }}
+            onClick={() => {
+              createBlock({
+                parentUid: conditionsNodeUid,
+                order: conditions.length,
+                node: {
+                  text: `${conditions.length}`,
+                },
+              }).then((uid) =>
+                setConditions([
+                  ...conditions,
+                  { uid, source: "", relation: "", target: "" },
+                ])
+              );
+            }}
+          />
+        </span>
+        <span style={{ display: "inline-block", minWidth: 144 }}>
+          <Button
+            rightIcon={"plus"}
+            text={"Add Selection"}
+            style={{ maxHeight: 32 }}
+            onClick={() => {
+              createBlock({
+                parentUid: selectionsNodeUid,
+                order: selections.length,
+                node: {
+                  text: ``,
+                },
+              }).then((uid) =>
+                setSelections([...selections, { uid, text: "", label: "" }])
+              );
+            }}
+          />
+        </span>
+        <span
+          style={{ display: "inline-block", textAlign: "end", flexGrow: 1 }}
+        >
+          <Button
+            text={"Query"}
+            onClick={() => {
+              setResults(
+                fireQuery({
+                  conditions,
+                  returnNode,
+                  selections,
+                })
+              );
+              setShowResults(true);
+            }}
+            style={{ maxHeight: 32 }}
+            intent={"primary"}
+            disabled={
+              !conditions.length ||
+              !conditions.every((c) => !!c.relation && !!c.target) ||
+              !returnNode ||
+              selections.some((s) => !s.text)
+            }
+          />
+        </span>
       </div>
       {showResults && (
         <>
@@ -1210,8 +1227,8 @@ const QueryDrawerContent = ({
                       )
                       .then(() => {
                         setSavedQueries([
-                          ...savedQueries,
                           { uid: newSavedUid, text: savedQueryLabel, results },
+                          ...savedQueries,
                         ]);
                         setSavedQueryLabel(
                           // temporary

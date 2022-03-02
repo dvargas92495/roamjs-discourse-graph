@@ -142,12 +142,28 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
   position: relative;
 }
 
-.roamjs-discourse-condition-source {
-  min-width: 120px;
+.roamjs-discourse-condition-source, 
+.roamjs-discourse-condition-relation,
+.roamjs-discourse-return-node,
+.roamjs-discourse-return-wrapper {
+  min-width: 144px;
+  max-width: 144px;
 }
 
-.roamjs-discourse-condition-relation {
-  min-width: 168px;
+.roamjs-discourse-condition-relation,
+.roamjs-discourse-return-wrapper {
+  padding-right: 8px;
+}
+
+.roamjs-discourse-condition-target { 
+  flex-grow: 1; 
+  display: flex; 
+  min-width: 300px;
+}
+
+.roamjs-discourse-condition-relation .bp3-popover-target,
+.roamjs-discourse-condition-target .roamjs-page-input-target { 
+  width: 100%
 }
 
 .roamjs-discourse-results-sort button {
