@@ -3,17 +3,23 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import fuzzy from "fuzzy";
 import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
-import { Button, Icon, Tooltip, HTMLTable } from "@blueprintjs/core";
+import {
+  Button,
+  Icon,
+  Tooltip,
+  HTMLTable,
+  InputGroup,
+} from "@blueprintjs/core";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 import toRoamDate from "roamjs-components/date/toRoamDate";
-
-const SEARCH_HIGHLIGHT = "#C26313";
 
 export type Result = { text: string; uid: string } & Record<
   string,
   string | number | Date
 >;
+
+type MappedResult = { uid: string } & Record<string, string>;
 
 const sortFunction =
   (key: string, descending?: boolean) => (a: Result, b: Result) => {
@@ -37,8 +43,8 @@ const ResultView = ({
   r,
   colSpan,
 }: {
-  r: Result;
-  ResultIcon: (props: { result: Result }) => React.ReactElement;
+  r: MappedResult;
+  ResultIcon: (props: { result: MappedResult }) => React.ReactElement;
   colSpan: number;
 }) => {
   const rowCells = Object.keys(r).filter((k) => !defaultFields.includes(k));
@@ -85,13 +91,22 @@ const ResultView = ({
       }, 1);
     }
   }, [contextOpen, contextElement, r.uid, contextPageTitle]);
+  const cell = (key: string) =>
+    r[key].split("<span>").map((s, i) => (
+      <span
+        key={i}
+        className={i % 2 === 0 ? "" : "roamjs-discourse-hightlighted-result"}
+      >
+        {s}
+      </span>
+    ));
   return (
     <>
       <tr>
         <td
           style={{
             textOverflow: "ellipsis",
-            overflow: 'hidden',
+            overflow: "hidden",
           }}
         >
           <a
@@ -105,21 +120,11 @@ const ResultView = ({
               }
             }}
           >
-            {r.text.split("<span>").map((s, i) => (
-              <span
-                key={i}
-                className={
-                  i % 2 === 0 ? "" : "roamjs-discourse-hightlighted-result"
-                }
-              >
-                {s}
-              </span>
-            ))}
+            {cell('text')}
           </a>
           <ResultIcon result={r} />
         </td>
         {rowCells.map((k) => {
-          const v = r[k];
           return (
             <td
               style={{
@@ -127,7 +132,7 @@ const ResultView = ({
               }}
               key={k}
             >
-              {v instanceof Date ? toRoamDate(v) : v}
+              {cell(k)}
             </td>
           );
         })}
@@ -203,7 +208,7 @@ const ResultsView = ({
   header?: React.ReactNode;
   hideResults?: boolean;
   results: Result[];
-  ResultIcon?: (props: { result: Result }) => React.ReactElement;
+  ResultIcon?: (props: { result: MappedResult }) => React.ReactElement;
   resultFilter?: (r: Result) => boolean;
   resultContent?: React.ReactElement;
 }) => {
@@ -228,18 +233,38 @@ const ResultsView = ({
   const sortedResults = useMemo(() => {
     const sorted = results
       .filter(resultFilter)
+      .map((r) => ({
+        uid: r.uid,
+        text: r.text,
+        ...Object.fromEntries(
+          Object.entries(r)
+            .filter(([k]) => k !== "uid" && k !== "text")
+            .map(([k, v]) => [k, v instanceof Date ? toRoamDate(v) : v])
+        ),
+      }))
       .sort(sortFunction(activeSort.key, activeSort.descending));
     return searchTerm
       ? sorted
-          .filter((s) => fuzzy.test(searchTerm, s.text.toString()))
-          .map((s) => ({
-            ...s,
-            text:
-              fuzzy.match(searchTerm, s.text.toString(), {
-                pre: "<span>",
-                post: "<span>",
-              })?.rendered || s.text,
-          }))
+          .filter((s) =>
+            Object.values(s).some((v) => fuzzy.test(searchTerm, v.toString()))
+          )
+          .map(
+            (s) =>
+              ({
+                uid: s.uid,
+                ...Object.fromEntries(
+                  Object.entries(s)
+                    .filter(([k]) => k !== "uid" && k !== 'context')
+                    .map(([k, v]) => [
+                      k,
+                      fuzzy.match(searchTerm, v.toString(), {
+                        pre: "<span>",
+                        post: "<span>",
+                      })?.rendered || v,
+                    ])
+                ),
+              } as MappedResult)
+          )
       : sorted;
   }, [results, activeSort, searchTerm, resultFilter]);
   return (
@@ -260,94 +285,73 @@ const ResultsView = ({
         {header}
       </h4>
       {!hideResults && (
-        <div
-          tabIndex={-1}
-          style={{ position: "relative", outline: "none" }}
-          onKeyDown={(e) => {
-            if (!e.ctrlKey && !e.altKey && !e.metaKey) {
-              if (e.key === "Backspace") {
-                setSearchTerm(searchTerm.slice(0, -1));
-              } else if (e.key.length === 1) {
-                setSearchTerm(`${searchTerm}${e.key.toLowerCase()}`);
-                if (e.key === " ") e.preventDefault();
-              }
-            }
-          }}
-        >
-          <span
-            style={{
-              background: SEARCH_HIGHLIGHT,
-              color: "white",
-              position: "absolute",
-              top: 4,
-              right: 4,
-              outline: sortedResults.length ? "unset" : "2px solid darkred",
-            }}
-          >
-            {searchTerm}
-          </span>
+        <div tabIndex={-1} style={{ position: "relative", outline: "none" }}>
           {resultContent}
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <i style={{ opacity: 0.8 }}>
+              Showing {sortedResults.length} of {results.length} results
+            </i>
+            <InputGroup
+              placeholder="Filter results..."
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
           {sortedResults.length ? (
-            <>
-              <i style={{ opacity: 0.8 }}>
-                Showing {sortedResults.length} of {results.length} results
-              </i>
-              <HTMLTable
-                style={{
-                  maxHeight: "400px",
-                  overflowY: "scroll",
-                  width: "100%",
-                  tableLayout: "fixed",
-                }}
-                striped
-                interactive
-                bordered
-              >
-                <thead>
-                  <tr>
-                    {columns.map((c) => (
-                      <td
-                        style={{ cursor: "pointer" }}
-                        key={c}
-                        onClick={() => {
-                          if (activeSort.key === c) {
-                            setActiveSort({
-                              key: c,
-                              descending: !activeSort.descending,
-                            });
-                          } else {
-                            setActiveSort({
-                              key: c,
-                              descending: false,
-                            });
+            <HTMLTable
+              style={{
+                maxHeight: "400px",
+                overflowY: "scroll",
+                width: "100%",
+                tableLayout: "fixed",
+              }}
+              striped
+              interactive
+              bordered
+            >
+              <thead>
+                <tr>
+                  {columns.map((c) => (
+                    <td
+                      style={{ cursor: "pointer" }}
+                      key={c}
+                      onClick={() => {
+                        if (activeSort.key === c) {
+                          setActiveSort({
+                            key: c,
+                            descending: !activeSort.descending,
+                          });
+                        } else {
+                          setActiveSort({
+                            key: c,
+                            descending: false,
+                          });
+                        }
+                      }}
+                    >
+                      {c.slice(0, 1).toUpperCase()}
+                      {c.slice(1)}{" "}
+                      {activeSort.key === c && (
+                        <Icon
+                          icon={
+                            activeSort.descending ? "sort-desc" : "sort-asc"
                           }
-                        }}
-                      >
-                        {c.slice(0, 1).toUpperCase()}
-                        {c.slice(1)}{" "}
-                        {activeSort.key === c && (
-                          <Icon
-                            icon={
-                              activeSort.descending ? "sort-desc" : "sort-asc"
-                            }
-                          />
-                        )}
-                      </td>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedResults.map((r) => (
-                    <ResultView
-                      key={r.uid}
-                      r={r}
-                      colSpan={columns.length}
-                      ResultIcon={ResultIcon}
-                    />
+                        />
+                      )}
+                    </td>
                   ))}
-                </tbody>
-              </HTMLTable>
-            </>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedResults.map((r) => (
+                  <ResultView
+                    key={r.uid}
+                    r={r}
+                    colSpan={columns.length}
+                    ResultIcon={ResultIcon}
+                  />
+                ))}
+              </tbody>
+            </HTMLTable>
           ) : (
             <div>No Results</div>
           )}
