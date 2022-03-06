@@ -144,7 +144,7 @@ const init = (
         if (title === "roam/js/discourse-graph") {
           graph.config.id = id;
         }
-      } else {
+      } else if (page) {
         graph.edges.blocksById[id] = string;
         graph.edges.blocksPageById[id] = page.id;
       }
