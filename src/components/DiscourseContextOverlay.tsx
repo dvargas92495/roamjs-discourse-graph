@@ -3,7 +3,12 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
-import { getDiscourseContextResults, isFlagEnabled } from "../util";
+import {
+  getDiscourseContextResults,
+  getNodes,
+  getRelations,
+  isFlagEnabled,
+} from "../util";
 import { useInViewport } from "react-in-viewport";
 import {
   getDataWorker,
@@ -72,12 +77,14 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
     });
   } else {
     if (cache[tag]) return Promise.resolve(cache[tag]);
+    const nodes = getNodes();
+    const releations = getRelations();
     return new Promise((resolve) => {
       const triggerNow = overlayQueue.length === 0;
       overlayQueue.push(() => {
         const start = new Date();
         const output = (cache[tag] = {
-          results: getDiscourseContextResults(tag),
+          results: getDiscourseContextResults(tag, nodes, releations, true),
           refs: window.roamAlphaAPI.q(
             `[:find ?a :where [?b :node/title "${normalizePageTitle(
               tag

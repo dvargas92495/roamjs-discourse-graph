@@ -494,12 +494,13 @@ const predefinedSelections: {
       );
       const results = getDiscourseContextResults(
         r.text,
-        getNodes(),
+        nodes,
         getRelations().filter(
           (r) =>
             (r.complement === rel && target === nodeTitleById[r.source]) ||
             (r.label === rel && target === nodeTitleById[r.destination])
-        )
+        ),
+        true
       );
       return Object.keys(results[0]?.results).length || 0;
     },
@@ -862,7 +863,6 @@ const QueryDrawerContent = ({
       const morePullSelections = definedSelections
         .map((p) => p.defined.text)
         .join("\n");
-      // const attributePulls =
       const query = `[:find (pull ?${returnNode} [
       :block/string
       :node/title
@@ -877,14 +877,19 @@ const QueryDrawerContent = ({
                   title?: string;
                   string?: string;
                   uid: string;
-                  [k: string]: string | number;
+                  author?: { id: number };
+                  [k: string]: string | number | { id: number };
                 }
             )
           : [];
         return results
           .map(
             ({ title, string: s, ...r }) =>
-              ({ ...r, text: s || title || "" } as SearchResult)
+              ({
+                ...r,
+                text: s || title || "",
+                ...(r.author ? { author: r.author.id } : {}),
+              } as SearchResult)
           )
           .map((r) =>
             definedSelections.reduce((p, c) => {

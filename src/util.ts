@@ -560,10 +560,13 @@ export type Result = {
   context?: string;
 };
 
+const resultCache: Record<string, unknown[][]> = {};
+
 export const getDiscourseContextResults = (
   title: string,
   nodes = getNodes(),
-  relations = getRelations()
+  relations = getRelations(),
+  useCache = false
 ) => {
   const nodeType = nodes.find(({ format }) =>
     matchNode({ format, title })
@@ -602,19 +605,24 @@ export const getDiscourseContextResults = (
             englishToDatalog(nodes)
           );
           const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
+          const cacheKey = `${title}~${r.label}~${r.destination}`;
+          const results =
+            useCache && resultCache[cacheKey]
+              ? resultCache[cacheKey]
+              : (resultCache[cacheKey] = window.roamAlphaAPI.q(
+                  `[:find 
+              (pull ${lastPlaceholder} ${pull})
+              ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
+              :where 
+              ${whereClause}
+            ]`
+                ));
           return {
             label: r.label,
             target: r.destination,
             complement: false,
             id: r.id,
-            results: window.roamAlphaAPI.q(
-              `[:find 
-                (pull ${lastPlaceholder} ${pull})
-                ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
-                :where 
-                ${whereClause}
-              ]`
-            ),
+            results,
           };
         }),
       ...relations
@@ -645,19 +653,24 @@ export const getDiscourseContextResults = (
             englishToDatalog(nodes)
           );
           const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
+          const cacheKey = `${title}~${r.complement}~${r.source}`;
+          const results =
+            useCache && resultCache[cacheKey]
+              ? resultCache[cacheKey]
+              : (resultCache[cacheKey] = window.roamAlphaAPI.q(
+                  `[:find 
+                  (pull ${firstPlaceholder} ${pull})
+                  ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
+                  :where 
+                  ${whereClause}
+                ]`
+                ));
           return {
             label: r.complement,
             complement: true,
             target: r.source,
             id: r.id,
-            results: window.roamAlphaAPI.q(
-              `[:find 
-                (pull ${firstPlaceholder} ${pull})
-                ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
-                :where 
-                ${whereClause}
-              ]`
-            ),
+            results,
           };
         }),
     ];
