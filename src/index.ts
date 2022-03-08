@@ -30,6 +30,7 @@ import {
   getExperimentalOverlayMode,
   render as discourseOverlayRender,
 } from "./components/DiscourseContextOverlay";
+import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
 import { initializeDataWorker, shutdownDataWorker } from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as overviewRender } from "./components/DiscourseGraphOverview";
@@ -780,6 +781,24 @@ We expect that there will be no disruption in functionality. If you see issues a
               ],
             },
           });
+        }
+      } else if (title.startsWith("discourse-graph/queries/")) {
+        const uid = getPageUidByPageTitle(title);
+        const attribute = `data-roamjs-${uid}`;
+        const containerParent = h1.parentElement?.parentElement;
+        if (containerParent && !containerParent.hasAttribute(attribute)) {
+          containerParent.setAttribute(attribute, "true");
+          const parent = document.createElement("div");
+          const configPageId = title.split("/").slice(-1)[0];
+          parent.id = `${configPageId}-config`;
+          containerParent.insertBefore(
+            parent,
+            h1.parentElement?.nextElementSibling || null
+          );
+          renderSavedQueryPage({
+            pageUid: uid,
+            parent,
+          })
         }
       }
     },

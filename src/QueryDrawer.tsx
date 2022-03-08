@@ -2,14 +2,12 @@ import {
   Button,
   H3,
   H6,
-  Icon,
   InputGroup,
   Menu,
   MenuItem,
   Popover,
   PopoverPosition,
 } from "@blueprintjs/core";
-import { render as exportRender } from "./ExportDialog";
 import React, {
   useCallback,
   useEffect,
@@ -22,15 +20,12 @@ import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
-import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getRoamUrl from "roamjs-components/dom/getRoamUrl";
-import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import getSettingValuesFromTree from "roamjs-components/util/getSettingValuesFromTree";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import PageInput from "roamjs-components/components/PageInput";
 import setInputSetting from "roamjs-components/util/setInputSetting";
@@ -39,33 +34,19 @@ import useArrowKeyDown from "roamjs-components/hooks/useArrowKeyDown";
 import ResizableDrawer from "./ResizableDrawer";
 import {
   englishToDatalog,
-  getDiscourseContextResults,
   getNodes,
   getRelations,
-  matchNode,
-  Result,
-  triplesToQuery,
 } from "./util";
-import ResultsView, { Result as SearchResult } from "./components/ResultsView";
-import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import { Result as SearchResult } from "./components/ResultsView";
 import getFirstChildUidByBlockUid from "roamjs-components/queries/getFirstChildUidByBlockUid";
+import SavedQuery from "./components/SavedQuery";
+import { Condition, Selection } from "./utils/types";
+import fireQuery from "./utils/fireQuery";
+import parseQuery from "./utils/parseQuery";
 
 type Props = {
   blockUid: string;
   clearOnClick: (s: string, m: string) => void;
-};
-
-type Condition = {
-  relation: string;
-  source: string;
-  target: string;
-  uid: string;
-};
-
-type Selection = {
-  text: string;
-  label: string;
-  uid: string;
 };
 
 const ANY_REGEX = /Has Any Relation To/i;
@@ -262,275 +243,11 @@ const QuerySelection = ({
   );
 };
 
-const SavedQuery = ({
-  uid,
-  onDelete,
-  parseQuery,
-  fireQuery,
-  resultsReferenced,
-  clearOnClick,
-  setResultsReferenced,
-  editSavedQuery,
-  initialResults,
-}: {
-  uid: string;
-  parseQuery: (s: string[]) => {
-    returnNode: string;
-    conditionNodes: Condition[];
-    selectionNodes: Selection[];
-  };
-  fireQuery: (args: {
-    returnNode: string;
-    conditions: Condition[];
-    selections: Selection[];
-  }) => SearchResult[];
-  onDelete: () => void;
-  resultsReferenced: Set<string>;
-  clearOnClick: (s: string, t: string) => void;
-  setResultsReferenced: (s: Set<string>) => void;
-  editSavedQuery: (s: string[]) => void;
-  initialResults?: SearchResult[];
-}) => {
-  const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
-  const query = useMemo(
-    () => getSettingValuesFromTree({ tree, key: "query" }),
-    []
-  );
-  const [results, setResults] = useState<SearchResult[]>(initialResults || []);
-  const resultFilter = useCallback(
-    (r: Result) => !resultsReferenced.has(r.text),
-    [resultsReferenced]
-  );
-  const [minimized, setMinimized] = useState(!initialResults);
-  const [initialQuery, setInitialQuery] = useState(!!initialResults);
-  const [label, setLabel] = useState(() => getTextByBlockUid(uid));
-  const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const { returnNode, conditionNodes, selectionNodes } = useMemo(
-    () => parseQuery(query),
-    [parseQuery, query]
-  );
-  useEffect(() => {
-    if (!initialQuery && !minimized) {
-      setInitialQuery(true);
-      const results = fireQuery({
-        returnNode,
-        conditions: conditionNodes,
-        selections: selectionNodes,
-      });
-      setResults(results);
-    }
-  }, [initialQuery, minimized, setInitialQuery, setResults, parseQuery]);
-  return (
-    <div
-      style={{
-        border: "1px solid gray",
-        borderRadius: 4,
-        padding: 4,
-        margin: 4,
-      }}
-    >
-      <ResultsView
-        header={
-          <>
-            {isEditingLabel ? (
-              <InputGroup
-                value={label}
-                onChange={(e) => setLabel(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    updateBlock({ uid, text: label });
-                    setIsEditingLabel(false);
-                  }
-                }}
-                autoFocus
-                rightElement={
-                  <Button
-                    minimal
-                    icon={"confirm"}
-                    onClick={() => {
-                      updateBlock({ uid, text: label });
-                      setIsEditingLabel(false);
-                    }}
-                  />
-                }
-              />
-            ) : (
-              <span tabIndex={-1} onClick={() => setIsEditingLabel(true)}>
-                {label}
-              </span>
-            )}
-            <div>
-              <Button
-                icon={"export"}
-                minimal
-                onClick={() => {
-                  const conditions = parseQuery(query).conditionNodes.map(
-                    (c) => ({
-                      predicate: {
-                        title: c.target,
-                        uid: getPageUidByPageTitle(c.target),
-                      },
-                      relation: c.relation,
-                    })
-                  );
-                  exportRender({
-                    fromQuery: {
-                      nodes: results
-                        .map(({ text, uid }) => ({
-                          title: text,
-                          uid,
-                        }))
-                        .concat(
-                          conditions
-                            .map((c) => c.predicate)
-                            .filter((c) => !!c.uid)
-                        ),
-                    },
-                  });
-                }}
-              />
-              <Button
-                icon={minimized ? "maximize" : "minimize"}
-                onClick={() => setMinimized(!minimized)}
-                active={minimized}
-                minimal
-              />
-              <Button icon={"cross"} onClick={onDelete} minimal />
-            </div>
-          </>
-        }
-        hideResults={minimized}
-        results={results.map(({ id, ...a }) => a)}
-        resultFilter={resultFilter}
-        ResultIcon={({ result: r }) => (
-          <Button
-            icon={"hand-right"}
-            minimal
-            onClick={() => {
-              setResultsReferenced(
-                new Set([...Array.from(resultsReferenced), r.text])
-              );
-              clearOnClick?.(r.text, returnNode);
-            }}
-          />
-        )}
-        resultContent={
-          <div style={{ fontSize: 10, position: "relative" }}>
-            <Button
-              icon={<Icon icon={"edit"} iconSize={12} />}
-              minimal
-              style={{
-                height: 12,
-                width: 12,
-                minHeight: 12,
-                minWidth: 12,
-                padding: 2,
-                position: "absolute",
-                top: 0,
-                right: 8,
-              }}
-              onClick={() => {
-                editSavedQuery(query);
-                onDelete();
-              }}
-            />
-            {query.map((q, i) => (
-              <p key={i} style={{ margin: 0 }}>
-                {q}
-              </p>
-            ))}
-          </div>
-        }
-      />
-    </div>
-  );
-};
-
-const predefinedSelections: {
-  test: RegExp;
-  text: string;
-  mapper: (r: SearchResult, key: string) => SearchResult[string];
-}[] = [
-  {
-    test: /created?\s*date/i,
-    text: '[:create/time :as "createdTime"]',
-    mapper: (r) => {
-      const value = new Date(r.createdTime);
-      delete r.createdTime;
-      return value;
-    },
-  },
-  {
-    test: /edit(ed)?\s*date/i,
-    text: '[:edit/time :as "editedTime"]',
-    mapper: (r) => {
-      const value = new Date(r.editedTime);
-      delete r.editedTime;
-      return value;
-    },
-  },
-  {
-    test: /author/i,
-    text: '[:create/user :as "author"]',
-    mapper: (r) => {
-      const value = window.roamAlphaAPI.pull(
-        "[:user/display-name]",
-        r.author as number
-      )[":user/display-name"];
-      delete r.author;
-      return value;
-    },
-  },
-  {
-    test: /^(.*)-(.*)$/,
-    text: "",
-    mapper: (r, key) => {
-      const match = key.match(/^(.*)-(.*)$/);
-      const rel = match?.[1] || "";
-      const target = match?.[2] || "";
-      const nodes = getNodes();
-      const nodeTitleById = Object.fromEntries(
-        nodes.map((n) => [n.type, n.text])
-      );
-      const results = getDiscourseContextResults(
-        r.text,
-        nodes,
-        getRelations().filter(
-          (r) =>
-            (r.complement === rel && target === nodeTitleById[r.source]) ||
-            (r.label === rel && target === nodeTitleById[r.destination])
-        ),
-        true
-      );
-      return Object.keys(results[0]?.results).length || 0;
-    },
-  },
-  {
-    test: /.*/,
-    text: "",
-    mapper: (r, key) => {
-      return (
-        window.roamAlphaAPI.q(
-          `[:find (pull ?b [:block/string]) :where [?a :node/title "${normalizePageTitle(
-            key
-          )}"] [?p :block/uid "${
-            r.uid
-          }"] [?b :block/refs ?a] [?b :block/page ?p]]`
-        )?.[0]?.[0]?.string || ""
-      )
-        .slice(key.length + 2)
-        .trim();
-    },
-  },
-];
-
 const SavedQueriesContainer = ({
   savedQueries,
   setSavedQueries,
   clearOnClick,
   editSavedQuery,
-  parseQuery,
-  fireQuery,
 }: {
   savedQueries: { uid: string; text: string; results?: SearchResult[] }[];
   setSavedQueries: (
@@ -538,16 +255,6 @@ const SavedQueriesContainer = ({
   ) => void;
   clearOnClick: (s: string, t: string) => void;
   editSavedQuery: (s: string[]) => void;
-  parseQuery: (s: string[]) => {
-    returnNode: string;
-    conditionNodes: Condition[];
-    selectionNodes: Selection[];
-  };
-  fireQuery: (args: {
-    returnNode: string;
-    conditions: Condition[];
-    selections: Selection[];
-  }) => SearchResult[];
 }) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
@@ -612,8 +319,6 @@ const SavedQueriesContainer = ({
           resultsReferenced={resultsReferenced}
           setResultsReferenced={setResultsReferenced}
           editSavedQuery={editSavedQuery}
-          parseQuery={parseQuery}
-          fireQuery={fireQuery}
           initialResults={sq.results}
         />
       ))}
@@ -748,165 +453,6 @@ const QueryDrawerContent = ({
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const translator = useMemo(englishToDatalog, []);
-  const fireQuery = useCallback(
-    ({
-      conditions,
-      returnNode,
-      selections,
-    }: {
-      returnNode: string;
-      conditions: Condition[];
-      selections: Selection[];
-    }) => {
-      const where = conditions
-        .flatMap((c) => {
-          const native = translator[c.relation];
-          const targetType = nodeTypeByLabel[c.target.toLowerCase()];
-          if (native) {
-            if (/is a/.test(c.relation)) {
-              return native(c.source, targetType);
-            }
-            const sourceType = nodeTypeByLabel[c.source.toLowerCase()];
-            const prefix = sourceType
-              ? translator["is a"](c.source, sourceType)
-              : "";
-            const suffix = targetType
-              ? translator["is a"](c.target, targetType)
-              : "";
-            return `${prefix}${native(c.source, c.target)}${suffix}`;
-          }
-          const doesRelationMatchCondition = (
-            relation: { source: string; destination: string },
-            condition: { source: string; target: string }
-          ) => {
-            const sourceMatches =
-              nodeLabelByType[relation.source] === condition.source;
-            const targetMatches =
-              relation.destination === nodeLabelByType[condition.target] ||
-              matchNode({
-                format: nodeFormatByType[relation.destination],
-                title: condition.target,
-              });
-            if (sourceMatches) {
-              return (
-                targetMatches ||
-                (!nodeTypeByLabel[condition.target.toLowerCase()] &&
-                  Object.values(nodeFormatByType).every(
-                    (format) => !matchNode({ format, title: condition.target })
-                  ))
-              );
-            }
-            if (targetMatches) {
-              return (
-                sourceMatches ||
-                !nodeTypeByLabel[condition.source.toLowerCase()]
-              );
-            }
-            return false;
-          };
-          const conditionTarget = targetType || c.target;
-          const filteredRelations = discourseRelations
-            .map((r) =>
-              (r.label === c.relation || ANY_REGEX.test(c.relation)) &&
-              doesRelationMatchCondition(r, c)
-                ? { ...r, forward: true }
-                : doesRelationMatchCondition(
-                    { source: r.destination, destination: r.source },
-                    c
-                  ) &&
-                  (r.complement === c.relation || ANY_REGEX.test(c.relation))
-                ? { ...r, forward: false }
-                : undefined
-            )
-            .filter((r) => !!r);
-          if (!filteredRelations.length) return "";
-          return `(or-join [?${c.source}] ${filteredRelations.map(
-            ({ triples, source, destination, forward }) => {
-              const queryTriples = triples.map((t) => t.slice(0));
-              const sourceTriple = queryTriples.find((t) => t[2] === "source");
-              const destinationTriple = queryTriples.find(
-                (t) => t[2] === "destination"
-              );
-              if (!sourceTriple || !destinationTriple) return "";
-              let sourceNodeVar = "";
-              if (forward) {
-                destinationTriple[1] = "Has Title";
-                destinationTriple[2] = conditionTarget;
-                sourceTriple[2] = source;
-                sourceNodeVar = sourceTriple[0];
-              } else {
-                sourceTriple[1] = "Has Title";
-                sourceTriple[2] = conditionTarget;
-                destinationTriple[2] = destination;
-                sourceNodeVar = destinationTriple[0];
-              }
-              const subQuery = triplesToQuery(queryTriples, translator);
-              const andQuery = `\n  (and ${subQuery.replace(
-                /([\s|\[]\?)/g,
-                `$1${c.uid}-`
-              )})`;
-              return andQuery.replace(
-                new RegExp(`\\?${c.uid}-${sourceNodeVar}`, "g"),
-                `?${c.source}`
-              );
-            }
-          )}\n)`;
-        })
-        .join("\n");
-
-      const definedSelections = selections
-        .map((s) => ({
-          defined: predefinedSelections.find((p) => p.test.test(s.text)),
-          s,
-        }))
-        .filter((p) => !!p.defined);
-      const morePullSelections = definedSelections
-        .map((p) => p.defined.text)
-        .join("\n");
-      const query = `[:find (pull ?${returnNode} [
-      :block/string
-      :node/title
-      :block/uid
-      ${morePullSelections}
-    ]) :where ${where}]`;
-      try {
-        const results = where
-          ? window.roamAlphaAPI.q(query).map(
-              (a) =>
-                a[0] as {
-                  title?: string;
-                  string?: string;
-                  uid: string;
-                  author?: { id: number };
-                  [k: string]: string | number | { id: number };
-                }
-            )
-          : [];
-        return results
-          .map(
-            ({ title, string: s, ...r }) =>
-              ({
-                ...r,
-                text: s || title || "",
-                ...(r.author ? { author: r.author.id } : {}),
-              } as SearchResult)
-          )
-          .map((r) =>
-            definedSelections.reduce((p, c) => {
-              p[c.s.label || c.s.text] = c.defined.mapper(p, c.s.text);
-              return p;
-            }, r)
-          );
-      } catch (e) {
-        console.error("Error from Roam:");
-        console.error(e.message);
-        console.error("Query from Roam:");
-        console.error(query);
-        return [];
-      }
-    },
-    [setResults, nodeFormatByLabel]
-  );
   const inputRef = useRef<HTMLInputElement>(null);
   const returnNodeOnChange = (value: string) => {
     window.clearTimeout(debounceRef.current);
@@ -960,40 +506,6 @@ const QueryDrawerContent = ({
     [translator, discourseRelations]
   );
 
-  const parseQuery = useCallback(
-    (q: string[]) => {
-      const [findWhere, ...conditions] = q;
-      const returnNode = findWhere.split(" ")[1];
-      const conditionNodes = conditions
-        .filter((s) => !s.startsWith("Select"))
-        .map((c) => {
-          const [source, rest] = c.split(/ (.+)/);
-          const relation = relationLabels.find((l) => rest.startsWith(l));
-          const target = rest.substring(relation.length + 1);
-          return {
-            source,
-            relation,
-            target,
-            uid: window.roamAlphaAPI.util.generateUID(),
-          };
-        });
-      const selectionNodes = conditions
-        .filter((s) => s.startsWith("Select"))
-        .map((s) =>
-          s
-            .replace(/^Select/i, "")
-            .trim()
-            .split(" AS ")
-        )
-        .map(([text, label]) => ({
-          uid: window.roamAlphaAPI.util.generateUID(),
-          text,
-          label,
-        }));
-      return { returnNode, conditionNodes, selectionNodes };
-    },
-    [relationLabels]
-  );
   const editSavedQuery = useCallback(
     (q: string[]) => {
       const {
@@ -1338,8 +850,6 @@ const QueryDrawerContent = ({
           setSavedQueries={setSavedQueries}
           clearOnClick={clearOnClick}
           editSavedQuery={editSavedQuery}
-          parseQuery={parseQuery}
-          fireQuery={fireQuery}
           {...exportRenderProps}
         />
       )}
