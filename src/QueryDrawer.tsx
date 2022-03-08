@@ -39,6 +39,7 @@ import useArrowKeyDown from "roamjs-components/hooks/useArrowKeyDown";
 import ResizableDrawer from "./ResizableDrawer";
 import {
   englishToDatalog,
+  getDiscourseContextResults,
   getNodes,
   getRelations,
   matchNode,
@@ -212,7 +213,14 @@ const QuerySelection = ({
           }}
         />
       </div>
-      <div style={{ flexGrow: 1, display: "flex", minWidth: 300, alignItems: 'center' }}>
+      <div
+        style={{
+          flexGrow: 1,
+          display: "flex",
+          minWidth: 300,
+          alignItems: "center",
+        }}
+      >
         <span
           style={{
             minWidth: 56,
@@ -471,6 +479,29 @@ const predefinedSelections: {
       )[":user/display-name"];
       delete r.author;
       return value;
+    },
+  },
+  {
+    test: /^(.*)-(.*)$/,
+    text: "",
+    mapper: (r, key) => {
+      const match = key.match(/^(.*)-(.*)$/);
+      const rel = match?.[1] || "";
+      const target = match?.[2] || "";
+      const nodes = getNodes();
+      const nodeTitleById = Object.fromEntries(
+        nodes.map((n) => [n.type, n.text])
+      );
+      const results = getDiscourseContextResults(
+        r.text,
+        getNodes(),
+        getRelations().filter(
+          (r) =>
+            (r.complement === rel && target === nodeTitleById[r.source]) ||
+            (r.label === rel && target === nodeTitleById[r.destination])
+        )
+      );
+      return Object.keys(results[0]?.results).length || 0;
     },
   },
   {

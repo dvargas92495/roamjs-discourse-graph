@@ -92,7 +92,7 @@ const ResultView = ({
     }
   }, [contextOpen, contextElement, r.uid, contextPageTitle]);
   const cell = (key: string) =>
-    r[key].split("<span>").map((s, i) => (
+    r[key].toString().split("<span>").map((s, i) => (
       <span
         key={i}
         className={i % 2 === 0 ? "" : "roamjs-discourse-hightlighted-result"}
