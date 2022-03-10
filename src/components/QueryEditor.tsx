@@ -7,7 +7,13 @@ import {
   Popover,
   PopoverPosition,
 } from "@blueprintjs/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { RoamBasicNode } from "roamjs-components/types";
 import useArrowKeyDown from "roamjs-components/hooks/useArrowKeyDown";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
@@ -24,6 +30,7 @@ import getFirstChildUidByBlockUid from "roamjs-components/queries/getFirstChildU
 import PageInput from "roamjs-components/components/PageInput";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import { render as renderSimpleAlert } from "roamjs-components/components/SimpleAlert";
 
 const QueryCondition = ({
   con,
@@ -364,70 +371,75 @@ const QueryEditor = ({
       label: children?.[0]?.text || "",
     }));
   });
-  useEffect(
-    () => {
-      const {
-        returnNode: value,
-        conditionNodes,
-        selectionNodes,
-      } = parseQuery(defaultQuery);
-      Promise.all([
-        setInputSetting({
-          blockUid: scratchNodeUid,
-          value,
-          key: "return",
-        }),
-        Promise.all(
-          conditionNodes.map(({ source, relation, target }, order) =>
-            createBlock({
-              parentUid: conditionsNodeUid,
-              order,
-              node: {
-                text: `${order}`,
-                children: [
-                  { text: "source", children: [{ text: source }] },
-                  { text: "relation", children: [{ text: relation }] },
-                  { text: "target", children: [{ text: target }] },
-                ],
-              },
-            }).then((uid) => ({
-              source,
-              relation,
-              target,
-              uid,
-            }))
-          )
-        ),
-        Promise.all(
-          selectionNodes.map((sel, order) =>
-            createBlock({
-              parentUid: selectionsNodeUid,
-              order,
-              node: {
-                text: sel.text,
-                uid: sel.uid,
-                children: [{ text: sel.label }],
-              },
-            }).then(() => sel)
-          )
-        ),
-      ]).then(([,conditionNodesWithUids, selections]) => {
-        setReturnNode(value);
-        setConditions(conditionNodesWithUids);
-        setSelections(selections);
+  useEffect(() => {
+    const {
+      returnNode: value,
+      conditionNodes,
+      selectionNodes,
+    } = parseQuery(defaultQuery);
+    Promise.all([
+      setInputSetting({
+        blockUid: scratchNodeUid,
+        value,
+        key: "return",
+      }),
+      Promise.all(
+        conditionNodes.map(({ source, relation, target }, order) =>
+          createBlock({
+            parentUid: conditionsNodeUid,
+            order,
+            node: {
+              text: `${order}`,
+              children: [
+                { text: "source", children: [{ text: source }] },
+                { text: "relation", children: [{ text: relation }] },
+                { text: "target", children: [{ text: target }] },
+              ],
+            },
+          }).then((uid) => ({
+            source,
+            relation,
+            target,
+            uid,
+          }))
+        )
+      ),
+      Promise.all(
+        selectionNodes.map((sel, order) =>
+          createBlock({
+            parentUid: selectionsNodeUid,
+            order,
+            node: {
+              text: sel.text,
+              uid: sel.uid,
+              children: [{ text: sel.label }],
+            },
+          }).then(() => sel)
+        )
+      ),
+    ]).then(([, conditionNodesWithUids, selections]) => {
+      setReturnNode(value);
+      setConditions(conditionNodesWithUids);
+      setSelections(selections);
+    });
+  }, [
+    defaultQuery,
+    relationLabels,
+    setReturnNode,
+    setConditions,
+    conditionsNodeUid,
+    selectionsNodeUid,
+    setSelections,
+    scratchNodeUid,
+  ]);
+  useEffect(() => {
+    if (!window.roamAlphaAPI.data.fast?.q)
+      renderSimpleAlert({
+        content:
+          'This feature depends on using the latest version of Roam.\n\nPlease click "Check for Updates" from the top right menu to update Roam!',
+        onConfirm: () => {},
       });
-    },
-    [
-      defaultQuery,
-      relationLabels,
-      setReturnNode,
-      setConditions,
-      conditionsNodeUid,
-      selectionsNodeUid,
-      setSelections,
-      scratchNodeUid,
-    ]
-  );
+  }, []);
   return (
     <>
       <H6
