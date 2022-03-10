@@ -9,39 +9,40 @@ import {
 import { Condition, Selection } from "./types";
 import type { Result as SearchResult } from "../components/ResultsView";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
+import { PullBlock } from "roamjs-components/types";
 
 export const ANY_REGEX = /Has Any Relation To/i;
 
 const predefinedSelections: {
   test: RegExp;
   text: string;
-  mapper: (r: SearchResult, key: string) => SearchResult[string];
+  mapper: (r: SearchResult & PullBlock, key: string) => SearchResult[string];
 }[] = [
   {
     test: /created?\s*date/i,
-    text: '[:create/time :as "createdTime"]',
+    text: ":create/time",
     mapper: (r) => {
-      const value = new Date(r.createdTime);
-      delete r.createdTime;
+      const value = new Date(r[":create/time"]);
+      delete r[":create/time"];
       return value;
     },
   },
   {
     test: /edit(ed)?\s*date/i,
-    text: '[:edit/time :as "editedTime"]',
+    text: ":edit/time",
     mapper: (r) => {
-      const value = new Date(r.editedTime);
-      delete r.editedTime;
+      const value = new Date(r["edit/time"]);
+      delete r["edit/time"];
       return value;
     },
   },
   {
     test: /author/i,
-    text: '[:create/user :as "author"]',
+    text: ":create/user",
     mapper: (r) => {
       const value = window.roamAlphaAPI.pull(
         "[:user/display-name]",
-        r.author as number
+        r[":create/user"][":db/id"]
       )[":user/display-name"];
       delete r.author;
       return value;
@@ -87,6 +88,22 @@ const predefinedSelections: {
         .slice(key.length + 2)
         .trim();
     },
+  },
+];
+
+const DEFAULT_SELECTIONS = [
+  {
+    mapper: (r: PullBlock & SearchResult, _: string): SearchResult[string] => {
+      r.uid = r[":block/uid"];
+      const value = r[":node/title"] || r[":block/string"];
+      delete r[":block/uid"];
+      delete r[":block/string"];
+      delete r[":node/title"];
+      return value;
+    },
+    pull: `:block/string\n:node/title\n:block/uid`,
+    label: "text",
+    key: "",
   },
 ];
 
@@ -206,49 +223,37 @@ const fireQuery = ({
     })
     .join("\n");
 
-  const definedSelections = selections
-    .map((s) => ({
-      defined: predefinedSelections.find((p) => p.test.test(s.text)),
-      s,
-    }))
-    .filter((p) => !!p.defined);
-  const morePullSelections = definedSelections
-    .map((p) => p.defined.text)
-    .join("\n");
+  const definedSelections = DEFAULT_SELECTIONS.concat(
+    selections
+      .map((s) => ({
+        defined: predefinedSelections.find((p) => p.test.test(s.text)),
+        s,
+      }))
+      .filter((p) => !!p.defined)
+      .map((p) => ({
+        mapper: p.defined.mapper,
+        pull: p.defined.text,
+        label: p.s.label || p.s.text,
+        key: p.s.text,
+      }))
+  );
+  const pullSelections = definedSelections.map((p) => p.pull).join("\n");
   const query = `[:find (pull ?${returnNode} [
-    :block/string
-    :node/title
-    :block/uid
-    ${morePullSelections}
-  ]) :where ${where}]`;
+    ${pullSelections}
+]) :where ${where}]`;
   try {
     const results = where
-      ? window.roamAlphaAPI.q(query).map(
-          (a) =>
-            a[0] as {
-              title?: string;
-              string?: string;
-              uid: string;
-              author?: { id: number };
-              [k: string]: string | number | { id: number };
-            }
-        )
+      ? window.roamAlphaAPI.data.fast
+          .q(query)
+          .map((a) => JSON.parse(JSON.stringify(a[0])) as PullBlock)
       : [];
-    return results
-      .map(
-        ({ title, string: s, ...r }) =>
-          ({
-            ...r,
-            text: s || title || "",
-            ...(r.author ? { author: r.author.id } : {}),
-          } as SearchResult)
-      )
-      .map((r) =>
+    return results.map(
+      (r) =>
         definedSelections.reduce((p, c) => {
-          p[c.s.label || c.s.text] = c.defined.mapper(p, c.s.text);
+          p[c.label] = c.mapper(p, c.key);
           return p;
-        }, r)
-      );
+        }, r as SearchResult & PullBlock) as SearchResult
+    );
   } catch (e) {
     console.error("Error from Roam:");
     console.error(e.message);

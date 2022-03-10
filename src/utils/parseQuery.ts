@@ -12,21 +12,21 @@ const parseQuery = (q: string[]) => {
   )
     .sort()
     .concat(ANY_REGEX.source);
-  const [findWhere, ...conditions] = q;
+  const [findWhere = '', ...conditions] = q;
   const returnNode = findWhere.split(" ")[1];
   const conditionNodes = conditions
     .filter((s) => !s.startsWith("Select"))
     .map((c) => {
-      const [source, rest] = c.split(/ (.+)/);
-      const relation = relationLabels.find((l) => rest.startsWith(l));
-      const target = rest.substring(relation.length + 1);
+      const relation = relationLabels.find((l) => c.includes(` ${l} `)) || "";
+      const [source, target] = c.split(` ${relation} `);
       return {
         source,
         relation,
         target,
         uid: window.roamAlphaAPI.util.generateUID(),
       };
-    });
+    })
+    .filter((r) => !!r.relation);
   const selectionNodes = conditions
     .filter((s) => s.startsWith("Select"))
     .map((s) =>

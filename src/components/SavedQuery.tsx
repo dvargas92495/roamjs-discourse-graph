@@ -14,6 +14,7 @@ import { render as exportRender } from "../ExportDialog";
 
 const SavedQuery = ({
   uid,
+  isSavedToPage = false,
   onDelete,
   resultsReferenced,
   clearOnClick,
@@ -23,6 +24,7 @@ const SavedQuery = ({
 }: {
   uid: string;
   onDelete?: () => void;
+  isSavedToPage?: boolean
   resultsReferenced: Set<string>;
   clearOnClick: (s: string, t: string) => void;
   setResultsReferenced: (s: Set<string>) => void;
@@ -40,7 +42,7 @@ const SavedQuery = ({
     (r: Result) => !resultsReferenced.has(r.text),
     [resultsReferenced]
   );
-  const [minimized, setMinimized] = useState(onDelete && !initialResults);
+  const [minimized, setMinimized] = useState(!isSavedToPage && !initialResults);
   const [initialQuery, setInitialQuery] = useState(!!initialResults);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
@@ -130,7 +132,7 @@ const SavedQuery = ({
                   }}
                 />
               </Tooltip>
-              {onDelete && (
+              {!isSavedToPage && (
                 <>
                   <Tooltip content={"Save Query to Page"}>
                     <Button
@@ -204,7 +206,7 @@ const SavedQuery = ({
               }}
               onClick={() => {
                 editSavedQuery(query);
-                onDelete();
+                onDelete?.();
               }}
             />
             {query.map((q, i) => (
