@@ -228,6 +228,7 @@ const QueryEditor = ({
   parentUid,
   defaultQuery,
   onQuery,
+  returnNodeDisabled = false,
 }: {
   parentUid: string;
   defaultQuery: string[];
@@ -236,6 +237,7 @@ const QueryEditor = ({
     conditions: Condition[];
     selections: Selection[];
   }) => Promise<void>;
+  returnNodeDisabled?: boolean;
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(parentUid), [parentUid]);
   const discourseNodes = useMemo(getNodes, []);
@@ -491,6 +493,7 @@ const QueryEditor = ({
           target={
             <InputGroup
               autoFocus
+              disabled={returnNodeDisabled}
               value={returnNode}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -604,8 +607,7 @@ const QueryEditor = ({
             style={{ maxHeight: 32 }}
             intent={"primary"}
             disabled={
-              !conditions.length ||
-              !conditions.every((c) => !!c.relation && !!c.target) ||
+              conditions.some((c) => !c.relation || !c.target) ||
               !returnNode ||
               selections.some((s) => !s.text)
             }

@@ -750,8 +750,11 @@ We expect that there will be no disruption in functionality. If you see issues a
                         "Index of all of the pages in your graph of this type",
                       type: "custom",
                       options: {
-                        component: () =>
-                          React.createElement(NodeIndex, { node, allNodes }),
+                        component: ({ uid }) =>
+                          React.createElement(NodeIndex, {
+                            node,
+                            parentUid: uid,
+                          }),
                       },
                     },
                     {
@@ -798,7 +801,7 @@ We expect that there will be no disruption in functionality. If you see issues a
           renderSavedQueryPage({
             pageUid: uid,
             parent,
-          })
+          });
         }
       }
     },

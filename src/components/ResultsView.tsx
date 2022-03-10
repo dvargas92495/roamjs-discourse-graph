@@ -92,14 +92,17 @@ const ResultView = ({
     }
   }, [contextOpen, contextElement, r.uid, contextPageTitle]);
   const cell = (key: string) =>
-    r[key].toString().split("<span>").map((s, i) => (
-      <span
-        key={i}
-        className={i % 2 === 0 ? "" : "roamjs-discourse-hightlighted-result"}
-      >
-        {s}
-      </span>
-    ));
+    r[key]
+      .toString()
+      .split("<span>")
+      .map((s, i) => (
+        <span
+          key={i}
+          className={i % 2 === 0 ? "" : "roamjs-discourse-hightlighted-result"}
+        >
+          {s}
+        </span>
+      ));
   return (
     <>
       <tr>
@@ -120,7 +123,7 @@ const ResultView = ({
               }
             }}
           >
-            {cell('text')}
+            {cell("text")}
           </a>
           <ResultIcon result={r} />
         </td>
@@ -198,7 +201,7 @@ const ResultView = ({
 const defaultFields = ["text", "uid", "context"];
 
 const ResultsView = ({
-  header = "Results",
+  header = "",
   hideResults = false,
   results,
   ResultIcon = () => <span />,
@@ -254,7 +257,7 @@ const ResultsView = ({
                 uid: s.uid,
                 ...Object.fromEntries(
                   Object.entries(s)
-                    .filter(([k]) => k !== "uid" && k !== 'context')
+                    .filter(([k]) => k !== "uid" && k !== "context")
                     .map(([k, v]) => [
                       k,
                       fuzzy.match(searchTerm, v.toString(), {
@@ -274,16 +277,18 @@ const ResultsView = ({
         width: "100%",
       }}
     >
-      <h4
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          margin: 4,
-        }}
-      >
-        {header}
-      </h4>
+      {header && (
+        <h4
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            margin: 4,
+          }}
+        >
+          {header}
+        </h4>
+      )}
       {!hideResults && (
         <div tabIndex={-1} style={{ position: "relative", outline: "none" }}>
           {resultContent}

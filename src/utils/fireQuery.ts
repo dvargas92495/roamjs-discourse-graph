@@ -128,7 +128,7 @@ const fireQuery = ({
   const nodeFormatByType = Object.fromEntries(
     discourseNodes.map((n) => [n.type, n.format])
   );
-  const where = conditions
+  const where = conditions.length ? conditions
     .flatMap((c) => {
       const native = translator[c.relation];
       const targetType = nodeTypeByLabel[c.target.toLowerCase()];
@@ -221,7 +221,7 @@ const fireQuery = ({
         }
       )}\n)`;
     })
-    .join("\n");
+    .join("\n") : translator['is a'](returnNode, returnNode);
 
   const definedSelections = DEFAULT_SELECTIONS.concat(
     selections
