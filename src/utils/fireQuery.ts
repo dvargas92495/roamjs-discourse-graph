@@ -44,7 +44,7 @@ const predefinedSelections: {
         "[:user/display-name]",
         r[":create/user"][":db/id"]
       )[":user/display-name"];
-      delete r.author;
+      delete r[":create/user"];
       return value;
     },
   },
