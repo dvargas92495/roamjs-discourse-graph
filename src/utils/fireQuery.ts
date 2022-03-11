@@ -43,7 +43,7 @@ const predefinedSelections: {
       const value = window.roamAlphaAPI.pull(
         "[:user/display-name]",
         r[":create/user"][":db/id"]
-      )[":user/display-name"];
+      )?.[":user/display-name"] || "Anonymous";
       delete r[":create/user"];
       return value;
     },
