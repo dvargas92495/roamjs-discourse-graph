@@ -12,10 +12,10 @@ import getSubTree from "roamjs-components/util/getSubTree";
 import createBlock from "roamjs-components/writes/createBlock";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import { getNodes } from "../util";
-import fireQuery from "../utils/fireQuery";
-import parseQuery from "../utils/parseQuery";
-import QueryEditor from "./QueryEditor";
-import ResultsView, { Result } from "./ResultsView";
+
+type QueryBuilderResults = Parameters<
+  typeof window.roamjs.extension.queryBuilder.ResultsView
+>[0]["results"];
 
 const NodeIndex = ({
   parentUid,
@@ -25,9 +25,11 @@ const NodeIndex = ({
   node: ReturnType<typeof getNodes>[number];
 }) => {
   const [isEdit, setIsEdit] = useState(false);
-  const [results, setResults] = useState<Result[]>([]);
+  const [results, setResults] = useState<QueryBuilderResults>([]);
   const queryResults = useCallback<
-    Parameters<typeof QueryEditor>[0]["onQuery"]
+    Parameters<
+      typeof window.roamjs.extension.queryBuilder.QueryEditor
+    >[0]["onQuery"]
   >(
     ({ returnNode, conditions, selections }) => {
       const tree = getBasicTreeByParentUid(parentUid);
@@ -65,7 +67,13 @@ const NodeIndex = ({
           )
         )
         .then(() => {
-          setResults(fireQuery({ returnNode, conditions, selections }));
+          setResults(
+            window.roamjs.extension.queryBuilder.fireQuery({
+              returnNode,
+              conditions,
+              selections,
+            })
+          );
           setIsEdit(false);
         });
     },
@@ -83,13 +91,14 @@ const NodeIndex = ({
   const [query, setQuery] = useState(initialQuery);
   useEffect(() => {
     const { returnNode, conditionNodes, selectionNodes } =
-      parseQuery(initialQuery);
+      window.roamjs.extension.queryBuilder.parseQuery(initialQuery);
     queryResults({
       returnNode,
       conditions: conditionNodes,
       selections: selectionNodes,
     });
   }, [queryResults, initialQuery]);
+  const { QueryEditor, ResultsView } = window.roamjs.extension.queryBuilder;
   return (
     <>
       <div style={{ marginBottom: 8, overflow: "scroll", paddingBottom: 8 }}>
@@ -98,7 +107,7 @@ const NodeIndex = ({
             parentUid={parentUid}
             onQuery={queryResults}
             defaultQuery={query}
-            returnNodeDisabled
+            defaultReturnNode={node.text}
           />
         ) : (
           <Button
@@ -110,7 +119,7 @@ const NodeIndex = ({
           />
         )}
       </div>
-      <ResultsView results={results} />
+      <ResultsView results={results} parentUid={parentUid} />
     </>
   );
 };

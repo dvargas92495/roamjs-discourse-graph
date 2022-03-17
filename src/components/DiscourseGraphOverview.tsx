@@ -704,7 +704,7 @@ const DiscourseGraphOverview = ({ pageUid }: Props) => {
                         .filter(
                           (n) =>
                             !filters.includes.edges.has(n.id) &&
-                            !filters.excludes.nodes.has(n.id)
+                            !filters.excludes.edges.has(n.id)
                         )
                         .map((r) => (
                           <div

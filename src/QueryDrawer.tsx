@@ -17,8 +17,9 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
 import { Result as SearchResult } from "./components/ResultsView";
 import SavedQuery from "./components/SavedQuery";
-import QueryEditor from "./components/QueryEditor";
-import fireQuery from "./utils/fireQuery";
+import createQueryBuilderRender from "./utils/createQueryBuilderRender";
+import ReactDOM from "react-dom";
+import getRenderRoot from "roamjs-components/util/getRenderRoot";
 
 type Props = {
   blockUid: string;
@@ -134,6 +135,7 @@ const QueryDrawerContent = ({
   );
 
   const [query, setQuery] = useState<string[]>([]);
+  const { QueryEditor, fireQuery } = window.roamjs.extension.queryBuilder;
   return (
     <>
       <QueryEditor
@@ -205,6 +207,26 @@ const QueryDrawer = ({
   </ResizableDrawer>
 );
 
-export const render = createOverlayRender<Props>("query-drawer", QueryDrawer);
+export const render = (props: Props) => {
+  const parent = getRenderRoot("query-drawer");
+  const onClose = () => {
+    ReactDOM.unmountComponentAtNode(parent);
+    parent.remove();
+  };
+  const render = () =>
+    ReactDOM.render(
+      React.createElement(QueryDrawer, {
+        ...props,
+        onClose,
+      }),
+      parent
+    );
+  if (window.roamjs.extension.queryBuilder) {
+    render();
+  } else {
+    document.body.addEventListener("roamjs:query-builder:loaded", render, true);
+  }
+  return onClose;
+};
 
 export default QueryDrawer;

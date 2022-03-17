@@ -1,8 +1,9 @@
 import { Switch, Tabs, Tab } from "@blueprintjs/core";
 import React, { useCallback, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
-import ResultsView from "./components/ResultsView";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import { getDiscourseContextResults } from "./util";
+import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 
 type Props = {
   title: string;
@@ -10,10 +11,12 @@ type Props = {
 };
 
 const ContextTab = ({
+  parentUid,
   r,
   groupByTarget,
   setGroupByTarget,
 }: {
+  parentUid: string;
   r: Props["results"][number];
   groupByTarget: boolean;
   setGroupByTarget: (b: boolean) => void;
@@ -40,8 +43,10 @@ const ContextTab = ({
         : r.results,
     [groupByTarget, r.results, subTabId, getFilteredResults]
   );
+  const { ResultsView } = window.roamjs.extension.queryBuilder;
   const resultsView = (
     <ResultsView
+      parentUid={parentUid}
       results={Object.values(results).map((a) => ({
         context: a.context,
         uid: a.uid || "",
@@ -95,6 +100,7 @@ export const ContextContent = ({ title, results }: Props) => {
       ),
     [title, results]
   );
+  const parentUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const [tabId, setTabId] = useState(0);
   const [groupByTarget, setGroupByTarget] = useState(false);
   return queryResults.length ? (
@@ -108,6 +114,7 @@ export const ContextContent = ({ title, results }: Props) => {
           panel={
             <ContextTab
               key={i}
+              parentUid={parentUid}
               r={r}
               groupByTarget={groupByTarget}
               setGroupByTarget={setGroupByTarget}
@@ -152,7 +159,6 @@ const DiscourseContext = ({ title }: Props) => {
   );
 };
 
-export const render = ({ p, ...props }: { p: HTMLDivElement } & Props) =>
-  ReactDOM.render(<DiscourseContext {...props} />, p);
+export const render = createQueryBuilderRender(DiscourseContext);
 
 export default DiscourseContext;

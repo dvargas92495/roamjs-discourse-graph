@@ -18,10 +18,10 @@ import {
   render as configPageRender,
 } from "roamjs-components/components/ConfigPage";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import { render as renderToast } from "roamjs-components/components/Toast";
-import { render as renderAlert } from "roamjs-components/components/SimpleAlert";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render } from "./NodeMenu";
+import { render as renderToast } from "roamjs-components/components/Toast";
+import { render as renderAlert } from "roamjs-components/components/SimpleAlert";
 import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
@@ -40,17 +40,18 @@ import { render as queryRequestRender } from "./components/SendQueryRequest";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
-  englishToDatalog,
+  getDiscourseContextResults,
   getNodeReferenceChildren,
   getNodes,
   getPageMetadata,
   getQueriesUid,
+  getRelations,
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
   isNodeTitle,
-  refreshConfigTree,
 } from "./util";
+import refreshConfigTree from "./utils/refreshConfigTree";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
@@ -62,12 +63,14 @@ import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getUids from "roamjs-components/dom/getUids";
-import { InputTextNode } from "roamjs-components/types";
+import { InputTextNode, PullBlock } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
 import addRoamJSDependency from "roamjs-components/dom/addRoamJSDependency";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import React from "react";
 import NodeIndex from "./components/NodeIndex";
+import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
+import registerDatalogTranslators from "./utils/registerDatalogTranslators";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -469,94 +472,149 @@ We expect that there will be no disruption in functionality. If you see issues a
     ).then(refreshConfigTree);
   }
 
-  document.body.addEventListener("roamjs:multiplayer:loaded", () => {
-    const isEnabled = getSubTree({
-      tree: configTree,
-      key: "subscriptions",
-    }).children.some((s) => toFlexRegex("multiplayer").test(s.text));
-    if (isEnabled) {
-      window.roamjs.extension.multiplayer.enable();
-      window.roamjs.extension.multiplayer.addGraphListener({
-        operation: "IMPORT_DISCOURSE_GRAPH",
-        handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {
-          importDiscourseGraph(data);
-          const todayUid = toRoamDateUid(new Date());
-          const todayOrder = getChildrenLengthByPageUid(todayUid);
-          createBlock({
-            parentUid: todayUid,
-            order: todayOrder,
-            node: {
-              text: `Imported discourse graph from [[${graph}]]`,
-              children: [{ text: `[[${data.title}]]` }],
-            },
-          });
-          window.roamjs.extension.multiplayer.sendToGraph({
-            operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
-            graph,
-          });
+  document.body.addEventListener(
+    "roamjs:query-builder:loaded",
+    () => {
+      registerDatalogTranslators();
+
+      const { registerSelection } = window.roamjs.extension.queryBuilder;
+      registerSelection({
+        test: /^(.*)-(.*)$/,
+        pull: ({ returnNode }) => `(pull ?${returnNode} [:node/title])`,
+        mapper: (r, key) => {
+          const match = key.match(/^(.*)-(.*)$/);
+          const rel = match?.[1] || "";
+          const target = match?.[2] || "";
+          const nodes = getNodes();
+          const nodeTitleById = Object.fromEntries(
+            nodes.map((n) => [n.type, n.text])
+          );
+          const text = r[":node/title"] || "";
+          const results = getDiscourseContextResults(
+            text,
+            nodes,
+            getRelations().filter(
+              (r) =>
+                (r.complement === rel && target === nodeTitleById[r.source]) ||
+                (r.label === rel && target === nodeTitleById[r.destination])
+            ),
+            true
+          );
+          return Object.keys(results[0]?.results).length || 0;
         },
       });
-      window.roamjs.extension.multiplayer.addGraphListener({
-        operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
-        handler: (_, graph) =>
-          renderToast({
-            id: "import-p2p-success",
-            content: `${graph} successfully imported your discourse graph!`,
-          }),
-      });
-      window.roamjs.extension.multiplayer.addGraphListener({
-        operation: "QUERY_REQUEST",
-        handler: (json, graph) => {
-          const { page, requestId } = json as {
-            page: string;
-            requestId: string;
-          };
-          const todayUid = toRoamDateUid();
-          const bottom = getChildrenLengthByPageUid(todayUid);
-          createBlock({
-            parentUid: todayUid,
-            order: bottom,
-            node: {
-              text: `New [[query request]] from [[${graph}]]`,
-              children: [
-                {
-                  text: `Get full page contents of [[${page}]]`,
-                },
-                {
-                  text: `{{Accept:${graph}:${requestId}:${page}}}`,
-                },
-              ],
-            },
-          });
-          renderToast({
-            id: "new-query-request",
-            content: `New query request from ${graph}`,
-            intent: Intent.PRIMARY,
-          });
-          window.roamjs.extension.multiplayer.sendToGraph({
-            operation: "QUERY_REQUEST_RECEIVED",
-            graph,
-          });
-        },
-      });
-      window.roamjs.extension.multiplayer.addGraphListener({
-        operation: "QUERY_REF",
-        handler: (e, graph) => {
-          const { uid } = e as { uid: string };
-          const node = getFullTreeByParentUid(uid);
-          window.roamjs.extension.multiplayer.sendToGraph({
-            operation: `QUERY_REF_RESPONSE/${uid}`,
-            data: {
-              found: !!node.text,
-              node,
-            },
-            graph,
-          });
-        },
-      });
-    }
-  });
-  addRoamJSDependency("multiplayer", "discourse-graph");
+    },
+    { once: true }
+  );
+  document.body.addEventListener(
+    "roamjs:multiplayer:loaded",
+    () => {
+      const isEnabled = getSubTree({
+        tree: configTree,
+        key: "subscriptions",
+      }).children.some((s) => toFlexRegex("multiplayer").test(s.text));
+      if (isEnabled) {
+        window.roamjs.extension.multiplayer.enable();
+        window.roamjs.extension.multiplayer.addGraphListener({
+          operation: "IMPORT_DISCOURSE_GRAPH",
+          handler: (
+            data: Parameters<typeof importDiscourseGraph>[0],
+            graph
+          ) => {
+            importDiscourseGraph(data);
+            const todayUid = toRoamDateUid(new Date());
+            const todayOrder = getChildrenLengthByPageUid(todayUid);
+            createBlock({
+              parentUid: todayUid,
+              order: todayOrder,
+              node: {
+                text: `Imported discourse graph from [[${graph}]]`,
+                children: [{ text: `[[${data.title}]]` }],
+              },
+            });
+            window.roamjs.extension.multiplayer.sendToGraph({
+              operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+              graph,
+            });
+          },
+        });
+        window.roamjs.extension.multiplayer.addGraphListener({
+          operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+          handler: (_, graph) =>
+            renderToast({
+              id: "import-p2p-success",
+              content: `${graph} successfully imported your discourse graph!`,
+            }),
+        });
+        window.roamjs.extension.multiplayer.addGraphListener({
+          operation: "QUERY_REQUEST",
+          handler: (json, graph) => {
+            const { page, requestId } = json as {
+              page: string;
+              requestId: string;
+            };
+            const todayUid = toRoamDateUid();
+            const bottom = getChildrenLengthByPageUid(todayUid);
+            createBlock({
+              parentUid: todayUid,
+              order: bottom,
+              node: {
+                text: `New [[query request]] from [[${graph}]]`,
+                children: [
+                  {
+                    text: `Get full page contents of [[${page}]]`,
+                  },
+                  {
+                    text: `{{Accept:${graph}:${requestId}:${page}}}`,
+                  },
+                ],
+              },
+            });
+            renderToast({
+              id: "new-query-request",
+              content: `New query request from ${graph}`,
+              intent: Intent.PRIMARY,
+            });
+            window.roamjs.extension.multiplayer.sendToGraph({
+              operation: "QUERY_REQUEST_RECEIVED",
+              graph,
+            });
+          },
+        });
+        window.roamjs.extension.multiplayer.addGraphListener({
+          operation: "QUERY_REF",
+          handler: (e, graph) => {
+            const { uid } = e as { uid: string };
+            const node = getFullTreeByParentUid(uid);
+            window.roamjs.extension.multiplayer.sendToGraph({
+              operation: `QUERY_REF_RESPONSE/${uid}`,
+              data: {
+                found: !!node.text,
+                node,
+              },
+              graph,
+            });
+          },
+        });
+      }
+    },
+    { once: true }
+  );
+  if (process.env.NODE_ENV === "development") {
+    addScriptAsDependency({
+      id: "roamjs-query-builder",
+      src: "http://localhost:3100/main.js",
+      dataAttributes: { source: "discourse-graph" },
+    });
+    addScriptAsDependency({
+      id: "roamjs-multiplayer",
+      src: "http://localhost:3200/main.js",
+      dataAttributes: { source: "discourse-graph" },
+    });
+  } else {
+    addRoamJSDependency("query-builder", "discourse-graph");
+    addRoamJSDependency("multiplayer", "discourse-graph");
+  }
 
   const trigger = getSettingValueFromTree({
     tree: configTree,
@@ -736,7 +794,7 @@ We expect that there will be no disruption in functionality. If you see issues a
         const allNodes = getNodes();
         const node = allNodes.find(({ text }) => text === nodeText);
         if (node) {
-          configPageRender({
+          const renderNode = () => configPageRender({
             h: h1,
             title,
             config: {
@@ -784,6 +842,16 @@ We expect that there will be no disruption in functionality. If you see issues a
               ],
             },
           });
+
+          if (window.roamjs.extension.queryBuilder) {
+            renderNode();
+          } else {
+            document.body.addEventListener(
+              "roamjs:query-builder:loaded",
+              renderNode,
+              true
+            );
+          }
         }
       } else if (title.startsWith("discourse-graph/queries/")) {
         const uid = getPageUidByPageTitle(title);
@@ -857,7 +925,7 @@ We expect that there will be no disruption in functionality. If you see issues a
         if (parent) {
           const p = document.createElement("div");
           parent.parentElement.insertBefore(p, parent);
-          contextRender({ p, title: elToTitle(getPageTitleByHtmlElement(d)) });
+          contextRender({ parent: p, title: elToTitle(getPageTitleByHtmlElement(d)) });
         }
       }
     },

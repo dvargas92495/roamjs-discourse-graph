@@ -7,10 +7,11 @@ import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import createPage from "roamjs-components/writes/createPage";
 import updateBlock from "roamjs-components/writes/updateBlock";
 import { Result } from "../util";
-import fireQuery from "../utils/fireQuery";
-import parseQuery from "../utils/parseQuery";
-import ResultsView, { Result as SearchResult } from "./ResultsView";
 import { render as exportRender } from "../ExportDialog";
+
+type QueryBuilderResults = Parameters<
+  typeof window.roamjs.extension.queryBuilder.ResultsView
+>[0]["results"];
 
 const SavedQuery = ({
   uid,
@@ -29,7 +30,7 @@ const SavedQuery = ({
   clearOnClick: (s: string, t: string) => void;
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string[]) => void;
-  initialResults?: SearchResult[];
+  initialResults?: QueryBuilderResults;
 }) => {
   const tree = useMemo(() => getBasicTreeByParentUid(uid), []);
   const queryNode = useSubTree({ tree, key: "query" });
@@ -37,7 +38,7 @@ const SavedQuery = ({
     () => queryNode.children.map((t) => t.text),
     [queryNode]
   );
-  const [results, setResults] = useState<SearchResult[]>(initialResults || []);
+  const [results, setResults] = useState<QueryBuilderResults>(initialResults || []);
   const resultFilter = useCallback(
     (r: Result) => !resultsReferenced.has(r.text),
     [resultsReferenced]
@@ -47,20 +48,21 @@ const SavedQuery = ({
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const { returnNode, conditionNodes, selectionNodes } = useMemo(
-    () => parseQuery(query),
-    [parseQuery, query]
+    () => window.roamjs.extension.queryBuilder.parseQuery(query),
+    [query]
   );
   useEffect(() => {
     if (!initialQuery && !minimized) {
       setInitialQuery(true);
-      const results = fireQuery({
+      const results = window.roamjs.extension.queryBuilder.fireQuery({
         returnNode,
         conditions: conditionNodes,
         selections: selectionNodes,
       });
       setResults(results);
     }
-  }, [initialQuery, minimized, setInitialQuery, setResults, parseQuery]);
+  }, [initialQuery, minimized, setInitialQuery, setResults]);
+  const {ResultsView} = window.roamjs.extension.queryBuilder;
   return (
     <div
       style={{
@@ -71,6 +73,7 @@ const SavedQuery = ({
       }}
     >
       <ResultsView
+        parentUid={uid}
         header={
           <>
             {isEditingLabel ? (
@@ -106,7 +109,7 @@ const SavedQuery = ({
                   icon={"export"}
                   minimal
                   onClick={() => {
-                    const conditions = parseQuery(query).conditionNodes.map(
+                    const conditions = window.roamjs.extension.queryBuilder.parseQuery(query).conditionNodes.map(
                       (c) => ({
                         predicate: {
                           title: c.target,
@@ -174,21 +177,9 @@ const SavedQuery = ({
             </div>
           </>
         }
+        resultFilter={resultFilter}
         hideResults={minimized}
         results={results.map(({ id, ...a }) => a)}
-        resultFilter={resultFilter}
-        ResultIcon={({ result: r }) => (
-          <Button
-            icon={"hand-right"}
-            minimal
-            onClick={() => {
-              setResultsReferenced(
-                new Set([...Array.from(resultsReferenced), r.text])
-              );
-              clearOnClick?.(r.text, returnNode);
-            }}
-          />
-        )}
         resultContent={
           <div style={{ fontSize: 10, position: "relative" }}>
             <Button
@@ -216,6 +207,12 @@ const SavedQuery = ({
             ))}
           </div>
         }
+        ctrlClick={(r) => {
+          setResultsReferenced(
+            new Set([...Array.from(resultsReferenced), r.text])
+          );
+          clearOnClick?.(r.text, returnNode);
+        }}
       />
     </div>
   );

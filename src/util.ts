@@ -4,7 +4,6 @@ import type {
   TextNode,
 } from "roamjs-components/types";
 import createBlock from "roamjs-components/writes/createBlock";
-import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
 import getCurrentUserUid from "roamjs-components/queries/getCurrentUserUid";
 import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
@@ -14,7 +13,7 @@ import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromT
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
-import getPageTitlesStartingWithPrefix from "roamjs-components/queries/getPageTitlesStartingWithPrefix";
+import treeRef from "./utils/configTreeRef";
 
 export type PanelProps = {
   uid: string;
@@ -22,30 +21,6 @@ export type PanelProps = {
   title: string;
 };
 export type Panel = (props: PanelProps) => React.ReactElement;
-
-let treeRef: {
-  tree: RoamBasicNode[];
-  nodes: { [uid: string]: { text: string; children: RoamBasicNode[] } };
-} = { tree: [], nodes: {} };
-
-export const refreshConfigTree = () => {
-  treeRef.tree = getBasicTreeByParentUid(
-    getPageUidByPageTitle("roam/js/discourse-graph")
-  );
-  const titles = getPageTitlesStartingWithPrefix("discourse-graph/nodes");
-  treeRef.nodes = Object.fromEntries(
-    titles.map((title) => {
-      const uid = getPageUidByPageTitle(title);
-      return [
-        uid,
-        {
-          text: title.substring("discourse-graph/nodes/".length),
-          children: getBasicTreeByParentUid(uid),
-        },
-      ];
-    })
-  );
-};
 
 export const getSubscribedBlocks = () =>
   treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
@@ -87,6 +62,8 @@ export const isFlagEnabled = (
       getSubTree({ tree, key: flagParts[0] }).children
     );
 };
+
+export const ANY_REGEX = /Has Any Relation To/i;
 
 export const DEFAULT_NODE_VALUES = [
   {
