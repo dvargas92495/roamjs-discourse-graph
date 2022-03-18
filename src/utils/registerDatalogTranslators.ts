@@ -19,21 +19,29 @@ const registerDatalogTranslators = () => {
     }) => string;
   }) => void;
 
+  const isACallback: Parameters<
+    typeof registerDatalogTransfer
+  >[0]["callback"] = ({ source, target, freeVar }) => {
+    const formatByType = Object.fromEntries([
+      ...discourseNodes.map((n) => [n.type, n.format]),
+      ...discourseNodes.map((n) => [n.text, n.format]),
+    ]);
+    return `[${freeVar(source)} :node/title ${freeVar(
+      target
+    )}-Title] ${nodeFormatToDatalog({
+      freeVar: `${freeVar(target)}-Title`,
+      nodeFormat: formatByType[target],
+    })}`;
+  };
   const discourseNodes = getNodes();
   registerDatalogTransfer({
     key: "is a",
-    callback: ({ source, target, freeVar }) => {
-      const formatByType = Object.fromEntries([
-        ...discourseNodes.map((n) => [n.type, n.format]),
-        ...discourseNodes.map((n) => [n.text, n.format]),
-      ]);
-      return `[${freeVar(source)} :node/title ${freeVar(
-        target
-      )}-Title] ${nodeFormatToDatalog({
-        freeVar: `${freeVar(target)}-Title`,
-        nodeFormat: formatByType[target],
-      })}`;
-    },
+    callback: isACallback,
+  });
+  registerDatalogTransfer({
+    key: "self",
+    callback: ({ source, freeVar, uid }) =>
+      isACallback({ source, target: source, freeVar, uid }),
   });
 
   const discourseRelations = getRelations();
@@ -96,8 +104,8 @@ const registerDatalogTranslators = () => {
           )
           .filter((r) => !!r);
         if (!filteredRelations.length) return "";
-        return `(or-join [?${source}] ${filteredRelations.map(
-          ({ triples, source: _source, destination, forward }) => {
+        return `(or-join [?${source}] ${filteredRelations
+          .map(({ triples, source: _source, destination, forward }) => {
             const queryTriples = triples.map((t) => t.slice(0));
             const sourceTriple = queryTriples.find((t) => t[2] === "source");
             const destinationTriple = queryTriples.find(
@@ -106,12 +114,12 @@ const registerDatalogTranslators = () => {
             if (!sourceTriple || !destinationTriple) return "";
             let sourceNodeVar = "";
             if (forward) {
-              destinationTriple[1] = "Has Title";
+              destinationTriple[1] = "has title";
               destinationTriple[2] = conditionTarget;
               sourceTriple[2] = _source;
               sourceNodeVar = sourceTriple[0];
             } else {
-              sourceTriple[1] = "Has Title";
+              sourceTriple[1] = "has title";
               sourceTriple[2] = conditionTarget;
               destinationTriple[2] = destination;
               sourceNodeVar = destinationTriple[0];
@@ -135,8 +143,8 @@ const registerDatalogTranslators = () => {
               new RegExp(`\\?${uid}-${sourceNodeVar}`, "g"),
               `?${source}`
             );
-          }
-        ).join('\n')}\n)`;
+          })
+          .join("\n")}\n)`;
       },
     });
   });

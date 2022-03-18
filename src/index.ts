@@ -503,6 +503,10 @@ We expect that there will be no disruption in functionality. If you see issues a
           return Object.keys(results[0]?.results).length || 0;
         },
       });
+
+      document.body.dispatchEvent(
+        new Event("roamjs:discourse-graph:query-builder")
+      );
     },
     { once: true }
   );
@@ -794,62 +798,63 @@ We expect that there will be no disruption in functionality. If you see issues a
         const allNodes = getNodes();
         const node = allNodes.find(({ text }) => text === nodeText);
         if (node) {
-          const renderNode = () => configPageRender({
-            h: h1,
-            title,
-            config: {
-              tabs: [
-                {
-                  id: "home",
-                  fields: [
-                    {
-                      title: "Index",
-                      description:
-                        "Index of all of the pages in your graph of this type",
-                      type: "custom",
-                      options: {
-                        component: ({ uid }) =>
-                          React.createElement(NodeIndex, {
-                            node,
-                            parentUid: uid,
-                          }),
+          const renderNode = () =>
+            configPageRender({
+              h: h1,
+              title,
+              config: {
+                tabs: [
+                  {
+                    id: "home",
+                    fields: [
+                      {
+                        title: "Index",
+                        description:
+                          "Index of all of the pages in your graph of this type",
+                        type: "custom",
+                        options: {
+                          component: ({ uid }) =>
+                            React.createElement(NodeIndex, {
+                              node,
+                              parentUid: uid,
+                            }),
+                        },
                       },
-                    },
-                    {
-                      title: "Format",
-                      description: `The format ${nodeText} pages should have.`,
-                      defaultValue: "\\",
-                      type: "text",
-                    },
-                    {
-                      title: "Shortcut",
-                      description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
-                      defaultValue: "\\",
-                      type: "text",
-                    },
-                    {
-                      title: "Description",
-                      description: `Describing what the ${nodeText} node represents in your graph.`,
-                      type: "text",
-                    },
-                    {
-                      title: "Template",
-                      description: `The template that auto fills ${nodeText} page when generated.`,
-                      type: "blocks",
-                    },
-                  ],
-                },
-              ],
-            },
-          });
+                      {
+                        title: "Format",
+                        description: `The format ${nodeText} pages should have.`,
+                        defaultValue: "\\",
+                        type: "text",
+                      },
+                      {
+                        title: "Shortcut",
+                        description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
+                        defaultValue: "\\",
+                        type: "text",
+                      },
+                      {
+                        title: "Description",
+                        description: `Describing what the ${nodeText} node represents in your graph.`,
+                        type: "text",
+                      },
+                      {
+                        title: "Template",
+                        description: `The template that auto fills ${nodeText} page when generated.`,
+                        type: "blocks",
+                      },
+                    ],
+                  },
+                ],
+              },
+            });
 
           if (window.roamjs.extension.queryBuilder) {
             renderNode();
           } else {
             document.body.addEventListener(
-              "roamjs:query-builder:loaded",
+              "roamjs:discourse-graph:query-builder",
               renderNode,
-              true
+              { once: true }
             );
           }
         }
@@ -925,7 +930,10 @@ We expect that there will be no disruption in functionality. If you see issues a
         if (parent) {
           const p = document.createElement("div");
           parent.parentElement.insertBefore(p, parent);
-          contextRender({ parent: p, title: elToTitle(getPageTitleByHtmlElement(d)) });
+          contextRender({
+            parent: p,
+            title: elToTitle(getPageTitleByHtmlElement(d)),
+          });
         }
       }
     },

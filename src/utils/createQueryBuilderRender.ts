@@ -11,9 +11,9 @@ const createQueryBuilderRender = <T>(
       actualRender();
     } else {
       document.body.addEventListener(
-        "roamjs:query-builder:loaded",
+        "roamjs:discourse-graph:query-builder",
         actualRender,
-        true
+        { once: true }
       );
     }
   };

@@ -12,14 +12,15 @@ import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByPar
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
-import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
-import { Result as SearchResult } from "./components/ResultsView";
 import SavedQuery from "./components/SavedQuery";
-import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 import ReactDOM from "react-dom";
 import getRenderRoot from "roamjs-components/util/getRenderRoot";
+
+type QueryBuilderResults = Parameters<
+  typeof window.roamjs.extension.queryBuilder.ResultsView
+>[0]["results"];
 
 type Props = {
   blockUid: string;
@@ -32,9 +33,9 @@ const SavedQueriesContainer = ({
   clearOnClick,
   setQuery,
 }: {
-  savedQueries: { uid: string; text: string; results?: SearchResult[] }[];
+  savedQueries: { uid: string; text: string; results?: QueryBuilderResults }[];
   setSavedQueries: (
-    s: { uid: string; text: string; results?: SearchResult[] }[]
+    s: { uid: string; text: string; results?: QueryBuilderResults }[]
   ) => void;
   clearOnClick: (s: string, t: string) => void;
   setQuery: (s: string[]) => void;
@@ -116,7 +117,7 @@ const QueryDrawerContent = ({
 }: Props) => {
   const tree = useMemo(() => getBasicTreeByParentUid(blockUid), []);
   const [savedQueries, setSavedQueries] = useState<
-    { text: string; uid: string; results?: SearchResult[] }[]
+    { text: string; uid: string; results?: QueryBuilderResults }[]
   >(
     tree
       .filter((t) => !toFlexRegex("scratch").test(t.text))
@@ -224,7 +225,11 @@ export const render = (props: Props) => {
   if (window.roamjs.extension.queryBuilder) {
     render();
   } else {
-    document.body.addEventListener("roamjs:query-builder:loaded", render, true);
+    document.body.addEventListener(
+      "roamjs:discourse-graph:query-builder",
+      render,
+      { once: true }
+    );
   }
   return onClose;
 };
