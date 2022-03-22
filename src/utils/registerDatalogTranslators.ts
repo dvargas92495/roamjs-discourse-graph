@@ -86,7 +86,7 @@ const registerDatalogTranslators = () => {
   relationLabels.forEach((label) => {
     registerDatalogTransfer({
       key: label,
-      callback: ({ source, target, uid, freeVar }) => {
+      callback: ({ source, target, uid }) => {
         const targetType = nodeTypeByLabel[target.toLowerCase()];
         const conditionTarget = targetType || target;
         const filteredRelations = discourseRelations

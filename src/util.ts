@@ -321,6 +321,7 @@ export const matchNode = ({
   format: string;
   title: string;
 }) => {
+  if (!format) return false;
   const [prefix = "", ...rest] = format.split(/{[\w\d-]*}/);
   const suffix = rest.slice(-1)[0] || "";
   const middle = rest.slice(0, rest.length - 1);
@@ -537,7 +538,10 @@ export type Result = {
   context?: string;
 };
 
-const resultCache: Record<string, unknown[][]> = {};
+const resultCache: Record<
+  string,
+  ReturnType<typeof window.roamjs.extension.queryBuilder.fireQuery>
+> = {};
 
 export const getDiscourseContextResults = (
   title: string,
@@ -552,48 +556,34 @@ export const getDiscourseContextResults = (
     nodes.map(({ type, text }) => [type, text])
   );
   try {
-    const pull = `[:block/uid [:node/title :as "text"] [:create/time :as "createdTime"] [:edit/time :as "editedTime"]]`;
     const rawResults = [
       ...relations
         .filter((r) => r.source === nodeType)
-        .map((r) => ({
-          r,
-          destinationTriple: r.triples.find(
-            (t) => t[2] === "destination" || t[2] === r.destination
-          ),
-          sourceTriple: r.triples.find(
-            (t) => t[2] === "source" || t[2] === r.source
-          ),
-        }))
-        .filter(
-          ({ sourceTriple, destinationTriple }) =>
-            !!sourceTriple && !!destinationTriple
-        )
-        .map(({ r, destinationTriple, sourceTriple }) => {
-          const lastPlaceholder = freeVar(destinationTriple[0]);
-          const whereClause = triplesToQuery(
-            [
-              [sourceTriple[0], "Has Title", title],
-              [destinationTriple[0], destinationTriple[1], r.destination],
-              ...r.triples.filter(
-                (t) => t !== sourceTriple && t !== destinationTriple
-              ),
-            ],
-            englishToDatalog(nodes)
-          );
-          const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
+        .map((r) => {
           const cacheKey = `${title}~${r.label}~${r.destination}`;
           const results =
             useCache && resultCache[cacheKey]
               ? resultCache[cacheKey]
-              : (resultCache[cacheKey] = window.roamAlphaAPI.q(
-                  `[:find 
-              (pull ${lastPlaceholder} ${pull})
-              ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
-              :where 
-              ${whereClause}
-            ]`
-                ));
+              : (resultCache[cacheKey] =
+                  window.roamjs.extension.queryBuilder.fireQuery({
+                    returnNode: nodeTextByType[r.destination],
+                    conditions: [
+                      {
+                        source: nodeTextByType[r.destination],
+                        relation: r.complement,
+                        target: title,
+                        not: false,
+                        uid: window.roamAlphaAPI.util.generateUID(),
+                      },
+                    ],
+                    selections: [
+                      {
+                        uid: window.roamAlphaAPI.util.generateUID(),
+                        label: "context",
+                        text: "node:context",
+                      },
+                    ],
+                  }));
           return {
             label: r.label,
             target: r.destination,
@@ -604,44 +594,31 @@ export const getDiscourseContextResults = (
         }),
       ...relations
         .filter((r) => r.destination === nodeType)
-        .map((r) => ({
-          r,
-          sourceTriple: r.triples.find(
-            (t) => t[2] === "source" || t[2] === r.source
-          ),
-          destinationTriple: r.triples.find(
-            (t) => t[2] === "destination" || t[2] === r.destination
-          ),
-        }))
-        .filter(
-          ({ sourceTriple, destinationTriple }) =>
-            !!sourceTriple && !!destinationTriple
-        )
-        .map(({ r, sourceTriple, destinationTriple }) => {
-          const firstPlaceholder = freeVar(sourceTriple[0]);
-          const whereClause = triplesToQuery(
-            [
-              [destinationTriple[0], "Has Title", title],
-              [sourceTriple[0], sourceTriple[1], r.source],
-              ...r.triples.filter(
-                (t) => t !== destinationTriple && t !== sourceTriple
-              ),
-            ],
-            englishToDatalog(nodes)
-          );
-          const contextVariable = whereClause.match(/\?context/i)?.[0] || "";
+        .map((r) => {
           const cacheKey = `${title}~${r.complement}~${r.source}`;
           const results =
             useCache && resultCache[cacheKey]
               ? resultCache[cacheKey]
-              : (resultCache[cacheKey] = window.roamAlphaAPI.q(
-                  `[:find 
-                  (pull ${firstPlaceholder} ${pull})
-                  ${contextVariable && `(pull ${contextVariable} [:block/uid])`}
-                  :where 
-                  ${whereClause}
-                ]`
-                ));
+              : (resultCache[cacheKey] =
+                  window.roamjs.extension.queryBuilder.fireQuery({
+                    returnNode: nodeTextByType[r.source],
+                    conditions: [
+                      {
+                        source: nodeTextByType[r.source],
+                        relation: r.label,
+                        target: title,
+                        not: false,
+                        uid: window.roamAlphaAPI.util.generateUID(),
+                      },
+                    ],
+                    selections: [
+                      {
+                        uid: window.roamAlphaAPI.util.generateUID(),
+                        label: "context",
+                        text: "node:context",
+                      },
+                    ],
+                  }));
           return {
             label: r.complement,
             complement: true,
@@ -661,10 +638,10 @@ export const getDiscourseContextResults = (
       ])
     );
     rawResults.forEach((r) =>
-      (r.results as unknown[])
-        .map(([a, context]: [Result, { uid: string } | undefined]) => ({
+      r.results
+        .map(({ context, ["context-uid"]: contextUid, ...a }) => ({
           ...a,
-          context: context?.uid,
+          context: contextUid as string,
         }))
         .filter((a) => a.text !== title)
         .forEach(

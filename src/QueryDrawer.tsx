@@ -17,6 +17,7 @@ import ResizableDrawer from "./ResizableDrawer";
 import SavedQuery from "./components/SavedQuery";
 import ReactDOM from "react-dom";
 import getRenderRoot from "roamjs-components/util/getRenderRoot";
+import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
@@ -208,30 +209,6 @@ const QueryDrawer = ({
   </ResizableDrawer>
 );
 
-export const render = (props: Props) => {
-  const parent = getRenderRoot("query-drawer");
-  const onClose = () => {
-    ReactDOM.unmountComponentAtNode(parent);
-    parent.remove();
-  };
-  const render = () =>
-    ReactDOM.render(
-      React.createElement(QueryDrawer, {
-        ...props,
-        onClose,
-      }),
-      parent
-    );
-  if (window.roamjs.extension.queryBuilder) {
-    render();
-  } else {
-    document.body.addEventListener(
-      "roamjs:discourse-graph:query-builder",
-      render,
-      { once: true }
-    );
-  }
-  return onClose;
-};
+export const render = createOverlayQueryBuilderRender<Props>(QueryDrawer);
 
 export default QueryDrawer;

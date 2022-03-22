@@ -200,5 +200,15 @@ export const render = ({
 }) => {
   parent.style.margin = "0 8px";
   parent.onmousedown = (e) => e.stopPropagation();
-  ReactDOM.render(<Wrapper tag={tag} parent={parent} />, parent);
+  const actualRender = () =>
+    ReactDOM.render(<Wrapper tag={tag} parent={parent} />, parent);
+  if (window.roamjs.extension.queryBuilder) {
+    actualRender();
+  } else {
+    document.body.addEventListener(
+      "roamjs:discourse-graph:query-builder",
+      actualRender,
+      { once: true }
+    );
+  }
 };

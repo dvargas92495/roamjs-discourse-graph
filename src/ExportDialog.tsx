@@ -32,6 +32,7 @@ import {
 import format from "date-fns/format";
 import download from "downloadjs";
 import JSZip from "jszip";
+import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 
 type Props = {
   fromQuery?: {
@@ -114,7 +115,10 @@ const ExportDialog = ({
   const [activeExportType, setActiveExportType] = useState<
     typeof EXPORT_TYPES[number]
   >(EXPORT_TYPES[0]);
-  const graphs = useMemo(() => window.roamjs.extension?.multiplayer?.getConnectedGraphs?.() || [], []);
+  const graphs = useMemo(
+    () => window.roamjs.extension?.multiplayer?.getConnectedGraphs?.() || [],
+    []
+  );
   const [graph, setGraph] = useState<string>(graphs[0]);
   return (
     <Dialog
@@ -391,10 +395,7 @@ const ExportDialog = ({
   );
 };
 
-export const render = createOverlayRender<Props>(
-  "discourse-export",
-  ExportDialog
-);
+export const render = createOverlayQueryBuilderRender<Props>(ExportDialog);
 
 export type ExportRenderProps = Omit<Parameters<typeof render>[0], "fromQuery">;
 

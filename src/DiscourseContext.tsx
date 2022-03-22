@@ -1,6 +1,5 @@
 import { Switch, Tabs, Tab } from "@blueprintjs/core";
 import React, { useCallback, useMemo, useState } from "react";
-import ReactDOM from "react-dom";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import { getDiscourseContextResults } from "./util";
 import createQueryBuilderRender from "./utils/createQueryBuilderRender";
@@ -47,13 +46,10 @@ const ContextTab = ({
   const resultsView = (
     <ResultsView
       parentUid={parentUid}
-      results={Object.values(results).map((a) => ({
-        context: a.context,
-        uid: a.uid || "",
-        text: a.text || "",
-        createdTime: new Date(a.createdTime),
-        editedTime: new Date(a.editedTime),
-      }))}
+      results={Object.values(results).map(
+        ({ target, complement, id, ...a }) =>
+          a as Parameters<typeof ResultsView>[0]["results"][number]
+      )}
       header={
         <>
           <span>{r.label}</span>

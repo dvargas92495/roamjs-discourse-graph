@@ -500,7 +500,7 @@ We expect that there will be no disruption in functionality. If you see issues a
             ),
             true
           );
-          return Object.keys(results[0]?.results).length || 0;
+          return results.length ? Object.keys(results[0]?.results).length : 0;
         },
       });
 
@@ -789,7 +789,7 @@ We expect that there will be no disruption in functionality. If you see issues a
           children.parentElement.appendChild(p);
           p.style.height = "500px";
           overviewRender({
-            p,
+            parent: p,
             pageUid: getPageTitleByPageUid(title),
           });
         }

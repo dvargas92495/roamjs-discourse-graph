@@ -29,6 +29,7 @@ import {
   matchNode,
 } from "../util";
 import { getExperimentalOverlayMode } from "./DiscourseContextOverlay";
+import createQueryBuilderRender from "../utils/createQueryBuilderRender";
 
 type Props = {
   pageUid: string;
@@ -768,7 +769,6 @@ const DiscourseGraphOverview = ({ pageUid }: Props) => {
   );
 };
 
-export const render = ({ p, ...props }: { p: HTMLElement } & Props) =>
-  ReactDOM.render(<DiscourseGraphOverview {...props} />, p);
+export const render = createQueryBuilderRender(DiscourseGraphOverview);
 
 export default DiscourseGraphOverview;
