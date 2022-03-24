@@ -1,4 +1,3 @@
-
 import { Menu, MenuItem, Popover, Position } from "@blueprintjs/core";
 import React, {
   useCallback,
@@ -18,6 +17,7 @@ import updateBlock from "roamjs-components/writes/updateBlock";
 import { getCoordsFromTextarea } from "roamjs-components/components/CursorMenu";
 import { getNodes, nodeFormatToDatalog } from "./util";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
+import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getSubTree from "roamjs-components/util/getSubTree";
 import { InputTextNode, RoamBasicNode } from "roamjs-components/types";
 
@@ -60,7 +60,9 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
                     freeVar: "t",
                     nodeFormat: referencedNode.format,
                   }
-                )}]`
+                )
+                  .map((c) => compileDatalog(c, 0))
+                  .join(" ")}]`
               )?.[0]?.[0] || "";
             return referencedTitle ? `[[${referencedTitle}]]` : "";
           }
@@ -95,7 +97,7 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
                 })
               )
             )
-              .then(() =>  openBlockInSidebar(pageUid))
+              .then(() => openBlockInSidebar(pageUid))
               .then(() => {
                 setTimeout(() => {
                   const sidebarTitle = document.querySelector(

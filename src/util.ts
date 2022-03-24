@@ -2,6 +2,7 @@ import type {
   InputTextNode,
   RoamBasicNode,
   TextNode,
+  DatalogClause,
 } from "roamjs-components/types";
 import createBlock from "roamjs-components/writes/createBlock";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
@@ -356,20 +357,44 @@ export const nodeFormatToDatalog = ({
 }: {
   nodeFormat?: string;
   freeVar: string;
-}) => {
+}): DatalogClause[] => {
   const [prefix, ...rest] = nodeFormat.split(/{[\w\d-]*}/g);
   const suffix = rest.slice(-1)[0] || "";
   const middle = rest.slice(0, rest.length - 1);
-  const normalizedVar = freeVar.startsWith("?") ? freeVar : `?${freeVar}`;
-  return `${
-    prefix
-      ? `[(clojure.string/starts-with? ${normalizedVar}  "${prefix}")]`
-      : ""
-  } ${
-    suffix ? `[(clojure.string/ends-with? ${normalizedVar} "${suffix}")]` : ""
-  } ${middle
-    .map((m) => `[(clojure.string/includes? ${normalizedVar} "${m}")]`)
-    .join(" ")}`;
+  return [
+    ...((prefix
+      ? [
+          {
+            type: "pred-expr",
+            pred: "clojure.string/includes?", //"clojure.string/starts-with?",
+            arguments: [
+              { type: "variable", value: freeVar },
+              { type: "constant", value: `"${prefix}"` },
+            ],
+          },
+        ]
+      : []) as DatalogClause[]),
+    ...((suffix
+      ? [
+          {
+            type: "pred-expr",
+            pred: "clojure.string/includes?", //"clojure.string/ends-with?",
+            arguments: [
+              { type: "variable", value: freeVar },
+              { type: "constant", value: `"${prefix}"` },
+            ],
+          },
+        ]
+      : []) as DatalogClause[]),
+    ...(middle.map((m) => ({
+      type: "pred-expr",
+      pred: "clojure.string/includes?",
+      arguments: [
+        { type: "variable", value: freeVar },
+        { type: "constant", value: `"${m}"` },
+      ],
+    })) as DatalogClause[]),
+  ];
 };
 
 export const getNodes = () =>
@@ -439,68 +464,6 @@ export const getRelationTriples = (relations = getRelations()) =>
       target,
     }));
 
-export const freeVar = (v: string) => `?${v.replace(/ /g, "")}`;
-
-type DatalogTranslator = {
-  [label: string]: (src: string, dest: string) => string;
-};
-
-export const englishToDatalog = (nodes = getNodes()): DatalogTranslator => {
-  const formatByType = Object.fromEntries([
-    ...nodes.map((n) => [n.type, n.format]),
-    ...nodes.map((n) => [n.text, n.format]),
-  ]);
-  return {
-    "is a": (src, dest) =>
-      `[${freeVar(src)} :node/title ${freeVar(
-        dest
-      )}-Title] ${nodeFormatToDatalog({
-        freeVar: `${freeVar(dest)}-Title`,
-        nodeFormat: formatByType[dest],
-      })}`,
-    references: (src, dest) => `[${freeVar(src)} :block/refs ${freeVar(dest)}]`,
-    "is in page": (src, dest) =>
-      `[${freeVar(src)} :block/page ${freeVar(dest)}]`,
-    "has title": (src, dest) =>
-      `[${freeVar(src)} :node/title "${normalizePageTitle(dest)}"]`,
-    "has attribute": (src, dest) =>
-      `[${freeVar(dest)}-Attribute :node/title "${dest}"] [${freeVar(
-        dest
-      )} :block/refs ${freeVar(dest)}-Attribute] [${freeVar(
-        dest
-      )} :block/parents ${freeVar(src)}]`,
-    "has child": (src, dest) =>
-      `[${freeVar(src)} :block/children ${freeVar(dest)}]`,
-    "has ancestor": (src, dest) =>
-      `[${freeVar(src)} :block/parents ${freeVar(dest)}]`,
-    "has descendant": (src, dest) =>
-      `[${freeVar(dest)} :block/parents ${freeVar(src)}]`,
-    "with text": (src, dest) =>
-      `(or [${freeVar(src)} :block/string ${freeVar(src)}-String] [${freeVar(
-        src
-      )} :node/title ${freeVar(
-        src
-      )}-String]) [(clojure.string/includes? ${freeVar(
-        src
-      )}-String "${normalizePageTitle(dest)}")]`,
-    "created by": (src, dest) =>
-      `[${freeVar(src)} :create/user ${freeVar(src)}-User] [${freeVar(
-        src
-      )}-User :user/display-name "${normalizePageTitle(dest)}"]`,
-  };
-};
-
-export const triplesToQuery = (
-  t: string[][],
-  translator: DatalogTranslator
-): string =>
-  t
-    .map(
-      ([src, key, dest]) =>
-        translator[key.toLowerCase().trim()]?.(src, dest) || ""
-    )
-    .join(" ");
-
 export const getUserIdentifier = () => {
   const uid = getCurrentUserUid();
   return getCurrentUserDisplayName() || getDisplayNameByUid(uid) || uid;
@@ -561,6 +524,7 @@ export const getDiscourseContextResults = (
         .filter((r) => r.source === nodeType)
         .map((r) => {
           const cacheKey = `${title}~${r.label}~${r.destination}`;
+          const conditionUid = window.roamAlphaAPI.util.generateUID();
           const results =
             useCache && resultCache[cacheKey]
               ? resultCache[cacheKey]
@@ -573,14 +537,14 @@ export const getDiscourseContextResults = (
                         relation: r.complement,
                         target: title,
                         not: false,
-                        uid: window.roamAlphaAPI.util.generateUID(),
+                        uid: conditionUid,
                       },
                     ],
                     selections: [
                       {
                         uid: window.roamAlphaAPI.util.generateUID(),
                         label: "context",
-                        text: "node:context",
+                        text: `node:${conditionUid}-Context`,
                       },
                     ],
                   }));
@@ -596,6 +560,7 @@ export const getDiscourseContextResults = (
         .filter((r) => r.destination === nodeType)
         .map((r) => {
           const cacheKey = `${title}~${r.complement}~${r.source}`;
+          const conditionUid = window.roamAlphaAPI.util.generateUID();
           const results =
             useCache && resultCache[cacheKey]
               ? resultCache[cacheKey]
@@ -608,14 +573,14 @@ export const getDiscourseContextResults = (
                         relation: r.label,
                         target: title,
                         not: false,
-                        uid: window.roamAlphaAPI.util.generateUID(),
+                        uid: conditionUid,
                       },
                     ],
                     selections: [
                       {
                         uid: window.roamAlphaAPI.util.generateUID(),
                         label: "context",
-                        text: "node:context",
+                        text: `node:${conditionUid}-Context`,
                       },
                     ],
                   }));

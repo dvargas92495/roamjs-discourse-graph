@@ -1,3 +1,4 @@
+import { DatalogAndClause, DatalogClause } from "roamjs-components/types";
 import {
   getNodes,
   nodeFormatToDatalog,
@@ -7,41 +8,45 @@ import {
 } from "../util";
 
 const registerDatalogTranslators = () => {
-  const { conditionToDatalog } = window.roamjs.extension.queryBuilder;
-  const registerDatalogTransfer = window.roamjs.extension.queryBuilder //@ts-ignore
-    ?.registerDatalogTranslator as (args: {
-    key: string;
-    callback: (args: {
-      freeVar: (s: string) => string;
-      source: string;
-      target: string;
-      uid: string;
-    }) => string;
-  }) => void;
+  const { conditionToDatalog, registerDatalogTranslator } =
+    window.roamjs.extension.queryBuilder;
 
   const isACallback: Parameters<
-    typeof registerDatalogTransfer
-  >[0]["callback"] = ({ source, target, freeVar }) => {
+    typeof registerDatalogTranslator
+  >[0]["callback"] = ({ source, target }) => {
     const formatByType = Object.fromEntries([
       ...discourseNodes.map((n) => [n.type, n.format]),
       ...discourseNodes.map((n) => [n.text, n.format]),
     ]);
-    return `[${freeVar(source)} :node/title ${freeVar(
-      target
-    )}-Title] ${nodeFormatToDatalog({
-      freeVar: `${freeVar(target)}-Title`,
-      nodeFormat: formatByType[target],
-    })}`;
+    return [
+      {
+        type: "data-pattern",
+        arguments: [
+          {
+            type: "variable",
+            value: source,
+          },
+          { type: "constant", value: ":node/title" },
+          {
+            type: "variable",
+            value: `${target}-Title`,
+          },
+        ],
+      },
+      ...nodeFormatToDatalog({
+        freeVar: `${target}-Title`,
+        nodeFormat: formatByType[target],
+      }),
+    ];
   };
   const discourseNodes = getNodes();
-  registerDatalogTransfer({
+  registerDatalogTranslator({
     key: "is a",
     callback: isACallback,
   });
-  registerDatalogTransfer({
+  registerDatalogTranslator({
     key: "self",
-    callback: ({ source, freeVar, uid }) =>
-      isACallback({ source, target: source, freeVar, uid }),
+    callback: ({ source, uid }) => isACallback({ source, target: source, uid }),
   });
 
   const discourseRelations = getRelations();
@@ -84,7 +89,7 @@ const registerDatalogTranslators = () => {
   );
   relationLabels.add(ANY_REGEX.source);
   relationLabels.forEach((label) => {
-    registerDatalogTransfer({
+    registerDatalogTranslator({
       key: label,
       callback: ({ source, target, uid }) => {
         const targetType = nodeTypeByLabel[target.toLowerCase()];
@@ -103,15 +108,15 @@ const registerDatalogTranslators = () => {
               : undefined
           )
           .filter((r) => !!r);
-        if (!filteredRelations.length) return "";
-        return `(or-join [?${source}] ${filteredRelations
-          .map(({ triples, source: _source, destination, forward }) => {
+        if (!filteredRelations.length) return [];
+        const andParts = filteredRelations.map(
+          ({ triples, source: _source, destination, forward }) => {
             const queryTriples = triples.map((t) => t.slice(0));
             const sourceTriple = queryTriples.find((t) => t[2] === "source");
             const destinationTriple = queryTriples.find(
               (t) => t[2] === "destination"
             );
-            if (!sourceTriple || !destinationTriple) return "";
+            if (!sourceTriple || !destinationTriple) return [];
             let sourceNodeVar = "";
             if (forward) {
               destinationTriple[1] = "has title";
@@ -124,27 +129,103 @@ const registerDatalogTranslators = () => {
               destinationTriple[2] = destination;
               sourceNodeVar = destinationTriple[0];
             }
-            const subQuery = queryTriples
-              .map(([src, rel, tar]) =>
-                conditionToDatalog({
-                  source: src,
-                  relation: rel,
-                  target: tar,
-                  not: false,
-                  uid,
-                })
-              )
-              .join("\n");
-            const andQuery = `\n  (and ${subQuery.replace(
-              /([\s|\[]\?)/g,
-              `$1${uid}-`
-            )})`;
-            return andQuery.replace(
-              new RegExp(`\\?${uid}-${sourceNodeVar}`, "g"),
-              `?${source}`
+            const subQuery = queryTriples.flatMap(([src, rel, tar]) =>
+              conditionToDatalog({
+                source: src,
+                relation: rel,
+                target: tar,
+                not: false,
+                uid,
+              })
             );
-          })
-          .join("\n")}\n)`;
+            const replaceVariables = (
+              clauses: (DatalogClause | DatalogAndClause)[]
+            ): void =>
+              clauses.forEach((c) => {
+                switch (c.type) {
+                  case "data-pattern":
+                  case "fn-expr":
+                  case "pred-expr":
+                  case "rule-expr":
+                    [...c.arguments]
+                      .filter((a) => a.type === "variable")
+                      .forEach((a) => {
+                        if (a.value === sourceNodeVar) {
+                          a.value = source;
+                        } else {
+                          a.value = `${uid}-${a.value}`;
+                        }
+                      });
+                    break;
+                  case "not-join-clause":
+                  case "or-join-clause":
+                    c.variables
+                      .filter((a) => a.type === "variable")
+                      .forEach((a) => {
+                        if (a.value === sourceNodeVar) {
+                          a.value = source;
+                        } else {
+                          a.value = `${uid}-${a.value}`;
+                        }
+                      });
+                  case "not-clause":
+                  case "or-clause":
+                  case "and-clause":
+                    replaceVariables(c.clauses);
+                    break;
+                  default:
+                    return;
+                }
+              });
+            replaceVariables(subQuery);
+            return subQuery;
+          }
+        );
+        if (andParts.length === 1) return andParts[0];
+        const collectVariables = (
+          clauses: (DatalogClause | DatalogAndClause)[]
+        ): Set<string> =>
+          new Set(
+            clauses.flatMap((c) => {
+              switch (c.type) {
+                case "data-pattern":
+                case "fn-expr":
+                case "pred-expr":
+                case "rule-expr":
+                  return [...c.arguments]
+                    .filter((a) => a.type === "variable")
+                    .map((a) => a.value);
+                case "not-join-clause":
+                case "or-join-clause":
+                case "not-clause":
+                case "or-clause":
+                case "and-clause":
+                  return Array.from(collectVariables(c.clauses));
+                default:
+                  return [];
+              }
+            })
+          );
+        const orJoinedVars = collectVariables(andParts[0]);
+        andParts.slice(1).forEach((a) => {
+          const freeVars = collectVariables(a);
+          Array.from(orJoinedVars).forEach((v) => {
+            if (!freeVars.has(v)) orJoinedVars.delete(v);
+          });
+        });
+        return [
+          {
+            type: "or-join-clause",
+            variables: Array.from(orJoinedVars).map((v) => ({
+              type: "variable",
+              value: v,
+            })),
+            clauses: andParts.map((a) => ({
+              type: "and-clause",
+              clauses: a,
+            })),
+          },
+        ];
       },
     });
   });

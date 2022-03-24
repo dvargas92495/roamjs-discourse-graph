@@ -35,7 +35,7 @@ import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import setInputSetting from "roamjs-components/util/setInputSetting";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import useSubTree from "roamjs-components/hooks/useSubTree";
-import { englishToDatalog, getNodes, Panel } from "./util";
+import { getNodes, Panel } from "./util";
 import refreshConfigTree from "./utils/refreshConfigTree";
 import triplesToBlocks from "./utils/triplesToBlocks";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
@@ -1022,7 +1022,14 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
     []
   );
   const previewUid = useSubTree({ parentUid, key: "preview" }).uid;
-  const translatorKeys = useMemo(() => Object.keys(englishToDatalog()), []);
+  const [translatorKeys, setTranslatorKeys] = useState(() => window.roamjs.extension.queryBuilder?.getConditionLabels?.() ||[]);
+  useEffect(() => {
+    document.body.addEventListener(
+      "roamjs:discourse-graph:query-builder",
+      () => setTranslatorKeys(window.roamjs.extension.queryBuilder.getConditionLabels()),
+      { once: true }
+    );
+  }, [])
   const [relations, setRelations] = useState(refreshRelations);
   const [editingRelation, setEditingRelation] = useState("");
   const [newRelation, setNewRelation] = useState("");

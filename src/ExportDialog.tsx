@@ -17,17 +17,14 @@ import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import { TreeNode, ViewType } from "roamjs-components/types";
-import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import {
-  englishToDatalog,
   getDiscourseContextResults,
   getNodes,
   getPageMetadata,
   getRelations,
   isFlagEnabled,
   matchNode,
-  triplesToQuery,
 } from "./util";
 import format from "date-fns/format";
 import download from "downloadjs";
@@ -186,7 +183,6 @@ const ExportDialog = ({
                               onClose();
                             });
                   const allNodes = getNodes();
-                  const translator = englishToDatalog(allNodes);
                   const allPages = window.roamAlphaAPI
                     .q(
                       "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
@@ -215,7 +211,8 @@ const ExportDialog = ({
                           )
                       )
                       .flatMap((s) =>
-                        window.roamAlphaAPI
+                      /*  fire query
+                      window.roamAlphaAPI
                           .q(
                             `[:find ?source-uid ?dest-uid :where [?${
                               s.triples.find(
@@ -238,7 +235,7 @@ const ExportDialog = ({
                               translator
                             )}]`
                           )
-                          .map(([source, target]: string[]) => ({
+                          */[].map(([source, target]: string[]) => ({
                             source,
                             target,
                             label: s.label,
