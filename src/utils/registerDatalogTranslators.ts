@@ -63,9 +63,11 @@ const registerDatalogTranslators = () => {
     relation: { source: string; destination: string },
     condition: { source: string; target: string }
   ) => {
-    const sourceMatches = nodeLabelByType[relation.source] === condition.source;
+    const sourceType = nodeLabelByType[relation.source];
+    const targetType = nodeLabelByType[relation.destination];
+    const sourceMatches = sourceType === condition.source;
     const targetMatches =
-      relation.destination === nodeLabelByType[condition.target] ||
+      targetType === condition.target ||
       matchNode({
         format: nodeFormatByType[relation.destination],
         title: condition.target,
@@ -82,7 +84,10 @@ const registerDatalogTranslators = () => {
     if (targetMatches) {
       return sourceMatches || !nodeTypeByLabel[condition.source.toLowerCase()];
     }
-    return false;
+    // if both are placeholders, sourceType and targetType will both be null, meaning we could match any condition
+    return (
+      !nodeLabelByType[condition.source] && !nodeLabelByType[condition.target]
+    );
   };
   const relationLabels = new Set(
     discourseRelations.flatMap((d) => [d.label, d.complement])
@@ -119,13 +124,27 @@ const registerDatalogTranslators = () => {
             if (!sourceTriple || !destinationTriple) return [];
             let sourceNodeVar = "";
             if (forward) {
-              destinationTriple[1] = "has title";
-              destinationTriple[2] = conditionTarget;
+              if (
+                matchNode({
+                  title: conditionTarget,
+                  format: nodeFormatByType[destination],
+                })
+              ) {
+                destinationTriple[1] = "has title";
+                destinationTriple[2] = conditionTarget;
+              }
               sourceTriple[2] = _source;
               sourceNodeVar = sourceTriple[0];
             } else {
-              sourceTriple[1] = "has title";
-              sourceTriple[2] = conditionTarget;
+              if (
+                matchNode({
+                  title: conditionTarget,
+                  format: nodeFormatByType[source],
+                })
+              ) {
+                sourceTriple[1] = "has title";
+                sourceTriple[2] = conditionTarget;
+              }
               destinationTriple[2] = destination;
               sourceNodeVar = destinationTriple[0];
             }
