@@ -366,7 +366,7 @@ export const nodeFormatToDatalog = ({
       ? [
           {
             type: "pred-expr",
-            pred: "clojure.string/includes?", //"clojure.string/starts-with?",
+            pred: "clojure.string/starts-with?",
             arguments: [
               { type: "variable", value: freeVar },
               { type: "constant", value: `"${prefix}"` },
@@ -378,7 +378,7 @@ export const nodeFormatToDatalog = ({
       ? [
           {
             type: "pred-expr",
-            pred: "clojure.string/includes?", //"clojure.string/ends-with?",
+            pred: "clojure.string/ends-with?",
             arguments: [
               { type: "variable", value: freeVar },
               { type: "constant", value: `"${prefix}"` },
