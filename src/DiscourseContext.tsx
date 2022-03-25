@@ -45,6 +45,8 @@ const ContextTab = ({
   const { ResultsView } = window.roamjs.extension.queryBuilder;
   const resultsView = (
     <ResultsView
+      // @ts-ignore
+      preventSavingSettings
       parentUid={parentUid}
       results={Object.values(results).map(
         ({ target, complement, id, ...a }) =>
