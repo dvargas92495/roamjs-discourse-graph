@@ -85,9 +85,7 @@ const registerDatalogTranslators = () => {
       return sourceMatches || !nodeTypeByLabel[condition.source.toLowerCase()];
     }
     // if both are placeholders, sourceType and targetType will both be null, meaning we could match any condition
-    return (
-     false // !nodeLabelByType[condition.source] && !nodeLabelByType[condition.target]
-    );
+    return false; // !nodeLabelByType[condition.source] && !nodeLabelByType[condition.target]
   };
   const relationLabels = new Set(
     discourseRelations.flatMap((d) => [d.label, d.complement])
@@ -124,7 +122,7 @@ const registerDatalogTranslators = () => {
             if (!sourceTriple || !destinationTriple) return [];
             let sourceNodeVar = "";
             if (forward) {
-              if (
+              /*   if (
                 matchNode({
                   title: conditionTarget,
                   format: nodeFormatByType[destination],
@@ -132,11 +130,13 @@ const registerDatalogTranslators = () => {
               ) {
                 destinationTriple[1] = "has title";
                 destinationTriple[2] = conditionTarget;
-              }
+              }*/
+              destinationTriple[1] = "has title";
+              destinationTriple[2] = conditionTarget;
               sourceTriple[2] = _source;
               sourceNodeVar = sourceTriple[0];
             } else {
-              if (
+              /* if (
                 matchNode({
                   title: conditionTarget,
                   format: nodeFormatByType[source],
@@ -144,7 +144,9 @@ const registerDatalogTranslators = () => {
               ) {
                 sourceTriple[1] = "has title";
                 sourceTriple[2] = conditionTarget;
-              }
+              }*/
+              sourceTriple[1] = "has title";
+              sourceTriple[2] = conditionTarget;
               destinationTriple[2] = destination;
               sourceNodeVar = destinationTriple[0];
             }
