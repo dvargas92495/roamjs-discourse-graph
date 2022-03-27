@@ -86,7 +86,7 @@ const registerDatalogTranslators = () => {
     }
     // if both are placeholders, sourceType and targetType will both be null, meaning we could match any condition
     return (
-      !nodeLabelByType[condition.source] && !nodeLabelByType[condition.target]
+     false // !nodeLabelByType[condition.source] && !nodeLabelByType[condition.target]
     );
   };
   const relationLabels = new Set(
