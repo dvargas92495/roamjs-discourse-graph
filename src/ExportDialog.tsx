@@ -210,37 +210,27 @@ const ExportDialog = ({
                               t[2] === "destination" || t[2] === s.destination
                           )
                       )
-                      .flatMap((s) =>
-                      /*  fire query
-                      window.roamAlphaAPI
-                          .q(
-                            `[:find ?source-uid ?dest-uid :where [?${
-                              s.triples.find(
-                                (t) => t[2] === "source" || t[2] === s.source
-                              )[0]
-                            } :block/uid ?source-uid] [?${
-                              s.triples.find(
-                                (t) =>
-                                  t[2] === "destination" ||
-                                  t[2] === s.destination
-                              )[0]
-                            } :block/uid ?dest-uid] ${triplesToQuery(
-                              s.triples.map((t) =>
-                                t[2] === "source"
-                                  ? [t[0], t[1], s.source]
-                                  : t[2] === "destination"
-                                  ? [t[0], t[1], s.destination]
-                                  : t
-                              ),
-                              translator
-                            )}]`
-                          )
-                          */[].map(([source, target]: string[]) => ({
-                            source,
-                            target,
+                      .flatMap((s) => {
+                        return window.roamjs.extension.queryBuilder
+                          .fireQuery({
+                            returnNode: s.source,
+                            conditions: [
+                              {
+                                relation: s.label,
+                                source: s.source,
+                                target: s.destination,
+                                uid: s.id,
+                                not: false,
+                              },
+                            ],
+                            selections: [],
+                          })
+                          .map((result) => ({
+                            source: s.source,
+                            target: result.uid,
                             label: s.label,
-                          }))
-                      );
+                          }));
+                      });
                   if (activeExportType === "CSV (neo4j)") {
                     const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
                     const nodeData = pageData
