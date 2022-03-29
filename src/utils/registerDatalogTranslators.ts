@@ -1,3 +1,4 @@
+import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 import { DatalogAndClause, DatalogClause } from "roamjs-components/types";
 import {
   getNodes,
@@ -157,6 +158,7 @@ const registerDatalogTranslators = () => {
                 target: tar,
                 not: false,
                 uid,
+                type: "clause"
               })
             );
             const replaceVariables = (
@@ -247,6 +249,26 @@ const registerDatalogTranslators = () => {
             })),
           },
         ];
+      },
+      targetOptions: (source) => {
+        const pageNames = getAllPageNames();
+        const sourcedRelations = discourseRelations
+          .flatMap((dr) => [
+            { source: dr.source, relation: dr.label },
+            { source: dr.destination, relation: dr.complement },
+          ])
+          .filter(
+            (dr) =>
+              dr.relation === label && (!source || dr.source === source)
+          );
+        return pageNames.filter((p) =>
+          sourcedRelations.some((sr) =>
+            matchNode({
+              format: nodeFormatByType[sr.source],
+              title: p,
+            })
+          )
+        );
       },
     });
   });

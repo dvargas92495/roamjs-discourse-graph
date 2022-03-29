@@ -8,10 +8,13 @@ import createPage from "roamjs-components/writes/createPage";
 import updateBlock from "roamjs-components/writes/updateBlock";
 import { Result } from "../util";
 import { render as exportRender } from "../ExportDialog";
+import getQBClauses from "../utils/getQBClauses";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
 >[0]["results"];
+
+
 
 const SavedQuery = ({
   uid,
@@ -25,7 +28,7 @@ const SavedQuery = ({
 }: {
   uid: string;
   onDelete?: () => void;
-  isSavedToPage?: boolean
+  isSavedToPage?: boolean;
   resultsReferenced: Set<string>;
   clearOnClick: (s: string, t: string) => void;
   setResultsReferenced: (s: Set<string>) => void;
@@ -38,7 +41,9 @@ const SavedQuery = ({
     () => queryNode.children.map((t) => t.text),
     [queryNode]
   );
-  const [results, setResults] = useState<QueryBuilderResults>(initialResults || []);
+  const [results, setResults] = useState<QueryBuilderResults>(
+    initialResults || []
+  );
   const resultFilter = useCallback(
     (r: Result) => !resultsReferenced.has(r.text),
     [resultsReferenced]
@@ -62,7 +67,7 @@ const SavedQuery = ({
       setResults(results);
     }
   }, [initialQuery, minimized, setInitialQuery, setResults]);
-  const {ResultsView} = window.roamjs.extension.queryBuilder;
+  const { ResultsView } = window.roamjs.extension.queryBuilder;
   return (
     <div
       style={{
@@ -109,15 +114,16 @@ const SavedQuery = ({
                   icon={"export"}
                   minimal
                   onClick={() => {
-                    const conditions = window.roamjs.extension.queryBuilder.parseQuery(query).conditionNodes.map(
-                      (c) => ({
-                        predicate: {
-                          title: c.target,
-                          uid: getPageUidByPageTitle(c.target),
-                        },
-                        relation: c.relation,
-                      })
-                    );
+                    const conditions = getQBClauses(
+                      window.roamjs.extension.queryBuilder.parseQuery(query)
+                        .conditionNodes
+                    ).map((c) => ({
+                      predicate: {
+                        title: c.target,
+                        uid: getPageUidByPageTitle(c.target),
+                      },
+                      relation: c.relation,
+                    }));
                     exportRender({
                       fromQuery: {
                         nodes: results

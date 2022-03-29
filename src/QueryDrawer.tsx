@@ -15,9 +15,21 @@ import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
 import SavedQuery from "./components/SavedQuery";
-import ReactDOM from "react-dom";
-import getRenderRoot from "roamjs-components/util/getRenderRoot";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
+import { Condition, QBClauseData } from "roamjs-components/types/query-builder";
+
+const getQBClauses = (cs: Condition[]): QBClauseData[] =>
+  cs.flatMap((c) => {
+    switch (c.type) {
+      case "not or":
+      case "or":
+        return getQBClauses(c.conditions);
+      case "clause":
+      case "not":
+      default:
+        return c;
+    }
+  });
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
@@ -145,6 +157,7 @@ const QueryDrawerContent = ({
         defaultQuery={query}
         onQuery={({ returnNode, conditions, selections }) => {
           const results = fireQuery({ returnNode, conditions, selections });
+          const cons = getQBClauses(conditions);
           return createBlock({
             node: {
               text: savedQueryLabel,
@@ -153,7 +166,7 @@ const QueryDrawerContent = ({
                   text: "query",
                   children: [
                     { text: `Find ${returnNode} Where` },
-                    ...conditions.map((c) => ({
+                    ...cons.map((c) => ({
                       text: `${c.source} ${c.relation} ${c.target}`,
                     })),
                     ...selections.map((s) => ({
@@ -166,7 +179,7 @@ const QueryDrawerContent = ({
             parentUid: blockUid,
           }).then((newSavedUid) =>
             Promise.all(
-              conditions
+              cons
                 .map((c) => deleteBlock(c.uid))
                 .concat(selections.map((s) => deleteBlock(s.uid)))
             ).then(() => {

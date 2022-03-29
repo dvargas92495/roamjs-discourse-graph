@@ -220,7 +220,7 @@ const ExportDialog = ({
                                 source: s.source,
                                 target: s.destination,
                                 uid: s.id,
-                                not: false,
+                                type: "clause",
                               },
                             ],
                             selections: [],

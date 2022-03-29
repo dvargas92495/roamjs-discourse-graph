@@ -616,8 +616,16 @@ We expect that there will be no disruption in functionality. If you see issues a
       dataAttributes: { source: "discourse-graph" },
     });
   } else {
-    addRoamJSDependency("query-builder", "discourse-graph");
-    addRoamJSDependency("multiplayer", "discourse-graph");
+    addScriptAsDependency({
+      id: "roamjs-query-builder",
+      src: "https://roamjs.com/query-builder/2022-03-28-21-45/main.js",
+      dataAttributes: { source: "discourse-graph" },
+    });
+    addScriptAsDependency({
+      id: "roamjs-multiplayer",
+      src: "https://roamjs.com/multiplayer/2022-03-25-17-46/main.js",
+      dataAttributes: { source: "discourse-graph" },
+    });
   }
 
   const trigger = getSettingValueFromTree({

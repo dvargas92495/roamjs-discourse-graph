@@ -536,8 +536,8 @@ export const getDiscourseContextResults = (
                         source: nodeTextByType[r.destination],
                         relation: r.complement,
                         target: title,
-                        not: false,
                         uid: conditionUid,
+                        type: "clause",
                       },
                     ],
                     selections: [
@@ -572,8 +572,8 @@ export const getDiscourseContextResults = (
                         source: nodeTextByType[r.source],
                         relation: r.label,
                         target: title,
-                        not: false,
                         uid: conditionUid,
+                        type: "clause",
                       },
                     ],
                     selections: [
