@@ -808,7 +808,7 @@ const CytoscapePlayground = ({
               exportRender({
                 fromQuery: {
                   nodes: nodes.map((title) => ({
-                    title,
+                    text: title,
                     uid: nodeUids[title],
                   })),
                   relations: nodesOrRelations

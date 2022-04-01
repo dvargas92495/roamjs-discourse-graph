@@ -125,7 +125,7 @@ const SavedQuery = ({
                         .conditionNodes
                     ).map((c) => ({
                       predicate: {
-                        title: c.target,
+                        text: c.target,
                         uid: getPageUidByPageTitle(c.target),
                       },
                       relation: c.relation,
@@ -133,10 +133,6 @@ const SavedQuery = ({
                     exportRender({
                       fromQuery: {
                         nodes: records
-                          .map(({ text, uid }) => ({
-                            title: text,
-                            uid,
-                          }))
                           .concat(
                             conditions
                               .map((c) => c.predicate)

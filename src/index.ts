@@ -417,6 +417,11 @@ runExtension("discourse-graph", async () => {
               description:
                 "For discourse nodes, extract out the {content} from the page name to become the file name",
             },
+            {
+              title: "frontmatter",
+              type: "multitext",
+              description: "Specify all the lines that should go to the Frontmatter of the markdown file",
+            }
           ],
         },
       ],

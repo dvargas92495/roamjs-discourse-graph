@@ -34,10 +34,11 @@ import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByPar
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getSubTree from "roamjs-components/util/getSubTree";
 import getSettingIntFromTree from "roamjs-components/util/getSettingIntFromTree";
+import { Result } from "roamjs-components/types/query-builder";
 
 type Props = {
   fromQuery?: {
-    nodes?: { title: string; uid: string }[];
+    nodes?: Result[];
     relations?: {
       target: string;
       source: string;
@@ -228,12 +229,12 @@ const ExportDialog = ({
                     .q(
                       "[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]"
                     )
-                    .map(([title, uid]: string[]) => ({ title, uid }));
+                    .map(([text, uid]: string[]) => ({ text, uid }));
                   const pageData =
                     fromQuery?.nodes ||
                     allNodes.flatMap(({ format }) =>
-                      allPages.filter(({ title }) =>
-                        matchNode({ format, title })
+                      allPages.filter(({ text }) =>
+                        matchNode({ format, title: text })
                       )
                     );
                   const getRelationData = (
@@ -275,15 +276,15 @@ const ExportDialog = ({
                   if (activeExportType === "CSV (neo4j)") {
                     const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
                     const nodeData = pageData
-                      .map(({ title, uid }, i) => {
-                        const value = title.replace(
+                      .map(({ text, uid }, i) => {
+                        const value = text.replace(
                           new RegExp(`^\\[\\[\\w*\\]\\] - `),
                           ""
                         );
-                        const { displayName, date } = getPageMetadata(title);
+                        const { displayName, date } = getPageMetadata(text);
                         return `${uid},${(
                           allNodes.find(({ format }) =>
-                            matchNode({ format, title })
+                            matchNode({ format, title: text })
                           )?.text || ""
                         ).toUpperCase()},${
                           value.includes(",") ? `"${value}"` : value
@@ -323,12 +324,31 @@ const ExportDialog = ({
                       tree: exportTree.children,
                       key: "simplified filename",
                     }).uid;
-                    const pages = pageData.map(({ title, uid }) => {
-                      const v = getPageViewType(title) || "bullet";
-                      const { date, displayName, id } = getPageMetadata(title);
+                    const frontmatter = getSubTree({
+                      tree: exportTree.children,
+                      key: "frontmatter",
+                    }).children.map((t) => t.text);
+                    const yaml = frontmatter.length
+                      ? frontmatter
+                      : [
+                          "title: {text}",
+                          `url: https://roamresearch.com/#/app/${getGraph()}/page/{uid}`,
+                          `author: {author}`,
+                          "date: {date}",
+                        ];
+                    const pages = pageData.map(({ text, uid, ...rest }) => {
+                      const v = getPageViewType(text) || "bullet";
+                      const { date, displayName, id } = getPageMetadata(text);
+                      const result: Result = {
+                        ...rest,
+                        date,
+                        text,
+                        uid,
+                        author: displayName,
+                      };
                       const treeNode = getFullTreeByParentUid(uid);
                       const discourseResults = getDiscourseContextResults(
-                        title,
+                        text,
                         allNodes
                       );
                       const referenceResults = isFlagEnabled(
@@ -337,19 +357,20 @@ const ExportDialog = ({
                         ? window.roamAlphaAPI
                             .q(
                               `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
-                                title
+                                text
                               )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
                             )
                             .filter(
                               ([, { children = [] }]) => !!children.length
                             )
                         : [];
-                      const content = `---\ntitle: ${title}\nurl: ${getRoamUrl(
-                        id
-                      )}\nauthor: ${displayName}\ndate: ${format(
-                        date,
-                        "yyyy-MM-dd"
-                      )}\n---\n\n${treeNode.children
+                      const content = `---\n${yaml
+                        .map((s) =>
+                          s.replace(/{([^}]+)}/g, (_, capt: string) =>
+                            result[capt].toString()
+                          )
+                        )
+                        .join("\n")}\n---\n\n${treeNode.children
                         .map((c) => toMarkdown({ c, v, i: 0 }))
                         .join("\n")}\n${
                         discourseResults.length
@@ -372,7 +393,7 @@ const ExportDialog = ({
                           : ""
                       }`;
                       const uids = new Set(collectUids(treeNode));
-                      return { title, content, uids };
+                      return { title: text, content, uids };
                     });
                     pages.forEach(({ title, content }) =>
                       zip.file(
@@ -397,12 +418,12 @@ const ExportDialog = ({
                         source: nodeLabelByType[source],
                       })
                     );
-                    const nodes = pageData.map(({ title, uid }) => {
-                      const { date, displayName } = getPageMetadata(title);
+                    const nodes = pageData.map(({ text, uid }) => {
+                      const { date, displayName } = getPageMetadata(text);
                       const { children } = getFullTreeByParentUid(uid);
                       return {
                         uid,
-                        title,
+                        title: text,
                         children,
                         date: date.toJSON(),
                         createdBy: displayName,
