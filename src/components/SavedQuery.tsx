@@ -107,6 +107,16 @@ const SavedQuery = ({
               </span>
             )}
             <div>
+              <Tooltip content={"Edit"}>
+                <Button
+                  icon={"edit"}
+                  onClick={() => {
+                    editSavedQuery(query);
+                    onDelete?.();
+                  }}
+                  minimal
+                />
+              </Tooltip>
               <Tooltip content={"Export Results"}>
                 <Button
                   icon={"export"}
@@ -132,12 +142,11 @@ const SavedQuery = ({
                     }));
                     exportRender({
                       fromQuery: {
-                        nodes: records
-                          .concat(
-                            conditions
-                              .map((c) => c.predicate)
-                              .filter((c) => !!c.uid)
-                          ),
+                        nodes: records.concat(
+                          conditions
+                            .map((c) => c.predicate)
+                            .filter((c) => !!c.uid)
+                        ),
                       },
                     });
                   }}
@@ -190,24 +199,6 @@ const SavedQuery = ({
         results={results.map(({ id, ...a }) => a)}
         resultContent={
           <div style={{ fontSize: 10, position: "relative" }}>
-            <Button
-              icon={<Icon icon={"edit"} iconSize={12} />}
-              minimal
-              style={{
-                height: 12,
-                width: 12,
-                minHeight: 12,
-                minWidth: 12,
-                padding: 2,
-                position: "absolute",
-                top: 0,
-                right: 8,
-              }}
-              onClick={() => {
-                editSavedQuery(query);
-                onDelete?.();
-              }}
-            />
             {query.map((q, i) => (
               <p key={i} style={{ margin: 0 }}>
                 {q}
