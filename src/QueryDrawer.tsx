@@ -16,20 +16,8 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
 import SavedQuery from "./components/SavedQuery";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
-import { Condition, QBClauseData } from "roamjs-components/types/query-builder";
-
-const getQBClauses = (cs: Condition[]): QBClauseData[] =>
-  cs.flatMap((c) => {
-    switch (c.type) {
-      case "not or":
-      case "or":
-        return getQBClauses(c.conditions);
-      case "clause":
-      case "not":
-      default:
-        return c;
-    }
-  });
+import { Condition, Selection } from "roamjs-components/types/query-builder";
+import getQBClauses from "./utils/getQBClauses";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
@@ -155,7 +143,11 @@ const QueryDrawerContent = ({
       <QueryEditor
         parentUid={blockUid}
         defaultQuery={query}
-        onQuery={({ returnNode, conditions, selections }) => {
+        // @ts-ignore
+        onQuery={(
+          // @ts-ignore
+          { returnNode, conditions, selections }
+        ) => {
           const results = fireQuery({ returnNode, conditions, selections });
           const cons = getQBClauses(conditions);
           return createBlock({
@@ -169,7 +161,7 @@ const QueryDrawerContent = ({
                     ...cons.map((c) => ({
                       text: `${c.source} ${c.relation} ${c.target}`,
                     })),
-                    ...selections.map((s) => ({
+                    ...selections.map((s: Selection) => ({
                       text: `Select ${s.text} AS ${s.label}`,
                     })),
                   ],
@@ -181,7 +173,7 @@ const QueryDrawerContent = ({
             Promise.all(
               cons
                 .map((c) => deleteBlock(c.uid))
-                .concat(selections.map((s) => deleteBlock(s.uid)))
+                .concat(selections.map((s: Selection) => deleteBlock(s.uid)))
             ).then(() => {
               setSavedQueries([
                 { uid: newSavedUid, text: savedQueryLabel, results },

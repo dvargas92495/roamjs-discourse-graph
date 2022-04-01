@@ -50,8 +50,17 @@ const SavedQuery = ({
   const [initialQuery, setInitialQuery] = useState(!!initialResults);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const { returnNode, conditionNodes, selectionNodes } = useMemo(
-    () => window.roamjs.extension.queryBuilder.parseQuery(query),
+  const { 
+    returnNode, 
+    // @ts-ignore
+    conditionNodes, 
+    // @ts-ignore
+    selectionNodes 
+  } = useMemo(
+    () => window.roamjs.extension.queryBuilder.parseQuery(
+      // @ts-ignore
+      query
+    ),
     [query]
   );
   useEffect(() => {
@@ -131,7 +140,11 @@ const SavedQuery = ({
                         });
 
                     const conditions = getQBClauses(
-                      window.roamjs.extension.queryBuilder.parseQuery(query)
+                      window.roamjs.extension.queryBuilder.parseQuery(
+                      //@ts-ignore
+                        query
+                      )
+                      //@ts-ignore
                         .conditionNodes
                     ).map((c) => ({
                       predicate: {
@@ -197,6 +210,7 @@ const SavedQuery = ({
         resultFilter={resultFilter}
         hideResults={minimized}
         results={results.map(({ id, ...a }) => a)}
+        //@ts-ignore
         resultContent={
           <div style={{ fontSize: 10, position: "relative" }}>
             {query.map((q, i) => (
@@ -206,6 +220,9 @@ const SavedQuery = ({
             ))}
           </div>
         }
+        preventSavingSettings
+        //@ts-ignore
+        preventExport
         ctrlClick={(r) => {
           setResultsReferenced(
             new Set([...Array.from(resultsReferenced), r.text])

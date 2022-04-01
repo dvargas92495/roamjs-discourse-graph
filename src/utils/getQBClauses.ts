@@ -5,7 +5,7 @@ const getQBClauses = (cs: Condition[]): QBClauseData[] =>
     switch (c.type) {
       case "not or":
       case "or":
-        return getQBClauses(c.conditions);
+        return getQBClauses(c.conditions.flat());
       case "clause":
       case "not":
       default:
@@ -13,4 +13,4 @@ const getQBClauses = (cs: Condition[]): QBClauseData[] =>
     }
   });
 
-  export default getQBClauses;
+export default getQBClauses;
