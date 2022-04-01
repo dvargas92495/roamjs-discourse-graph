@@ -420,8 +420,27 @@ runExtension("discourse-graph", async () => {
             {
               title: "frontmatter",
               type: "multitext",
-              description: "Specify all the lines that should go to the Frontmatter of the markdown file",
-            }
+              description:
+                "Specify all the lines that should go to the Frontmatter of the markdown file",
+            },
+            {
+              title: "resolve block references",
+              type: "flag",
+              description:
+                "Replaces block references in the markdown content with the block's content",
+            },
+            {
+              title: "resolve block embeds",
+              type: "flag",
+              description:
+                "Replaces block embeds in the markdown content with the block's content tree",
+            },
+            {
+              title: "links footnote",
+              type: "flag",
+              description:
+                "For discourse nodes, extract out the {content} from the page name to become the file name",
+            },
           ],
         },
       ],

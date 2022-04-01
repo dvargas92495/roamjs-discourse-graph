@@ -116,27 +116,39 @@ const getFilename = ({
     : name;
 };
 
+const MATCHES_NONE = /$.+^/;
+const EMBED_REGEX = /{{(?:\[\[)embed(?:\]\]):\s*\(\(([\w\d-]{9,10})\)\)\s*}}/;
+
 const toMarkdown = ({
   c,
   i = 0,
   v = "bullet",
+  opts,
 }: {
   c: TreeNode;
   i?: number;
   v?: ViewType;
+  opts: {
+    refs: boolean;
+    embeds: boolean;
+  };
 }): string =>
   `${"".padStart(i * 4, " ")}${viewTypeToPrefix[v]}${
     c.heading ? `${"".padStart(c.heading, "#")} ` : ""
   }${c.text
-    .replace(BLOCK_REF_REGEX, (_, blockUid) => {
+    .replace(opts.refs ? BLOCK_REF_REGEX : MATCHES_NONE, (_, blockUid) => {
       const reference = getTextByBlockUid(blockUid);
       return reference || blockUid;
+    })
+    .replace(opts.embeds ? EMBED_REGEX : MATCHES_NONE, (_, blockUid) => {
+      const reference = getFullTreeByParentUid(blockUid);
+      return toMarkdown({ c: reference, i, v, opts });
     })
     .trim()}${(c.children || [])
     .filter((nested) => !!nested.text || !!nested.children?.length)
     .map(
       (nested) =>
-        `\n\n${toMarkdown({ c: nested, i: i + 1, v: c.viewType || v })}`
+        `\n\n${toMarkdown({ c: nested, i: i + 1, v: c.viewType || v, opts })}`
     )
     .join("")}`;
 
@@ -328,6 +340,14 @@ const ExportDialog = ({
                       tree: exportTree.children,
                       key: "frontmatter",
                     }).children.map((t) => t.text);
+                    const optsRefs = !!getSubTree({
+                      tree: exportTree.children,
+                      key: "resolve block references",
+                    }).uid;
+                    const optsEmbeds = !!getSubTree({
+                      tree: exportTree.children,
+                      key: "resolve block embeds",
+                    }).uid;
                     const yaml = frontmatter.length
                       ? frontmatter
                       : [
@@ -371,7 +391,14 @@ const ExportDialog = ({
                           )
                         )
                         .join("\n")}\n---\n\n${treeNode.children
-                        .map((c) => toMarkdown({ c, v, i: 0 }))
+                        .map((c) =>
+                          toMarkdown({
+                            c,
+                            v,
+                            i: 0,
+                            opts: { refs: optsRefs, embeds: optsEmbeds },
+                          })
+                        )
                         .join("\n")}\n${
                         discourseResults.length
                           ? `\n###### Discourse Context\n\n${discourseResults
@@ -387,7 +414,13 @@ const ExportDialog = ({
                           ? `\n###### References\n\n${referenceResults
                               .map(
                                 (r) =>
-                                  `${r[0].title}\n\n${toMarkdown({ c: r[1] })}`
+                                  `${r[0].title}\n\n${toMarkdown({
+                                    c: r[1],
+                                    opts: {
+                                      refs: optsRefs,
+                                      embeds: optsEmbeds,
+                                    },
+                                  })}`
                               )
                               .join("\n")}\n`
                           : ""
