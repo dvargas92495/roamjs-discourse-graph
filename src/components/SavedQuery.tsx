@@ -14,8 +14,6 @@ type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
 >[0]["results"];
 
-
-
 const SavedQuery = ({
   uid,
   isSavedToPage = false,
@@ -114,6 +112,14 @@ const SavedQuery = ({
                   icon={"export"}
                   minimal
                   onClick={() => {
+                    const records = results.length
+                      ? results
+                      : window.roamjs.extension.queryBuilder.fireQuery({
+                          returnNode,
+                          conditions: conditionNodes,
+                          selections: selectionNodes,
+                        });
+
                     const conditions = getQBClauses(
                       window.roamjs.extension.queryBuilder.parseQuery(query)
                         .conditionNodes
@@ -126,7 +132,7 @@ const SavedQuery = ({
                     }));
                     exportRender({
                       fromQuery: {
-                        nodes: results
+                        nodes: records
                           .map(({ text, uid }) => ({
                             title: text,
                             uid,

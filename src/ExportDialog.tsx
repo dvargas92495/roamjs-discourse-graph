@@ -30,6 +30,10 @@ import format from "date-fns/format";
 import download from "downloadjs";
 import JSZip from "jszip";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getSubTree from "roamjs-components/util/getSubTree";
+import getSettingIntFromTree from "roamjs-components/util/getSettingIntFromTree";
 
 type Props = {
   fromQuery?: {
@@ -65,12 +69,49 @@ const collectUids = (t: TreeNode): string[] => [
   ...t.children.flatMap(collectUids),
 ];
 
-const normalize = (t: string) => `${t.replace(/[<>:"/\\|?*[]]/g, "")}.md`;
+const normalize = (t: string) => `${t.replace(/[<>:"/\\|\?*[\]]/g, "")}.md`;
 
-const titleToFilename = (t: string) => {
-  const name = normalize(t);
-  return name.length > 64
-    ? `${name.substring(0, 31)}...${name.slice(-30)}`
+const getContentFromNodes = ({
+  title,
+  allNodes,
+}: {
+  title: string;
+  allNodes: ReturnType<typeof getNodes>;
+}) => {
+  const nodeFormat = allNodes.find((a) =>
+    matchNode({ title, format: a.format })
+  )?.format;
+  if (!nodeFormat) return title;
+  const regex = new RegExp(
+    `^${nodeFormat
+      .replace(/\[/g, "\\[")
+      .replace(/]/g, "\\]")
+      .replace("{content}", "(.*?)")
+      .replace(/{[^}]+}/g, "(?:.*?)")}$`
+  );
+  return regex.exec(title)?.[1] || title;
+};
+
+const getFilename = ({
+  title,
+  maxFilenameLength,
+  simplifiedFilename,
+  allNodes,
+}: {
+  title: string;
+  maxFilenameLength: number;
+  simplifiedFilename: boolean;
+  allNodes: ReturnType<typeof getNodes>;
+}) => {
+  const name = normalize(
+    simplifiedFilename ? getContentFromNodes({ title, allNodes }) : title
+  );
+
+  return name.length > maxFilenameLength
+    ? `${name.substring(
+        0,
+        Math.ceil((maxFilenameLength - 3) / 2)
+      )}...${name.slice(-Math.floor((maxFilenameLength - 3) / 2))}`
     : name;
 };
 
@@ -266,7 +307,23 @@ const ExportDialog = ({
                       `${relationHeader}${relations}`
                     );
                   } else if (activeExportType === "Markdown") {
-                    const pages = pageData.map(({ title, uid }, i) => {
+                    const configTree = getBasicTreeByParentUid(
+                      getPageUidByPageTitle("roam/js/discourse-graph")
+                    );
+                    const exportTree = getSubTree({
+                      tree: configTree,
+                      key: "export",
+                    });
+                    const maxFilenameLength = getSettingIntFromTree({
+                      tree: exportTree.children,
+                      key: "max filename length",
+                      defaultValue: 64,
+                    });
+                    const simplifiedFilename = !!getSubTree({
+                      tree: exportTree.children,
+                      key: "simplified filename",
+                    }).uid;
+                    const pages = pageData.map(({ title, uid }) => {
                       const v = getPageViewType(title) || "bullet";
                       const { date, displayName, id } = getPageMetadata(title);
                       const treeNode = getFullTreeByParentUid(uid);
@@ -318,7 +375,15 @@ const ExportDialog = ({
                       return { title, content, uids };
                     });
                     pages.forEach(({ title, content }) =>
-                      zip.file(titleToFilename(title), content)
+                      zip.file(
+                        getFilename({
+                          title,
+                          maxFilenameLength,
+                          simplifiedFilename,
+                          allNodes,
+                        }),
+                        content
+                      )
                     );
                   } else {
                     const allRelations = getRelations();

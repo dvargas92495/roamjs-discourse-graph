@@ -401,6 +401,24 @@ runExtension("discourse-graph", async () => {
           ],
         },
         { id: "render references", fields: [], toggleable: true },
+        {
+          id: "export",
+          fields: [
+            {
+              title: "max filename length",
+              type: "number",
+              description:
+                "Set the maximum name length for markdown file exports",
+              defaultValue: 64,
+            },
+            {
+              title: "simplified filename",
+              type: "flag",
+              description:
+                "For discourse nodes, extract out the {content} from the page name to become the file name",
+            },
+          ],
+        },
       ],
       versioning: true,
     },
@@ -607,7 +625,8 @@ We expect that there will be no disruption in functionality. If you see issues a
   if (process.env.NODE_ENV === "development") {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "http://localhost:3100/main.js",
+      // src: "http://localhost:3100/main.js",
+      src: "https://roamjs.com/query-builder/2022-03-28-21-45/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
