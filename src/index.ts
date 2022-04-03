@@ -661,7 +661,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-04-01-22-29/main.js",
+      src: "https://roamjs.com/query-builder/2022-04-02-22-46/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
