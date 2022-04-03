@@ -18,6 +18,7 @@ import {
   isFlagEnabled,
   getDiscourseContextResults,
 } from "../util";
+import XRegExp from "xregexp";
 
 const normalize = (t: string) => `${t.replace(/[<>:"/\\|\?*[\]]/g, "")}.md`;
 
@@ -101,11 +102,12 @@ const toMarkdown = ({
   opts: {
     refs: boolean;
     embeds: boolean;
+    simplifiedFilename: boolean;
+    maxFilenameLength: number;
+    allNodes: ReturnType<typeof getNodes>;
   };
-}): string =>
-  `${"".padStart(i * 4, " ")}${viewTypeToPrefix[v]}${
-    c.heading ? `${"".padStart(c.heading, "#")} ` : ""
-  }${c.text
+}): string => {
+  const processedText = c.text
     .replace(opts.refs ? BLOCK_REF_REGEX : MATCHES_NONE, (_, blockUid) => {
       const reference = getTextByBlockUid(blockUid);
       return reference || blockUid;
@@ -114,13 +116,38 @@ const toMarkdown = ({
       const reference = getFullTreeByParentUid(blockUid);
       return toMarkdown({ c: reference, i, v, opts });
     })
-    .trim()}${(c.children || [])
+    .trim();
+  const finalProcessedText = opts.simplifiedFilename
+    ? XRegExp.matchRecursive(processedText, "#?\\[\\[", "\\]\\]", "i", {
+        valueNames: ["between", "left", "match", "right"],
+      })
+        .map((s) => {
+          if (s.name === "match") {
+            const name = getFilename({
+              title: s.value,
+              allNodes: opts.allNodes,
+              maxFilenameLength: opts.maxFilenameLength,
+              simplifiedFilename: opts.simplifiedFilename,
+            });
+            return `[${name}](${name})`;
+          } else if (s.name === "left" || s.name === "right") {
+            return "";
+          } else {
+            return s.value;
+          }
+        })
+        .join("") || processedText
+    : processedText;
+  return `${"".padStart(i * 4, " ")}${viewTypeToPrefix[v]}${
+    c.heading ? `${"".padStart(c.heading, "#")} ` : ""
+  }${finalProcessedText}${(c.children || [])
     .filter((nested) => !!nested.text || !!nested.children?.length)
     .map(
       (nested) =>
         `\n\n${toMarkdown({ c: nested, i: i + 1, v: c.viewType || v, opts })}`
     )
     .join("")}`;
+};
 
 type Props = {
   results?: Result[];
@@ -137,14 +164,31 @@ const getExportTypes = ({
 }: Props): Parameters<
   typeof window.roamjs.extension.queryBuilder.ExportDialog
 >[0]["exportTypes"] => {
-  const getPageData = () =>
-    results ||
-    getNodes().flatMap(({ format }) =>
-      window.roamAlphaAPI
-        .q("[:find ?s ?u :where [?e :node/title ?s] [?e :block/uid ?u]]")
-        .map(([text, uid]: string[]) => ({ text, uid }))
+  const allNodes = getNodes();
+  const getPageData = (): (Result & { type: string })[] => {
+    const allPages = window.roamAlphaAPI
+      .q("[:find (pull ?e [:block/uid :node/title]) :where [?e :node/title _]]")
+      .map(([{ title, uid }]: [Record<string, string>]) => ({
+        text: title,
+        uid,
+      }));
+    return allNodes.flatMap(({ format, text }) =>
+      (results
+        ? results.flatMap((r) =>
+            Object.keys(r)
+              .filter((k) => k.endsWith(`-uid`))
+              .map((k) => ({
+                ...r,
+                text: r[k.slice(0, -4)].toString(),
+                uid: r[k] as string,
+              }))
+          )
+        : allPages
+      )
         .filter(({ text }) => matchNode({ format, title: text }))
+        .map((node) => ({ ...node, type: text }))
     );
+  };
   const getRelationData = (rels?: ReturnType<typeof getRelations>) =>
     relations ||
     (rels || getRelations())
@@ -179,7 +223,7 @@ const getExportTypes = ({
   const getJsonData = () => {
     const allRelations = getRelations();
     const nodeLabelByType = Object.fromEntries(
-      getNodes().map((a) => [a.type, a.text])
+      allNodes.map((a) => [a.type, a.text])
     );
     const grammar = allRelations.map(({ label, destination, source }) => ({
       label,
@@ -212,14 +256,10 @@ const getExportTypes = ({
       callback: ({ filename }) => {
         const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
         const nodeData = getPageData()
-          .map(({ text, uid }) => {
+          .map(({ text, uid, type }) => {
             const value = text.replace(new RegExp(`^\\[\\[\\w*\\]\\] - `), "");
             const { displayName, date } = getPageMetadata(text);
-            return `${uid},${(
-              getNodes().find(({ format }) =>
-                matchNode({ format, title: text })
-              )?.text || ""
-            ).toUpperCase()},${
+            return `${uid},${type.toUpperCase()},${
               value.includes(",") ? `"${value}"` : value
             },${displayName},"${date.toLocaleString()}"`;
           })
@@ -281,77 +321,94 @@ const getExportTypes = ({
               `author: {author}`,
               "date: {date}",
             ];
-        const pages = getPageData().map(({ text, uid, ...rest }) => {
-          const v = getPageViewType(text) || "bullet";
-          const { date, displayName, id } = getPageMetadata(text);
-          const result: Result = {
-            ...rest,
-            date,
-            text,
-            uid,
-            author: displayName,
-          };
-          const treeNode = getFullTreeByParentUid(uid);
-          const discourseResults = getDiscourseContextResults(text);
-          const referenceResults = isFlagEnabled("render references")
-            ? window.roamAlphaAPI
-                .q(
-                  `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
-                    text
-                  )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+        const pages = getPageData().map(
+          ({ text, uid, context: _, ...rest }) => {
+            const v = getPageViewType(text) || "bullet";
+            const { date, displayName } = getPageMetadata(text);
+            const resultCols = Object.keys(rest).filter(
+              (k) => !k.includes("uid")
+            );
+            const yamlLines = yaml.concat(
+              resultCols.map((k) => `${k}: {${k}}`)
+            );
+            const result: Result = {
+              ...rest,
+              date,
+              text,
+              uid,
+              author: displayName,
+            };
+            const treeNode = getFullTreeByParentUid(uid);
+            const discourseResults = getDiscourseContextResults(text);
+            const referenceResults = isFlagEnabled("render references")
+              ? window.roamAlphaAPI
+                  .q(
+                    `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
+                      text
+                    )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                  )
+                  .filter(([, { children = [] }]) => !!children.length)
+              : [];
+            const content = `---\n${yamlLines
+              .map((s) =>
+                s.replace(/{([^}]+)}/g, (_, capt: string) =>
+                  result[capt].toString()
                 )
-                .filter(([, { children = [] }]) => !!children.length)
-            : [];
-          const content = `---\n${yaml
-            .map((s) =>
-              s.replace(/{([^}]+)}/g, (_, capt: string) =>
-                result[capt].toString()
               )
-            )
-            .join("\n")}\n---\n\n${treeNode.children
-            .map((c) =>
-              toMarkdown({
-                c,
-                v,
-                i: 0,
-                opts: { refs: optsRefs, embeds: optsEmbeds },
-              })
-            )
-            .join("\n")}\n${
-            discourseResults.length
-              ? `\n###### Discourse Context\n\n${discourseResults
-                  .flatMap((r) =>
-                    Object.values(r.results).map(
-                      (t) => `- **${r.label}:** [[${t.text}]]`
+              .join("\n")}\n---\n\n${treeNode.children
+              .map((c) =>
+                toMarkdown({
+                  c,
+                  v,
+                  i: 0,
+                  opts: {
+                    refs: optsRefs,
+                    embeds: optsEmbeds,
+                    simplifiedFilename,
+                    allNodes,
+                    maxFilenameLength,
+                  },
+                })
+              )
+              .join("\n")}\n${
+              discourseResults.length
+                ? `\n###### Discourse Context\n\n${discourseResults
+                    .flatMap((r) =>
+                      Object.values(r.results).map(
+                        (t) => `- **${r.label}::** [[${t.text}]]`
+                      )
                     )
-                  )
-                  .join("\n")}\n`
-              : ""
-          }${
-            referenceResults.length
-              ? `\n###### References\n\n${referenceResults
-                  .map(
-                    (r) =>
-                      `${r[0].title}\n\n${toMarkdown({
-                        c: r[1],
-                        opts: {
-                          refs: optsRefs,
-                          embeds: optsEmbeds,
-                        },
-                      })}`
-                  )
-                  .join("\n")}\n`
-              : ""
-          }`;
-          const uids = new Set(collectUids(treeNode));
-          return { title: text, content, uids };
-        });
+                    .join("\n")}\n`
+                : ""
+            }${
+              referenceResults.length
+                ? `\n###### References\n\n${referenceResults
+                    .map(
+                      (r) =>
+                        `${r[0].title}\n\n${toMarkdown({
+                          c: r[1],
+                          opts: {
+                            refs: optsRefs,
+                            embeds: optsEmbeds,
+                            simplifiedFilename,
+                            allNodes,
+                            maxFilenameLength,
+                          },
+                        })}`
+                    )
+                    .join("\n")}\n`
+                : ""
+            }`;
+            const uids = new Set(collectUids(treeNode));
+            return { title: text, content, uids };
+          }
+        );
         return pages.map(({ title, content }) => ({
           title: getFilename({
             title,
             maxFilenameLength,
             simplifiedFilename,
-            allNodes: getNodes(),
+            allNodes,
           }),
           content,
         }));

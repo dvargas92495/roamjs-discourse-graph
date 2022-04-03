@@ -122,31 +122,22 @@ const registerDatalogTranslators = () => {
             );
             if (!sourceTriple || !destinationTriple) return [];
             let sourceNodeVar = "";
+            let targetNodeVar = "";
             if (forward) {
-              /*   if (
-                matchNode({
-                  title: conditionTarget,
-                  format: nodeFormatByType[destination],
-                })
-              ) {
+              if (!nodeLabelByType[conditionTarget]) {
                 destinationTriple[1] = "has title";
-                destinationTriple[2] = conditionTarget;
-              }*/
-              destinationTriple[1] = "has title";
+              } else {
+                targetNodeVar = destinationTriple[0];
+              }
               destinationTriple[2] = conditionTarget;
               sourceTriple[2] = _source;
               sourceNodeVar = sourceTriple[0];
             } else {
-              /* if (
-                matchNode({
-                  title: conditionTarget,
-                  format: nodeFormatByType[source],
-                })
-              ) {
+              if (!nodeLabelByType[conditionTarget]) {
                 sourceTriple[1] = "has title";
-                sourceTriple[2] = conditionTarget;
-              }*/
-              sourceTriple[1] = "has title";
+              } else {
+                targetNodeVar = sourceTriple[0];
+              }
               sourceTriple[2] = conditionTarget;
               destinationTriple[2] = destination;
               sourceNodeVar = destinationTriple[0];
@@ -175,6 +166,8 @@ const registerDatalogTranslators = () => {
                       .forEach((a) => {
                         if (a.value === sourceNodeVar) {
                           a.value = source;
+                        } else if (a.value === targetNodeVar) {
+                          a.value = target;
                         } else {
                           a.value = `${uid}-${a.value}`;
                         }
@@ -187,6 +180,8 @@ const registerDatalogTranslators = () => {
                       .forEach((a) => {
                         if (a.value === sourceNodeVar) {
                           a.value = source;
+                        } else if (a.value === targetNodeVar) {
+                          a.value = target;
                         } else {
                           a.value = `${uid}-${a.value}`;
                         }
