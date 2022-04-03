@@ -649,8 +649,8 @@ We expect that there will be no disruption in functionality. If you see issues a
   if (process.env.NODE_ENV === "development") {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-     // src: "http://localhost:3100/main.js",
-     src: "https://roamjs.com/query-builder/2022-04-03-20-30/main.js",
+      src: "http://localhost:3100/main.js",
+     //src: "https://roamjs.com/query-builder/2022-04-03-22-33/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -661,7 +661,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-04-03-20-30/main.js",
+      src: "https://roamjs.com/query-builder/2022-04-03-22-33/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
