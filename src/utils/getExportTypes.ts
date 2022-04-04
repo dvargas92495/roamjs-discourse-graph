@@ -166,6 +166,9 @@ const getExportTypes = ({
   typeof window.roamjs.extension.queryBuilder.ExportDialog
 >[0]["exportTypes"] => {
   const allNodes = getNodes();
+  const nodeLabelByType = Object.fromEntries(
+    allNodes.map((a) => [a.type, a.text])
+  );
   const getPageData = (): (Result & { type: string })[] => {
     const allPages = window.roamAlphaAPI
       .q("[:find (pull ?e [:block/uid :node/title]) :where [?e :node/title _]]")
@@ -207,8 +210,8 @@ const getExportTypes = ({
             conditions: [
               {
                 relation: s.label,
-                source: s.source,
-                target: s.destination,
+                source: nodeLabelByType[s.source],
+                target: nodeLabelByType[s.destination],
                 uid: s.id,
                 type: "clause",
               },
@@ -223,9 +226,6 @@ const getExportTypes = ({
       });
   const getJsonData = () => {
     const allRelations = getRelations();
-    const nodeLabelByType = Object.fromEntries(
-      allNodes.map((a) => [a.type, a.text])
-    );
     const grammar = allRelations.map(({ label, destination, source }) => ({
       label,
       destination: nodeLabelByType[destination],
