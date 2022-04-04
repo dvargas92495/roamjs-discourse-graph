@@ -120,6 +120,7 @@ const toMarkdown = ({
   const finalProcessedText = opts.simplifiedFilename
     ? XRegExp.matchRecursive(processedText, "#?\\[\\[", "\\]\\]", "i", {
         valueNames: ["between", "left", "match", "right"],
+        unbalanced: "skip",
       })
         .map((s) => {
           if (s.name === "match") {

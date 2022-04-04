@@ -1,8 +1,4 @@
 import React from "react";
-import { BLOCK_REF_REGEX } from "roamjs-components/dom/constants";
-import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
-import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
-import { TreeNode, ViewType } from "roamjs-components/types";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 import { Result } from "roamjs-components/types/query-builder";
 import getExportTypes from "./utils/getExportTypes";
