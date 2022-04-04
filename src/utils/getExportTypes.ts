@@ -322,7 +322,7 @@ const getExportTypes = ({
               "date: {date}",
             ];
         const pages = getPageData().map(
-          ({ text, uid, context: _, ...rest }) => {
+          ({ text, uid, context: _, type, ...rest }) => {
             const v = getPageViewType(text) || "bullet";
             const { date, displayName } = getPageMetadata(text);
             const resultCols = Object.keys(rest).filter(
@@ -337,6 +337,7 @@ const getExportTypes = ({
               text,
               uid,
               author: displayName,
+              type,
             };
             const treeNode = getFullTreeByParentUid(uid);
             const discourseResults = getDiscourseContextResults(text);
