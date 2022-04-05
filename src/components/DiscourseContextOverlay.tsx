@@ -4,10 +4,12 @@ import ReactDOM from "react-dom";
 import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
 import {
+  ANY_REGEX,
   getDiscourseContextResults,
   getNodes,
   getRelations,
   isFlagEnabled,
+  matchNode,
 } from "../util";
 import { useInViewport } from "react-in-viewport";
 import {
@@ -23,6 +25,8 @@ import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
 import localStorageGet from "roamjs-components/util/localStorageGet";
 import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 
 type DiscourseData = {
   results: ReturnType<typeof getDiscourseContextResults>;
@@ -78,13 +82,13 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
   } else {
     if (cache[tag]) return Promise.resolve(cache[tag]);
     const nodes = getNodes();
-    const releations = getRelations();
+    const relations = getRelations();
     return new Promise((resolve) => {
       const triggerNow = overlayQueue.length === 0;
       overlayQueue.push(() => {
         const start = new Date();
         const output = (cache[tag] = {
-          results: getDiscourseContextResults(tag, nodes, releations, true),
+          results: getDiscourseContextResults(tag, nodes, relations, true),
           refs: window.roamAlphaAPI.q(
             `[:find ?a :where [?b :node/title "${normalizePageTitle(
               tag
@@ -105,7 +109,7 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
 
 const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
   const [loading, setLoading] = useState(true);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState<DiscourseData["results"]>([]);
   const [refs, setRefs] = useState(0);
   const getInfo = useCallback(
     () =>
@@ -116,6 +120,35 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
       }),
     [tag, setResults, setLoading, setRefs]
   );
+  const score = useMemo(() => {
+    const nodeType = getNodes().find((n) =>
+      matchNode({ format: n.format, title: tag })
+    )?.type;
+    if (!nodeType)
+      return results.flatMap((r) => Object.entries(r.results)).length;
+    const importanceFormula = getSettingValueFromTree({
+      tree: getBasicTreeByParentUid(nodeType),
+      key: "Importance",
+      defaultValue: "{count:Has Any Relation To:any}",
+    });
+    const postProcess = importanceFormula.replace(
+      /{([^}]+)}/g,
+      (_, interpolation) => {
+        const [op, ...args] = interpolation.split(":");
+        if (op === "count") {
+          return results
+            .filter((r) => ANY_REGEX.test(args[0]) || args[0] === r.label)
+            .flatMap((r) => Object.values(r.results))
+            .filter((r) => /any/i.test(args[1]) || r.target === args[1])
+            .length.toString();
+        } else {
+          console.warn(`Unknown op: ${op}`);
+          return "0";
+        }
+      }
+    );
+    return postProcess;
+  }, [results, tag]);
   const refresh = useCallback(() => {
     setLoading(true);
     getInfo();
@@ -155,9 +188,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
           id={id}
           className={"roamjs-discourse-context-overlay"}
           minimal
-          text={`${
-            results.flatMap((r) => Object.entries(r.results)).length
-          } | ${refs}`}
+          text={`${score} | ${refs}`}
           icon={"diagram-tree"}
           rightIcon={"link"}
           disabled={loading}
