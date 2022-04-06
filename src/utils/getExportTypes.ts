@@ -377,7 +377,13 @@ const getExportTypes = ({
                 ? `\n###### Discourse Context\n\n${discourseResults
                     .flatMap((r) =>
                       Object.values(r.results).map(
-                        (t) => `- **${r.label}::** [[${t.text}]]`
+                        (t) =>
+                          `- **${r.label}::** ${getFilename({
+                            title: t.text,
+                            maxFilenameLength,
+                            simplifiedFilename,
+                            allNodes,
+                          })}`
                       )
                     )
                     .join("\n")}\n`
@@ -387,7 +393,12 @@ const getExportTypes = ({
                 ? `\n###### References\n\n${referenceResults
                     .map(
                       (r) =>
-                        `${r[0].title}\n\n${toMarkdown({
+                        `${getFilename({
+                          title: r[0].title,
+                          maxFilenameLength,
+                          simplifiedFilename,
+                          allNodes,
+                        })}\n\n${toMarkdown({
                           c: r[1],
                           opts: {
                             refs: optsRefs,
