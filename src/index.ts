@@ -412,6 +412,12 @@ runExtension("discourse-graph", async () => {
               defaultValue: 64,
             },
             {
+              title: "remove special characters",
+              type: "flag",
+              description:
+                "Whether or not to remove the special characters in a file name",
+            },
+            {
               title: "simplified filename",
               type: "flag",
               description:
@@ -650,7 +656,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder",
       //src: "http://localhost:3100/main.js",
-     src: "https://roamjs.com/query-builder/2022-04-06-14-38/main.js",
+      src: "https://roamjs.com/query-builder/2022-04-06-14-38/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -897,8 +903,8 @@ We expect that there will be no disruption in functionality. If you see issues a
                         title: "Importance",
                         description: `An importance score calculated for the node, defaulted to the number of discourse relations`,
                         type: "text",
-                        defaultValue: "{count:Has Any Relation To:any}"
-                      }
+                        defaultValue: "{count:Has Any Relation To:any}",
+                      },
                     ],
                   },
                 ],

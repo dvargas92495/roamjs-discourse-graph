@@ -20,8 +20,6 @@ import {
 } from "../util";
 import XRegExp from "xregexp";
 
-const normalize = (t: string) => `${t.replace(/[<>:"/\\|\?*[\]]/g, "")}.md`;
-
 const getContentFromNodes = ({
   title,
   allNodes,
@@ -48,15 +46,22 @@ const getFilename = ({
   maxFilenameLength,
   simplifiedFilename,
   allNodes,
+  removeSpecialCharacters,
 }: {
   title: string;
   maxFilenameLength: number;
   simplifiedFilename: boolean;
   allNodes: ReturnType<typeof getNodes>;
+  removeSpecialCharacters: boolean;
 }) => {
-  const name = normalize(
-    simplifiedFilename ? getContentFromNodes({ title, allNodes }) : title
-  );
+  const baseName = simplifiedFilename
+    ? getContentFromNodes({ title, allNodes })
+    : title;
+  const name = `${
+    removeSpecialCharacters
+      ? baseName.replace(/[<>:"/\\|\?*[\]]/g, "")
+      : baseName
+  }.md`;
 
   return name.length > maxFilenameLength
     ? `${name.substring(
@@ -105,6 +110,7 @@ const toMarkdown = ({
     simplifiedFilename: boolean;
     maxFilenameLength: number;
     allNodes: ReturnType<typeof getNodes>;
+    removeSpecialCharacters: boolean;
   };
 }): string => {
   const processedText = c.text
@@ -129,6 +135,7 @@ const toMarkdown = ({
               allNodes: opts.allNodes,
               maxFilenameLength: opts.maxFilenameLength,
               simplifiedFilename: opts.simplifiedFilename,
+              removeSpecialCharacters: opts.removeSpecialCharacters,
             });
             return `[${name}](${name})`;
           } else if (s.name === "left" || s.name === "right") {
@@ -298,6 +305,10 @@ const getExportTypes = ({
           key: "max filename length",
           defaultValue: 64,
         });
+        const removeSpecialCharacters = !!getSubTree({
+          tree: exportTree.children,
+          key: "remove special characters",
+        }).uid;
         const simplifiedFilename = !!getSubTree({
           tree: exportTree.children,
           key: "simplified filename",
@@ -369,6 +380,7 @@ const getExportTypes = ({
                     simplifiedFilename,
                     allNodes,
                     maxFilenameLength,
+                    removeSpecialCharacters,
                   },
                 })
               )
@@ -383,6 +395,7 @@ const getExportTypes = ({
                             maxFilenameLength,
                             simplifiedFilename,
                             allNodes,
+                            removeSpecialCharacters,
                           })}`
                       )
                     )
@@ -398,6 +411,7 @@ const getExportTypes = ({
                           maxFilenameLength,
                           simplifiedFilename,
                           allNodes,
+                          removeSpecialCharacters,
                         })}\n\n${toMarkdown({
                           c: r[1],
                           opts: {
@@ -406,6 +420,7 @@ const getExportTypes = ({
                             simplifiedFilename,
                             allNodes,
                             maxFilenameLength,
+                            removeSpecialCharacters,
                           },
                         })}`
                     )
@@ -422,6 +437,7 @@ const getExportTypes = ({
             maxFilenameLength,
             simplifiedFilename,
             allNodes,
+            removeSpecialCharacters,
           }),
           content,
         }));
