@@ -900,7 +900,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                         type: "blocks",
                       },
                       {
-                        title: "Importance",
+                        title: "Score",
                         description: `An importance score calculated for the node, defaulted to the number of discourse relations`,
                         type: "text",
                         defaultValue: "{count:Has Any Relation To:any}",

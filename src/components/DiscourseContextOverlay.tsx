@@ -27,6 +27,7 @@ import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import {evaluate} from "mathjs";
 
 type DiscourseData = {
   results: ReturnType<typeof getDiscourseContextResults>;
@@ -126,12 +127,12 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
     )?.type;
     if (!nodeType)
       return results.flatMap((r) => Object.entries(r.results)).length;
-    const importanceFormula = getSettingValueFromTree({
+    const scoreFormula = getSettingValueFromTree({
       tree: getBasicTreeByParentUid(nodeType),
-      key: "Importance",
+      key: "Score",
       defaultValue: "{count:Has Any Relation To:any}",
     });
-    const postProcess = importanceFormula.replace(
+    const postProcess = scoreFormula.replace(
       /{([^}]+)}/g,
       (_, interpolation) => {
         const [op, ...args] = interpolation.split(":");
@@ -147,7 +148,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
         }
       }
     );
-    return postProcess;
+    return evaluate(postProcess);
   }, [results, tag]);
   const refresh = useCallback(() => {
     setLoading(true);
