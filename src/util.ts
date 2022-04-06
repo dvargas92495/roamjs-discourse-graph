@@ -107,24 +107,24 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
             children: [
               {
                 text: "Page",
-                children: [{ text: "Is A", children: [{ text: "source" }] }],
+                children: [{ text: "is a", children: [{ text: "source" }] }],
               },
               {
                 text: "Block",
                 children: [
-                  { text: "References", children: [{ text: "Page" }] },
+                  { text: "references", children: [{ text: "Page" }] },
                 ],
               },
               {
                 text: "Block",
                 children: [
-                  { text: "Is In Page", children: [{ text: "ParentPage" }] },
+                  { text: "is in page", children: [{ text: "ParentPage" }] },
                 ],
               },
               {
                 text: "ParentPage",
                 children: [
-                  { text: "Is A", children: [{ text: "destination" }] },
+                  { text: "is a", children: [{ text: "destination" }] },
                 ],
               },
             ],
@@ -149,7 +149,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "Page",
                 children: [
                   {
-                    text: "Is A",
+                    text: "is a",
                     children: [{ text: "source", children: [] }],
                   },
                 ],
@@ -158,7 +158,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "Block",
                 children: [
                   {
-                    text: "References",
+                    text: "references",
                     children: [{ text: "Page", children: [] }],
                   },
                 ],
@@ -167,7 +167,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "SBlock",
                 children: [
                   {
-                    text: "References",
+                    text: "references",
                     children: [{ text: "SPage", children: [] }],
                   },
                 ],
@@ -176,7 +176,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "SPage",
                 children: [
                   {
-                    text: "Has Title",
+                    text: "has title",
                     children: [{ text: "SupportedBy", children: [] }],
                   },
                 ],
@@ -185,7 +185,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "SBlock",
                 children: [
                   {
-                    text: "Has Child",
+                    text: "has child",
                     children: [{ text: "Block", children: [] }],
                   },
                 ],
@@ -194,7 +194,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "PBlock",
                 children: [
                   {
-                    text: "References",
+                    text: "references",
                     children: [{ text: "ParentPage", children: [] }],
                   },
                 ],
@@ -203,7 +203,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "PBlock",
                 children: [
                   {
-                    text: "Has Child",
+                    text: "has child",
                     children: [{ text: "SBlock", children: [] }],
                   },
                 ],
@@ -212,7 +212,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "ParentPage",
                 children: [
                   {
-                    text: "Is A",
+                    text: "is a",
                     children: [{ text: "destination", children: [] }],
                   },
                 ],
@@ -239,7 +239,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "Page",
                 children: [
                   {
-                    text: "Is A",
+                    text: "is a",
                     children: [{ text: "source", children: [] }],
                   },
                 ],
@@ -248,7 +248,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "Block",
                 children: [
                   {
-                    text: "References",
+                    text: "references",
                     children: [{ text: "Page", children: [] }],
                   },
                 ],
@@ -257,7 +257,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "SBlock",
                 children: [
                   {
-                    text: "References",
+                    text: "references",
                     children: [{ text: "SPage", children: [] }],
                   },
                 ],
@@ -266,7 +266,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "SPage",
                 children: [
                   {
-                    text: "Has Title",
+                    text: "has title",
                     children: [{ text: "OpposedBy", children: [] }],
                   },
                 ],
@@ -275,7 +275,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "SBlock",
                 children: [
                   {
-                    text: "Has Child",
+                    text: "has child",
                     children: [{ text: "Block", children: [] }],
                   },
                 ],
@@ -284,7 +284,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "PBlock",
                 children: [
                   {
-                    text: "References",
+                    text: "references",
                     children: [{ text: "ParentPage", children: [] }],
                   },
                 ],
@@ -293,7 +293,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "PBlock",
                 children: [
                   {
-                    text: "Has Child",
+                    text: "has child",
                     children: [{ text: "SBlock", children: [] }],
                   },
                 ],
@@ -302,7 +302,7 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
                 text: "ParentPage",
                 children: [
                   {
-                    text: "Is A",
+                    text: "is a",
                     children: [{ text: "destination", children: [] }],
                   },
                 ],
