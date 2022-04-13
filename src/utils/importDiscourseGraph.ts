@@ -42,7 +42,6 @@ const importDiscourseGraph = ({
   nodes.forEach((node: { title: string; children: InputTextNode[] }) =>
     createPage({ title: node.title, tree: node.children })
   );
-  console.log(grammar);
 };
 
 export default importDiscourseGraph;

@@ -15,7 +15,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import ReactDOM from "react-dom";
 import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
