@@ -1,7 +1,13 @@
-import type {
-  InputTextNode,
-} from "roamjs-components/types";
+import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import type { InputTextNode } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
+
+const pruneNodes = (
+  nodes: { children?: InputTextNode[]; uid?: string }[]
+): {}[] =>
+  nodes
+    .filter((n) => !getPageTitleByPageUid(n.uid))
+    .map((n) => ({ ...n, children: pruneNodes(n.children || []) }));
 
 const importDiscourseGraph = ({
   title,
@@ -23,7 +29,7 @@ const importDiscourseGraph = ({
   const pagesByUids = Object.fromEntries(
     nodes.map(({ uid, title }) => [uid, title])
   );
-  createPage({
+  return createPage({
     title,
     tree: relations.map(({ source, target, label }) => ({
       text: `[[${pagesByUids[source]}]]`,
@@ -38,9 +44,13 @@ const importDiscourseGraph = ({
         },
       ],
     })),
-  });
-  nodes.forEach((node: { title: string; children: InputTextNode[] }) =>
-    createPage({ title: node.title, tree: node.children })
+  }).then(() =>
+    Promise.all(
+      pruneNodes(nodes).map(
+        (node: { title: string; children: InputTextNode[]; uid: string }) =>
+          createPage({ title: node.title, tree: node.children, uid: node.uid })
+      )
+    )
   );
 };
 

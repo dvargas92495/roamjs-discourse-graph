@@ -8,7 +8,7 @@ import {
   SpinnerSize,
 } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
-import toRoamDateUid from "roamjs-components/date/toRoamDate";
+import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import createBlock from "roamjs-components/writes/createBlock";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
@@ -47,6 +47,7 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
           <Button
             text={"Import"}
             intent={Intent.PRIMARY}
+            disabled={loading}
             onClick={() => {
               setLoading(true);
               setTimeout(() => {
@@ -55,13 +56,16 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
                   importDiscourseGraph({
                     ...JSON.parse(event.target.result as string),
                     title,
-                  });
-                  const parentUid = toRoamDateUid(new Date());
-                  createBlock({
-                    node: { text: `[[${title}]]` },
-                    parentUid,
-                    order: getChildrenLengthByPageUid(parentUid),
-                  });
+                  })
+                    .then(() => {
+                      const parentUid = toRoamDateUid(new Date());
+                      return createBlock({
+                        node: { text: `[[${title}]]` },
+                        parentUid,
+                        order: getChildrenLengthByPageUid(parentUid),
+                      });
+                    })
+                    .then(onClose);
                 };
                 reader.readAsText(file);
               }, 1);
