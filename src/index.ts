@@ -442,10 +442,12 @@ runExtension("discourse-graph", async () => {
                 "Replaces block embeds in the markdown content with the block's content tree",
             },
             {
-              title: "links footnote",
-              type: "flag",
-              description:
-                "For discourse nodes, extract out the {content} from the page name to become the file name",
+              title: "link type",
+              type: "select",
+              description: "How to format links that appear in your export",
+              options: {
+                items: ["alias", "wikilinks"],
+              },
             },
           ],
         },

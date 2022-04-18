@@ -19,6 +19,7 @@ import {
   getDiscourseContextResults,
 } from "../util";
 import XRegExp from "xregexp";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 
 const getContentFromNodes = ({
   title,
@@ -305,6 +306,16 @@ const getExportTypes = ({
           key: "max filename length",
           defaultValue: 64,
         });
+        const linkType = getSettingValueFromTree({
+          tree: exportTree.children,
+          key: "link type",
+          defaultValue: "alias",
+        });
+        const toLink = (s: string) => {
+          if (linkType === "wikilinks") return `[[${s}]]`;
+          if (linkType === "alias") return `[${s}](${s})`;
+          return s;
+        };
         const removeSpecialCharacters = !!getSubTree({
           tree: exportTree.children,
           key: "remove special characters",
@@ -390,13 +401,15 @@ const getExportTypes = ({
                     .flatMap((r) =>
                       Object.values(r.results).map(
                         (t) =>
-                          `- **${r.label}::** ${getFilename({
-                            title: t.text,
-                            maxFilenameLength,
-                            simplifiedFilename,
-                            allNodes,
-                            removeSpecialCharacters,
-                          })}`
+                          `- **${r.label}::** ${toLink(
+                            getFilename({
+                              title: t.text,
+                              maxFilenameLength,
+                              simplifiedFilename,
+                              allNodes,
+                              removeSpecialCharacters,
+                            })
+                          )}`
                       )
                     )
                     .join("\n")}\n`
@@ -406,13 +419,15 @@ const getExportTypes = ({
                 ? `\n###### References\n\n${referenceResults
                     .map(
                       (r) =>
-                        `${getFilename({
-                          title: r[0].title,
-                          maxFilenameLength,
-                          simplifiedFilename,
-                          allNodes,
-                          removeSpecialCharacters,
-                        })}\n\n${toMarkdown({
+                        `${toLink(
+                          getFilename({
+                            title: r[0].title,
+                            maxFilenameLength,
+                            simplifiedFilename,
+                            allNodes,
+                            removeSpecialCharacters,
+                          })
+                        )}\n\n${toMarkdown({
                           c: r[1],
                           opts: {
                             refs: optsRefs,
