@@ -338,7 +338,7 @@ export const isNodeTitle = (title: string) =>
     new RegExp(
       `^${n.format
         .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
-        .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`
+        .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`, 's'
     ).test(title)
   );
 

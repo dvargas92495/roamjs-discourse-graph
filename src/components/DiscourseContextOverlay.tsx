@@ -27,7 +27,9 @@ import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import {evaluate} from "mathjs";
+import { evaluate } from "mathjs";
+import getSubTree from "roamjs-components/util/getSubTree";
+import deriveNodeAttribute from "../utils/deriveNodeAttribute";
 
 type DiscourseData = {
   results: ReturnType<typeof getDiscourseContextResults>;
@@ -122,33 +124,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
     [tag, setResults, setLoading, setRefs]
   );
   const score = useMemo(() => {
-    const nodeType = getNodes().find((n) =>
-      matchNode({ format: n.format, title: tag })
-    )?.type;
-    if (!nodeType)
-      return results.flatMap((r) => Object.entries(r.results)).length;
-    const scoreFormula = getSettingValueFromTree({
-      tree: getBasicTreeByParentUid(nodeType),
-      key: "Score",
-      defaultValue: "{count:Has Any Relation To:any}",
-    });
-    const postProcess = scoreFormula.replace(
-      /{([^}]+)}/g,
-      (_, interpolation) => {
-        const [op, ...args] = interpolation.split(":");
-        if (op === "count") {
-          return results
-            .filter((r) => ANY_REGEX.test(args[0]) || args[0] === r.label)
-            .flatMap((r) => Object.values(r.results))
-            .filter((r) => /any/i.test(args[1]) || r.target === args[1])
-            .length.toString();
-        } else {
-          console.warn(`Unknown op: ${op}`);
-          return "0";
-        }
-      }
-    );
-    return evaluate(postProcess);
+    return deriveNodeAttribute({ title: tag, attribute: "Overlay", results });
   }, [results, tag]);
   const refresh = useCallback(() => {
     setLoading(true);

@@ -71,6 +71,7 @@ import React from "react";
 import NodeIndex from "./components/NodeIndex";
 import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
 import registerDatalogTranslators from "./utils/registerDatalogTranslators";
+import NodeAttributes from "./components/NodeAttributes";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -223,6 +224,11 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-result-panel {
   width: 100%;
+}
+
+.roamjs-attribute-value {
+  flex-grow: 1; 
+  margin: 0 16px;
 }
 
 /* width */
@@ -888,10 +894,12 @@ We expect that there will be no disruption in functionality. If you see issues a
                         type: "blocks",
                       },
                       {
-                        title: "Score",
-                        description: `An importance score calculated for the node, defaulted to the number of discourse relations`,
-                        type: "text",
-                        defaultValue: "{count:Has Any Relation To:any}",
+                        title: "Attributes",
+                        description: `A set of derived properties about the node based on queryable data.`,
+                        type: "custom",
+                        options: {
+                          component: NodeAttributes,
+                        }
                       },
                     ],
                   },
