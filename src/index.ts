@@ -1,7 +1,6 @@
 import addStyle from "roamjs-components/dom/addStyle";
 import createBlock from "roamjs-components/writes/createBlock";
 import createHTMLObserver from "roamjs-components/dom/createHTMLObserver";
-import createBlockObserver from "roamjs-components/dom/createBlockObserver";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
@@ -12,7 +11,6 @@ import runExtension from "roamjs-components/util/runExtension";
 import toConfig from "roamjs-components/util/toConfigPageName";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
-import getBlockUidsReferencingPage from "roamjs-components/queries/getBlockUidsReferencingPage";
 import {
   createConfigObserver,
   render as configPageRender,
@@ -62,16 +60,14 @@ import createButtonObserver from "roamjs-components/dom/createButtonObserver";
 import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
-import getUids from "roamjs-components/dom/getUids";
-import { InputTextNode, PullBlock } from "roamjs-components/types";
 import createPage from "roamjs-components/writes/createPage";
-import addRoamJSDependency from "roamjs-components/dom/addRoamJSDependency";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import React from "react";
 import NodeIndex from "./components/NodeIndex";
 import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
 import registerDatalogTranslators from "./utils/registerDatalogTranslators";
 import NodeAttributes from "./components/NodeAttributes";
+import deriveNodeAttribute from "./utils/deriveNodeAttribute";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -537,26 +533,24 @@ We expect that there will be no disruption in functionality. If you see issues a
       registerSelection({
         test: /^(.*)-(.*)$/,
         pull: ({ returnNode }) => `(pull ?${returnNode} [:node/title])`,
+        mapper: () => {
+          return `This selection is deprecated. Define a Node Attribute and use \`discourse:attribute\` instead.`;
+        },
+      });
+
+      registerSelection({
+        test: /^discourse:(.*)$/,
+        pull: ({ returnNode }) => `(pull ?${returnNode} [:node/title])`,
         mapper: (r, key) => {
-          const match = key.match(/^(.*)-(.*)$/);
-          const rel = match?.[1] || "";
-          const target = match?.[2] || "";
-          const nodes = getNodes();
-          const nodeTitleById = Object.fromEntries(
-            nodes.map((n) => [n.type, n.text])
-          );
-          const text = r[":node/title"] || "";
+          const attribute = key.substring("discourse:".length);
+          const title = r[":node/title"] || "";
           const results = getDiscourseContextResults(
-            text,
-            nodes,
-            getRelations().filter(
-              (r) =>
-                (r.complement === rel && target === nodeTitleById[r.source]) ||
-                (r.label === rel && target === nodeTitleById[r.destination])
-            ),
+            title,
+            getNodes(),
+            getRelations(),
             true
           );
-          return results.length ? Object.keys(results[0]?.results).length : 0;
+          return deriveNodeAttribute({ title, attribute, results });
         },
       });
 
@@ -899,7 +893,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                         type: "custom",
                         options: {
                           component: NodeAttributes,
-                        }
+                        },
                       },
                     ],
                   },
