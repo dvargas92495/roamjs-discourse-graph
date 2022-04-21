@@ -643,7 +643,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-04-18-01-23/main.js",
+      src: "https://roamjs.com/query-builder/2022-04-21-15-26/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -655,7 +655,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-04-18-01-23/main.js",
+      src: "https://roamjs.com/query-builder/2022-04-21-15-26/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -893,6 +893,18 @@ We expect that there will be no disruption in functionality. If you see issues a
                         type: "custom",
                         options: {
                           component: NodeAttributes,
+                        },
+                      },
+                      {
+                        title: "Overlay",
+                        description: `Select which attribute is used for the Discourse Overlay`,
+                        type: "select",
+                        options: {
+                          items: () =>
+                            getSubTree({
+                              parentUid: getCurrentPageUid(),
+                              key: "Attributes",
+                            }).children.map((c) => c.text),
                         },
                       },
                     ],

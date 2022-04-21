@@ -25,11 +25,9 @@ import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
 import localStorageGet from "roamjs-components/util/localStorageGet";
 import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
-import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
-import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import { evaluate } from "mathjs";
-import getSubTree from "roamjs-components/util/getSubTree";
 import deriveNodeAttribute from "../utils/deriveNodeAttribute";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 
 type DiscourseData = {
   results: ReturnType<typeof getDiscourseContextResults>;
@@ -124,7 +122,17 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
     [tag, setResults, setLoading, setRefs]
   );
   const score = useMemo(() => {
-    return deriveNodeAttribute({ title: tag, attribute: "Overlay", results });
+    const nodeType = getNodes().find((n) =>
+      matchNode({ format: n.format, title: tag })
+    )?.type;
+    if (!nodeType)
+      return results.flatMap((r) => Object.entries(r.results)).length;
+    const attribute = getSettingValueFromTree({
+      tree: getBasicTreeByParentUid(nodeType),
+      key: "Overlay",
+      defaultValue: "Overlay",
+    });
+    return deriveNodeAttribute({ title: tag, attribute, results });
   }, [results, tag]);
   const refresh = useCallback(() => {
     setLoading(true);

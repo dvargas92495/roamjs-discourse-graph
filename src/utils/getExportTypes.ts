@@ -312,7 +312,7 @@ const getExportTypes = ({
           defaultValue: "alias",
         });
         const toLink = (s: string) => {
-          if (linkType === "wikilinks") return `[[${s}]]`;
+          if (linkType === "wikilinks") return `[[${s.replace(/\.md$/, "")}]]`;
           if (linkType === "alias") return `[${s}](${s})`;
           return s;
         };

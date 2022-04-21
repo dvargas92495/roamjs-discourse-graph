@@ -8,6 +8,8 @@ import {
   getNodes,
   matchNode,
 } from "../util";
+import getAttributeValueByBlockAndName from "roamjs-components/queries/getAttributeValueByBlockAndName";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 
 const deriveNodeAttribute = ({
   attribute,
@@ -40,12 +42,21 @@ const deriveNodeAttribute = ({
         .flatMap((r) => Object.values(r.results))
         .filter((r) => /any/i.test(args[1]) || r.target === args[1])
         .length.toString();
+    } else if (op === "attribute") {
+      return getAttributeValueByBlockAndName({
+        name: args[0],
+        uid: getPageUidByPageTitle(title),
+      });
     } else {
       console.warn(`Unknown op: ${op}`);
       return "0";
     }
   });
-  return evaluate(postProcess);
+  try {
+    return evaluate(postProcess);
+  } catch {
+    return postProcess;
+  }
 };
 
 export default deriveNodeAttribute;
