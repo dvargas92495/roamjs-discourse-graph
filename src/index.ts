@@ -48,6 +48,7 @@ import {
   getUserIdentifier,
   isFlagEnabled,
   isNodeTitle,
+  matchNode,
 } from "./util";
 import refreshConfigTree from "./utils/refreshConfigTree";
 import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
@@ -551,6 +552,19 @@ We expect that there will be no disruption in functionality. If you see issues a
             true
           );
           return deriveNodeAttribute({ title, attribute, results });
+        },
+      });
+
+      registerSelection({
+        test: /^\s*type\s*$/i,
+        pull: ({ returnNode }) =>
+          `(pull ?${returnNode} [:node/title :block/string])`,
+        mapper: (r) => {
+          const title = r[":node/title"] || "";
+          return (
+            getNodes().find((n) => matchNode({ format: n.format, title }))
+              ?.text || (r[":block/string"] ? "block" : "page")
+          );
         },
       });
 
