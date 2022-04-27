@@ -16,7 +16,7 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
 import SavedQuery from "./components/SavedQuery";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
-import { Condition, Selection } from "roamjs-components/types/query-builder";
+import { Selection } from "roamjs-components/types/query-builder";
 import getQBClauses from "./utils/getQBClauses";
 
 type QueryBuilderResults = Parameters<

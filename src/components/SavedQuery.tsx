@@ -50,17 +50,18 @@ const SavedQuery = ({
   const [initialQuery, setInitialQuery] = useState(!!initialResults);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const { 
-    returnNode, 
+  const {
+    returnNode,
     // @ts-ignore
-    conditionNodes, 
+    conditionNodes,
     // @ts-ignore
-    selectionNodes 
+    selectionNodes,
   } = useMemo(
-    () => window.roamjs.extension.queryBuilder.parseQuery(
-      // @ts-ignore
-      query
-    ),
+    () =>
+      window.roamjs.extension.queryBuilder.parseQuery(
+        // @ts-ignore
+        query
+      ),
     [query]
   );
   useEffect(() => {
@@ -140,12 +141,12 @@ const SavedQuery = ({
                         });
 
                     const conditions = getQBClauses(
+                      //@ts-ignore
                       window.roamjs.extension.queryBuilder.parseQuery(
-                      //@ts-ignore
+                        //@ts-ignore
                         query
-                      )
-                      //@ts-ignore
-                        .conditionNodes
+                        //@ts-ignore
+                      ).conditionNodes
                     ).map((c) => ({
                       predicate: {
                         text: c.target,
@@ -167,6 +168,23 @@ const SavedQuery = ({
               </Tooltip>
               {!isSavedToPage && (
                 <>
+                  <Tooltip content={"Insert Results"}>
+                    <Button
+                      icon={"insert"}
+                      minimal
+                      onClick={() => {
+                        results.map((r) => {
+                          clearOnClick?.(r.text, returnNode);
+                        });
+                        setResultsReferenced(
+                          new Set([
+                            ...Array.from(resultsReferenced),
+                            ...results.map((r) => r.text),
+                          ])
+                        );
+                      }}
+                    />
+                  </Tooltip>
                   <Tooltip content={"Save Query to Page"}>
                     <Button
                       icon={"page-layout"}
@@ -210,18 +228,7 @@ const SavedQuery = ({
         resultFilter={resultFilter}
         hideResults={minimized}
         results={results.map(({ id, ...a }) => a)}
-        //@ts-ignore
-        resultContent={
-          <div style={{ fontSize: 10, position: "relative" }}>
-            {query.map((q, i) => (
-              <p key={i} style={{ margin: 0 }}>
-                {q}
-              </p>
-            ))}
-          </div>
-        }
         preventSavingSettings
-        //@ts-ignore
         preventExport
         ctrlClick={(r) => {
           setResultsReferenced(
