@@ -1,5 +1,11 @@
 import { InputGroup, Button, Tooltip, Icon } from "@blueprintjs/core";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import useSubTree from "roamjs-components/hooks/useSubTree";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
@@ -76,6 +82,7 @@ const SavedQuery = ({
     }
   }, [initialQuery, minimized, setInitialQuery, setResults]);
   const { ResultsView } = window.roamjs.extension.queryBuilder;
+  const resultsInViewRef = useRef([]);
   return (
     <div
       style={{
@@ -173,13 +180,13 @@ const SavedQuery = ({
                       icon={"insert"}
                       minimal
                       onClick={() => {
-                        results.map((r) => {
+                        resultsInViewRef.current.map((r) => {
                           clearOnClick?.(r.text, returnNode);
                         });
                         setResultsReferenced(
                           new Set([
                             ...Array.from(resultsReferenced),
-                            ...results.map((r) => r.text),
+                            ...resultsInViewRef.current.map((r) => r.text),
                           ])
                         );
                       }}
@@ -236,6 +243,7 @@ const SavedQuery = ({
           );
           clearOnClick?.(r.text, returnNode);
         }}
+        onResultsInViewChange={(r) => (resultsInViewRef.current = r)}
       />
     </div>
   );
