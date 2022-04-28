@@ -30,11 +30,18 @@ import setInputSetting from "roamjs-components/util/setInputSetting";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import LivePreview, { Props as LivePreviewProps } from "./LivePreview";
 import { render as exportRender } from "./ExportDialog";
-import { getNodes, getRelations, getRelationTriples } from "./util";
+import {
+  getDiscourseContextResults,
+  getNodes,
+  getRelations,
+  getRelationTriples,
+} from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
 import fuzzy from "fuzzy";
 import triplesToBlocks from "./utils/triplesToBlocks";
+import { renderLoading } from "roamjs-components/components/Loading";
+import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 
 const NodeIcon = ({
   shortcut,
@@ -294,6 +301,25 @@ const CytoscapePlayground = ({
     },
     [cyRef]
   );
+  const drawEdge = useCallback(
+    ({ text, ...rest }: { text: string; source: string; target: string }) =>
+      createBlock({
+        node: {
+          text,
+          children: Object.entries(rest).map(([k, v]) => ({
+            text: k,
+            children: [{ text: v }],
+          })),
+        },
+        parentUid: elementsUid,
+      }).then((id) => {
+        const edge = cyRef.current.add({
+          data: { id, label: text, ...rest },
+        });
+        edgeCallback(edge);
+      }),
+    [edgeCallback, cyRef]
+  );
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
@@ -330,25 +356,7 @@ const CytoscapePlayground = ({
                     ? allRelations[0].relation
                     : "");
                 if (text) {
-                  const rest = {
-                    source,
-                    target,
-                  };
-                  createBlock({
-                    node: {
-                      text,
-                      children: Object.entries(rest).map(([k, v]) => ({
-                        text: k,
-                        children: [{ text: v }],
-                      })),
-                    },
-                    parentUid: elementsUid,
-                  }).then((id) => {
-                    const edge = cyRef.current.add({
-                      data: { id, label: text, ...rest },
-                    });
-                    edgeCallback(edge);
-                  });
+                  drawEdge({ text, source, target });
                 } else {
                   renderToast({
                     id: "roamjs-discourse-relation-error",
@@ -436,7 +444,7 @@ const CytoscapePlayground = ({
       clearEditingRef,
       clearSourceRef,
       clearEditingRelation,
-      edgeCallback,
+      drawEdge,
     ]
   );
   const createNode = useCallback(
@@ -579,6 +587,9 @@ const CytoscapePlayground = ({
       }}
       ref={containerRef}
     >
+      <style>{`.roam-article .rm-block-children {
+  display: none;
+}`}</style>
       <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10 }}>
         <span
           style={{
@@ -612,6 +623,66 @@ const CytoscapePlayground = ({
             icon={<NodeIcon {...selectedNode} />}
             onClick={() => setColorPickerOpen(!colorPickerOpen)}
             style={{ marginRight: 8, padding: "7px 5px" }}
+          />
+        </Tooltip>
+        <Tooltip content={"Draw Existing Edges"} position={Position.BOTTOM}>
+          <Button
+            icon={"circle-arrow-down"}
+            style={{ marginRight: 8, padding: "7px 5px" }}
+            onClick={() => {
+              const closeLoading = renderLoading(getCurrentPageUid());
+              setTimeout(() => {
+                const elementsTree = getBasicTreeByParentUid(elementsUid);
+                const relationData = getRelations();
+                const nodeData = getNodes();
+                const nodes = elementsTree
+                  .map((n) => {
+                    const getNodeType = (t: RoamBasicNode) =>
+                      nodeTypeByColor[
+                        getSettingValueFromTree({
+                          tree: t.children,
+                          key: "color",
+                        })
+                      ];
+                    return { node: n.text, uid: n.uid, type: getNodeType(n) };
+                  })
+                  .filter((e) => !!e.type)
+                  .map((e) => ({
+                    id: e.uid,
+                    uid: getPageUidByPageTitle(e.node),
+                    results: getDiscourseContextResults(
+                      e.node,
+                      nodeData,
+                      relationData,
+                      true
+                    ),
+                  }));
+                const validNodes = Object.fromEntries(
+                  nodes.map((n) => [n.uid, n.id])
+                );
+                const edges = nodes.flatMap((e) =>
+                  e.results.flatMap((result) =>
+                    Object.entries(result.results)
+                      .filter(([k, v]) => !v.complement && !!validNodes[k])
+                      .map(([target]) => {
+                        return drawEdge({
+                          target: validNodes[target],
+                          source: e.id,
+                          text: result.label,
+                        });
+                      })
+                  )
+                );
+                Promise.all(edges)
+                  .catch((e) =>
+                    renderToast({
+                      id: "playground-error",
+                      content: `Failed to render new edges: ${e.message}`,
+                    })
+                  )
+                  .finally(closeLoading);
+              }, 1);
+            }}
           />
         </Tooltip>
         {maximized ? (

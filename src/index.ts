@@ -826,7 +826,6 @@ We expect that there will be no disruption in functionality. If you see issues a
         );
         if (!children.hasAttribute("data-roamjs-discourse-playground")) {
           children.setAttribute("data-roamjs-discourse-playground", "true");
-          children.style.display = "none";
           const p = document.createElement("div");
           children.parentElement.appendChild(p);
           p.style.height = "500px";
