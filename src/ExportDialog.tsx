@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 import { Result } from "roamjs-components/types/query-builder";
 import getExportTypes from "./utils/getExportTypes";
+import { getNodes, getRelations, matchNode } from "./util";
 
 type Props = {
   fromQuery?: {
@@ -21,14 +22,32 @@ const ExportDialog = ({
   onClose: () => void;
 } & Props) => {
   const QBExportDialog = window.roamjs.extension.queryBuilder.ExportDialog;
+  const exportArgs = useMemo(() => {
+    if (fromQuery) return fromQuery;
+    const discourseNodes = getNodes();
+    return {
+      nodes: window.roamAlphaAPI.data.fast
+        .q(
+          `[:find (pull ?p [:node/title :block/uid]) :where [?p :node/title _]]`
+        )
+        .map((a) => a[0] as Record<string, string>)
+        .map((a) => ({ text: a.title as string, uid: a.uid as string }))
+        .filter((a) =>
+          discourseNodes.some(({ format }) =>
+            matchNode({ title: a.text, format })
+          )
+        ),
+      relations: undefined,
+    };
+  }, [fromQuery]);
   return (
     <QBExportDialog
       isOpen={true}
       onClose={onClose}
-      results={fromQuery.nodes}
+      results={exportArgs.nodes}
       exportTypes={getExportTypes({
-        results: fromQuery.nodes,
-        relations: fromQuery.relations,
+        results: exportArgs.nodes,
+        relations: exportArgs.relations,
       })}
     />
   );
