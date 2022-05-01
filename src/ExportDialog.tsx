@@ -2,7 +2,8 @@ import React, { useMemo } from "react";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 import { Result } from "roamjs-components/types/query-builder";
 import getExportTypes from "./utils/getExportTypes";
-import { getNodes, getRelations, matchNode } from "./util";
+import { getNodes, matchNode } from "./util";
+import type { PullBlock } from "roamjs-components/types";
 
 type Props = {
   fromQuery?: {
@@ -30,11 +31,14 @@ const ExportDialog = ({
         .q(
           `[:find (pull ?p [:node/title :block/uid]) :where [?p :node/title _]]`
         )
-        .map((a) => a[0] as Record<string, string>)
-        .map((a) => ({ text: a.title as string, uid: a.uid as string }))
+        .map((a) => a[0] as PullBlock)
+        .map((a) => ({
+          text: a[":node/title"] as string,
+          uid: a[":block/uid"] as string,
+        }))
         .filter((a) =>
           discourseNodes.some(({ format }) =>
-            matchNode({ title: a.text, format })
+            matchNode({ title: a.text || "", format })
           )
         ),
       relations: undefined,
