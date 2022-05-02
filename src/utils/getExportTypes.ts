@@ -194,6 +194,10 @@ const getExportTypes = ({
                 text: r[k.slice(0, -4)].toString(),
                 uid: r[k] as string,
               }))
+              .concat({
+                text: r.text,
+                uid: r.uid,
+              })
           )
         : allPages
       )
