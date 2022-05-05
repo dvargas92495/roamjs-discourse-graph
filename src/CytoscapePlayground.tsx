@@ -35,6 +35,7 @@ import {
   getNodes,
   getRelations,
   getRelationTriples,
+  matchNode,
 } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
@@ -58,7 +59,7 @@ const NodeIcon = ({
       width: 16,
       borderRadius: "50%",
       backgroundColor: `#${color}`,
-      color: "#FFFFFF",
+      color: "#EEEEEE",
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
@@ -116,6 +117,16 @@ const COLORS = [
   "008b00",
   "26428B",
   "2f062f",
+  "b80000",
+  "b978c0",
+  "00b8b8",
+  "0000b8",
+  "b800b8",
+  "5802c0",
+  "ee6700",
+  "00b800",
+  "6224B8",
+  "f260f2",
 ];
 const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
@@ -136,9 +147,8 @@ const CytoscapePlayground = ({
   const coloredNodes = useMemo(
     () =>
       getNodes()
-        .slice(0, COLORS.length)
         .map((n, i) => ({
-          color: COLORS[i],
+          color: COLORS[i % COLORS.length],
           ...n,
         }))
         .concat({
@@ -154,7 +164,7 @@ const CytoscapePlayground = ({
     () => Object.fromEntries(coloredNodes.map((cn) => [cn.color, cn.type])),
     [coloredNodes]
   );
-  const nodeFormatByType = useMemo(
+  const nodeFormatTextByType = useMemo(
     () =>
       Object.fromEntries(
         coloredNodes.map((cn) => [cn.type, cn.format.replace("{content}", "")])
@@ -413,7 +423,7 @@ const CytoscapePlayground = ({
         if (e.originalEvent.shiftKey && inLabel) {
           n.style("color", "#106ba3");
         } else {
-          n.style("color", "#FFFFFF");
+          n.style("color", "#EEEEEE");
         }
         if (e.originalEvent.shiftKey) {
           containerRef.current.style.cursor = inLabel ? "alias" : "pointer";
@@ -429,7 +439,7 @@ const CytoscapePlayground = ({
       });
       n.on("mouseout", () => {
         cyRef.current.scratch("roamjs_preview_tag", "");
-        n.style("color", "#FFFFFF");
+        n.style("color", "#EEEEEE");
         containerRef.current.style.cursor = "unset";
       });
     },
@@ -501,7 +511,7 @@ const CytoscapePlayground = ({
             "background-color": `#${TEXT_COLOR}`,
             label: "data(label)",
             shape: "round-rectangle",
-            color: "#FFFFFF",
+            color: "#EEEEEE",
             "text-wrap": "wrap",
             "text-halign": "center",
             "text-valign": "center",
@@ -539,7 +549,7 @@ const CytoscapePlayground = ({
       if (!editingRef.current && !sourceRef.current) {
         const nodeType = nodeTypeByColor[nodeColorRef.current];
         createNode(
-          nodeFormatByType[nodeType],
+          nodeFormatTextByType[nodeType],
           e.position,
           nodeColorRef.current
         );
@@ -551,12 +561,13 @@ const CytoscapePlayground = ({
     });
     cyRef.current.nodes().forEach(nodeTapCallback);
     cyRef.current.edges().forEach(edgeCallback);
-    globalRefs.clearOnClick = (s: string, m: string) => {
+    globalRefs.clearOnClick = (s: string) => {
       const { x1, x2, y1, y2 } = cyRef.current.extent();
       createNode(
         s,
         { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
-        coloredNodes.find((c) => c.text === m)?.color
+        coloredNodes.find((c) => matchNode({ format: c.format, title: s }))
+          ?.color || TEXT_COLOR
       );
     };
   }, [

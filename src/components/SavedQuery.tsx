@@ -34,7 +34,7 @@ const SavedQuery = ({
   onDelete?: () => void;
   isSavedToPage?: boolean;
   resultsReferenced: Set<string>;
-  clearOnClick: (s: string, t: string) => void;
+  clearOnClick: (s: string) => void;
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string[]) => void;
   initialResults?: QueryBuilderResults;
@@ -181,7 +181,7 @@ const SavedQuery = ({
                       minimal
                       onClick={() => {
                         resultsInViewRef.current.map((r) => {
-                          clearOnClick?.(r.text, returnNode);
+                          clearOnClick?.(r.text);
                         });
                         setResultsReferenced(
                           new Set([
@@ -241,7 +241,7 @@ const SavedQuery = ({
           setResultsReferenced(
             new Set([...Array.from(resultsReferenced), r.text])
           );
-          clearOnClick?.(r.text, returnNode);
+          clearOnClick?.(r.text);
         }}
         onResultsInViewChange={(r) => (resultsInViewRef.current = r)}
       />

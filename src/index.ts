@@ -35,6 +35,7 @@ import { render as overviewRender } from "./components/DiscourseGraphOverview";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
 import { render as queryRequestRender } from "./components/SendQueryRequest";
+import { render as renderBlockFeed } from "./components/BlockFeed";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
@@ -657,7 +658,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-04-28-17-01/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-04-22-25/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -669,7 +670,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-04-28-17-01/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-04-22-25/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -958,7 +959,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     },
   });
 
-  const clearOnClick = (tag: string, nodeType: string) => {
+  const clearOnClick = (tag: string) => {
     const uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
     const text = `[[${tag}]]`;
     if (uid) {
@@ -975,7 +976,7 @@ We expect that there will be no disruption in functionality. If you see issues a
       const parentUid = getCurrentPageUid();
       const pageTitle = getPageTitleByPageUid(parentUid);
       if (pageTitle.startsWith("Playground")) {
-        globalRefs.clearOnClick(tag, nodeType);
+        globalRefs.clearOnClick(tag);
       } else {
         const order = getChildrenLengthByPageUid(parentUid);
         createBlock({ parentUid, node: { text }, order });
@@ -1107,4 +1108,6 @@ We expect that there will be no disruption in functionality. If you see issues a
     showNotificationIcon(e.newURL);
   });
   showNotificationIcon(window.location.hash);
+
+  window.roamAlphaAPI.ui.commandPalette.addCommand({label: 'Open Feed', callback: () => renderBlockFeed({})})
 });

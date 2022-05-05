@@ -25,7 +25,7 @@ type QueryBuilderResults = Parameters<
 
 type Props = {
   blockUid: string;
-  clearOnClick: (s: string, m: string) => void;
+  clearOnClick: (s: string) => void;
 };
 
 const SavedQueriesContainer = ({
@@ -38,7 +38,7 @@ const SavedQueriesContainer = ({
   setSavedQueries: (
     s: { uid: string; text: string; results?: QueryBuilderResults }[]
   ) => void;
-  clearOnClick: (s: string, t: string) => void;
+  clearOnClick: (s: string) => void;
   setQuery: (s: string[]) => void;
 }) => {
   const refreshResultsReferenced = useCallback(
