@@ -1,4 +1,4 @@
-import { InputGroup } from "@blueprintjs/core";
+import { Icon, InputGroup } from "@blueprintjs/core";
 import React, {
   useCallback,
   useEffect,
@@ -10,12 +10,18 @@ import Filter from "roamjs-components/components/Filter";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import ResizableDrawer from "../ResizableDrawer";
 import InfiniteLoader from "react-window-infinite-loader";
-import { FixedSizeList } from "react-window";
+import { VariableSizeList } from "react-window";
 import isAfter from "date-fns/isAfter";
 import subWeeks from "date-fns/subWeeks";
 import { PullBlock } from "roamjs-components/types";
 import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
-import getRoamUrl from "roamjs-components/dom/getRoamUrl";
+import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
+import differenceInSeconds from "date-fns/differenceInSeconds";
+import differenceInMinutes from "date-fns/differenceInMinutes";
+import differenceInHours from "date-fns/differenceInHours";
+import differenceInDays from "date-fns/differenceInDays";
+import differenceInMonths from "date-fns/differenceInMonths";
+import differenceInYears from "date-fns/differenceInYears";
 
 const MIN_DATE = new Date(
   window.roamAlphaAPI.data.fast.q(
@@ -23,17 +29,10 @@ const MIN_DATE = new Date(
   )[0][0] as number
 );
 
-const idRef: Record<string, string> = {};
-
-const getOtherUserIdentifier = (uid: string) =>
-  idRef[uid] || (idRef[uid] = getDisplayNameByUid(uid)) || (idRef[uid] = uid);
-
 const BlockFeedContent = () => {
   const [date, setDate] = useState(new Date());
   const hasNextPage = useMemo(() => isAfter(date, MIN_DATE), [date]);
-  const [blocks, setBlocks] = useState<
-    { uid: string; time: number; text: string; user: string }[]
-  >([]);
+  const [blocks, setBlocks] = useState<{ uid: string; time: number }[]>([]);
   const isItemLoaded = useCallback(
     (idx: number) => !hasNextPage || idx < blocks.length,
     [hasNextPage, blocks]
@@ -45,7 +44,7 @@ const BlockFeedContent = () => {
   const loadMoreItems = useCallback(() => {
     const newDate = subWeeks(date, 1);
     const newBlocks = window.roamAlphaAPI.data.fast.q(
-      `[:find (pull ?q [:block/uid :edit/time :block/string]) (pull ?u [:user/uid]) :where [?q :edit/time ?t] [(> ${date.valueOf()} ?t)] [(<= ${newDate.valueOf()} ?t)] [?q :edit/user ?u]]`
+      `[:find (pull ?q [:block/uid :edit/time]) :where [?q :edit/time ?t] [(> ${date.valueOf()} ?t)] [(<= ${newDate.valueOf()} ?t)]]`
     ) as [PullBlock, PullBlock][];
     setDate(newDate);
     setBlocks(
@@ -54,8 +53,6 @@ const BlockFeedContent = () => {
           .map((a) => ({
             uid: a[0][":block/uid"],
             time: a[0][":edit/time"],
-            text: a[0][":block/string"],
-            user: a[1][":user/uid"],
           }))
           .sort((a, b) => b.time - a.time)
       )
@@ -68,6 +65,137 @@ const BlockFeedContent = () => {
       setHeight(loaderRef.current.offsetHeight);
     }
   }, [setHeight, loaderRef]);
+  const ItemRenderer = useCallback(
+    ({ style, index }: { style: React.CSSProperties; index: number }) => {
+      const { uid, time } = blocks[index] || {};
+      const timeData = useMemo(() => {
+        const now = new Date();
+        const then = new Date(time);
+        return {
+          secondsAgo: differenceInSeconds(now, then),
+          minutesAgo: differenceInMinutes(now, then),
+          hoursAgo: differenceInHours(now, then),
+          daysAgo: differenceInDays(now, then),
+          monthsAgo: differenceInMonths(now, then),
+          yearsAgo: differenceInYears(now, then),
+        };
+      }, [time]);
+      const blockInfo = useMemo(() => {
+        const chain = window.roamAlphaAPI.data.fast
+          .q(
+            `[:find (pull ?b [:block/string]) (pull ?n [:node/title]) (pull ?p [:block/string :node/title :block/uid]) :where [?b :block/uid "${uid}"] [?b :edit/user ?u] [?u :user/display-page ?n] [?b :block/parents ?p]]`
+          )
+          .map(([b, u, p]: PullBlock[]) => ({
+            text: b[":block/string"],
+            user: u[":node/title"],
+            parent: {
+              text: p[":block/string"] || p[":node/title"],
+              uid: p[":block/uid"],
+            },
+          }));
+        if (!chain.length) {
+          return (
+            window.roamAlphaAPI.data.fast
+              .q(
+                `[:find (pull ?b [:node/title]) (pull ?n [:node/title]) :where [?b :block/uid "${uid}"] [?b :edit/user ?u] [?u :user/display-page ?n]]`
+              )
+              .map(([b, u]: PullBlock[]) => ({
+                text: b[":node/title"],
+                user: u[":node/title"],
+                parents: [],
+              }))?.[0] || { text: uid, user: uid, parents: [] }
+          );
+        }
+        return {
+          text: chain[0].text,
+          user: chain[0].user,
+          parents: chain.map((p) => p.parent),
+        };
+      }, [uid]);
+      return (
+        <div style={{ ...style, borderBottom: "1px solid #88888880" }}
+        className={`roamjs-block-feed-item`}>
+          {isItemLoaded(index) ? (
+            <div
+              key={uid}
+              style={{
+                padding: "16px 0",
+                position: "relative",
+              }}
+            >
+              <div className="rm-zoom" style={{ fontSize: 10 }}>
+                {blockInfo.parents.map((bc) => (
+                  <div
+                    key={bc.uid}
+                    className="rm-zoom-item"
+                    onClick={(e) => {
+                      if (!e.shiftKey) {
+                        window.roamAlphaAPI.ui.mainWindow.openBlock({
+                          block: { uid: bc.uid },
+                        });
+                      } else {
+                        openBlockInSidebar(bc.uid);
+                      }
+                    }}
+                  >
+                    <span className="rm-zoom-item-content">{bc.text}</span>
+                    <Icon icon={"chevron-right"} />
+                  </div>
+                ))}
+              </div>
+              <p style={{ marginTop: 2, fontSize: 16 }}>
+                <b>{blockInfo.user}</b> edited{" "}
+                {blockInfo.parents.length ? "block" : "page"}{" "}
+                <span
+                  style={{ cursor: "pointer", color: "#106BA3" }}
+                  onClick={(e) => {
+                    if (!e.shiftKey) {
+                      window.roamAlphaAPI.ui.mainWindow.openBlock({
+                        block: { uid },
+                      });
+                    } else {
+                      openBlockInSidebar(uid);
+                    }
+                  }}
+                >
+                  {blockInfo.parents.length ? `((${uid}))` : blockInfo.text}
+                </span>{" "}
+                <i style={{ opacity: 0.5 }}>
+                  {timeData.yearsAgo > 0
+                    ? `${timeData.yearsAgo} years`
+                    : timeData.monthsAgo > 0
+                    ? `${timeData.monthsAgo} months`
+                    : timeData.daysAgo > 0
+                    ? `${timeData.daysAgo} days`
+                    : timeData.hoursAgo > 0
+                    ? `${timeData.hoursAgo} hours`
+                    : timeData.minutesAgo > 0
+                    ? `${timeData.minutesAgo} minutes`
+                    : `${timeData.secondsAgo} seconds`}{" "}
+                  ago
+                </i>
+              </p>
+              {blockInfo.parents.length ? (
+                <p
+                  style={{
+                    marginTop: 4,
+                    fontSize: 14,
+                    whiteSpace: "break-spaces",
+                  }}
+                >
+                  {blockInfo.text.slice(0, 150)}
+                  {blockInfo.text.length > 150 ? "..." : ""}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            "Loading..."
+          )}
+        </div>
+      );
+    },
+    [blocks]
+  );
   return (
     <div
       style={{
@@ -90,6 +218,23 @@ const BlockFeedContent = () => {
       >
         <style>{`.roamjs-block-feed-search {
               flex-grow: 1;
+          }
+          .roamjs-block-feed-item:hover {
+            background: #dddddd;
+          }
+          .roamjs-feed-items-container > div::-webkit-scrollbar {
+            width: 6px;
+          }
+          
+          /* Handle */
+          .roamjs-feed-items-container > div::-webkit-scrollbar-thumb {
+            background: #888;
+          }
+          .roamjs-feed-items-container > div {
+            padding: 0 16px;
+          }
+          .roamjs-feed-items-container > div > div {
+            position: relative;
           }`}</style>
         <InputGroup
           leftIcon={"search"}
@@ -99,51 +244,27 @@ const BlockFeedContent = () => {
         />
         <Filter data={{}} onChange={() => {}} />
       </div>
-      <div style={{ flexGrow: 1 }} ref={loaderRef}>
+      <div
+        style={{ flexGrow: 1 }}
+        ref={loaderRef}
+        className={"roamjs-feed-items-container"}
+      >
         <InfiniteLoader
           isItemLoaded={isItemLoaded}
           itemCount={itemCount}
           loadMoreItems={loadMoreItems}
         >
           {({ onItemsRendered, ref }) => (
-            <FixedSizeList
+            <VariableSizeList
               itemCount={itemCount}
               onItemsRendered={onItemsRendered}
               ref={ref}
               height={height}
               width={"100%"}
-              itemSize={itemCount}
+              itemSize={() => 200}
             >
-              {({ style, index }) => {
-                const { uid, time, text = '', user } = blocks[index] || {};
-                return (
-                  <div style={{ ...style, padding: 16 }}>
-                    {isItemLoaded(index) ? (
-                      <div
-                        key={uid}
-                        style={{
-                          borderTop: "1px solid #88888880",
-                          padding: "0 4px",
-                          position: "relative",
-                        }}
-                      >
-                        <p style={{ marginTop: 2, fontSize: 12 }}>
-                          <b>{getOtherUserIdentifier(user)}</b> edited block{" "}
-                          <a href={getRoamUrl(uid)}>(({uid}))</a> at{" "}
-                          <i>{new Date(time).toLocaleString()}</i> to:
-                        </p>
-                        <p style={{ marginTop: 4, fontSize: 10 }}>
-                          {text.slice(0, 50)}
-                          {text.length > 50 ? "..." : ""}
-                        </p>
-                      </div>
-                    ) : (
-                      "Loading..."
-                    )}
-                  </div>
-                );
-              }}
-            </FixedSizeList>
+              {ItemRenderer}
+            </VariableSizeList>
           )}
         </InfiniteLoader>
       </div>
