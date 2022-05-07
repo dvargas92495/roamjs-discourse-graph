@@ -4,6 +4,7 @@ import createBlock from "roamjs-components/writes/createBlock";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getFirstChildUidByBlockUid from "roamjs-components/queries/getFirstChildUidByBlockUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
 
 type Attribute = {
   uid: string;
@@ -76,7 +77,9 @@ const NodeAttributes = ({ uid }: { uid: string }) => {
               )
             }
             onDelete={() =>
-              setAttributes(attributes.filter((aa) => a.uid !== aa.uid))
+              deleteBlock(a.uid).then(() =>
+                setAttributes(attributes.filter((aa) => a.uid !== aa.uid))
+              )
             }
           />
         ))}
