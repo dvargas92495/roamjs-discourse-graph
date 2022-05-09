@@ -14,7 +14,6 @@ import { VariableSizeList } from "react-window";
 import isAfter from "date-fns/isAfter";
 import subWeeks from "date-fns/subWeeks";
 import { PullBlock } from "roamjs-components/types";
-import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
 import openBlockInSidebar from "roamjs-components/writes/openBlockInSidebar";
 import differenceInSeconds from "date-fns/differenceInSeconds";
 import differenceInMinutes from "date-fns/differenceInMinutes";

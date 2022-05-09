@@ -2,24 +2,6 @@
 // - DEFAULT_[NODE|RELATIONS]_VALUES
 // - Config, graph updates update cache
 
-/* Metrics on Megacoglab
-'blocksById' = 9123113 = 9.1 MB
-'timeById' = 5244944 = 5.2 MB
-'uidsById' = 1674506 = 1.7 MB
-'parentById' = 1053482 = 1.0 MB
-'blocksPageById' = 1039789 = 1.0 MB
-'descendantsById' = 926990 = 0.9 MB
-'ancestorsById' = 818911 = 0.8 MB
-'childrenById' = 763575 = 0.7 MB
-'referencesById' = 572326 = 0.5 MB
-'linkedReferencesById' = 416106 = 0.4 MB
-'pagesById' = 349505 = 0.3MB
-'pageIdByTitle' = 330420 = 0.3MB
-
-'discourseRelations': 0.5MB
-'config': 6KB
- */
-
 const graph: {
   config: {
     nodes: {
