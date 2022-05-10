@@ -1,3 +1,4 @@
+import getPageTitlesStartingWithPrefix from "roamjs-components/queries/getPageTitlesStartingWithPrefix";
 import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 import { DatalogAndClause, DatalogClause } from "roamjs-components/types";
 import {
@@ -7,6 +8,10 @@ import {
   matchNode,
   ANY_REGEX,
 } from "../util";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getSettingValuesFromTree from "roamjs-components/util/getSettingValuesFromTree";
+import getSubTree from "roamjs-components/util/getSubTree";
 
 const registerDatalogTranslators = () => {
   const { conditionToDatalog, registerDatalogTranslator } =
@@ -44,10 +49,31 @@ const registerDatalogTranslators = () => {
   registerDatalogTranslator({
     key: "is a",
     callback: isACallback,
+    targetOptions: discourseNodes.map((d) => d.text),
   });
   registerDatalogTranslator({
     key: "self",
     callback: ({ source, uid }) => isACallback({ source, target: source, uid }),
+  });
+  registerDatalogTranslator({
+    key: "is involved with query",
+    targetOptions: () =>
+      getPageTitlesStartingWithPrefix("discourse-graph/queries/").map((q) =>
+        q.substring("discourse-graph/queries/".length)
+      ),
+    callback: ({ source, uid, target }) => {
+      const queryUid = getPageUidByPageTitle(
+        `discourse-graph/queries/${target}`
+      );
+      const queryMetadataTree = getBasicTreeByParentUid(queryUid);
+      const queryData = getSubTree({
+        tree: queryMetadataTree,
+        key: "query",
+      });
+      const { conditions, selections, returnNode } =
+        window.roamjs.extension.queryBuilder.parseQuery(queryData);
+      return [];
+    },
   });
 
   const discourseRelations = getRelations();
