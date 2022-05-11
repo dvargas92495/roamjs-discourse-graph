@@ -10,8 +10,32 @@ import {
 } from "../util";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
-import getSettingValuesFromTree from "roamjs-components/util/getSettingValuesFromTree";
 import getSubTree from "roamjs-components/util/getSubTree";
+
+const collectVariables = (
+  clauses: (DatalogClause | DatalogAndClause)[]
+): Set<string> =>
+  new Set(
+    clauses.flatMap((c) => {
+      switch (c.type) {
+        case "data-pattern":
+        case "fn-expr":
+        case "pred-expr":
+        case "rule-expr":
+          return [...c.arguments]
+            .filter((a) => a.type === "variable")
+            .map((a) => a.value);
+        case "not-join-clause":
+        case "or-join-clause":
+        case "not-clause":
+        case "or-clause":
+        case "and-clause":
+          return Array.from(collectVariables(c.clauses));
+        default:
+          return [];
+      }
+    })
+  );
 
 const registerDatalogTranslators = () => {
   const { conditionToDatalog, registerDatalogTranslator } =
@@ -70,9 +94,49 @@ const registerDatalogTranslators = () => {
         tree: queryMetadataTree,
         key: "query",
       });
-      const { conditions, selections, returnNode } =
+      const { conditions, returnNode } =
         window.roamjs.extension.queryBuilder.parseQuery(queryData);
-      return [];
+      // @ts-ignore
+      const { getWhereClauses } = window.roamjs.extension.queryBuilder;
+      const clauses = (
+        getWhereClauses as (
+          args: Omit<
+            Parameters<
+              typeof window.roamjs.extension.queryBuilder.fireQuery
+            >[0],
+            "selections"
+          >
+        ) => DatalogClause[]
+      )({ conditions, returnNode });
+      const variables = Array.from(collectVariables(clauses));
+      const orClause: DatalogClause = {
+        type: "or-join-clause",
+        variables: [{ type: "variable" as const, value: source }].concat(
+          variables.map((value) => ({ value, type: "variable" }))
+        ),
+        clauses: variables.map((v) => ({
+          type: "and-clause",
+          clauses: [
+            {
+              type: "data-pattern",
+              arguments: [
+                { type: "variable", value: v },
+                { type: "constant", value: ":block/uid" },
+                { type: "variable", value: `${v}-Uid` },
+              ],
+            },
+            {
+              type: "data-pattern",
+              arguments: [
+                { type: "variable", value: source },
+                { type: "constant", value: ":block/uid" },
+                { type: "variable", value: `${v}-Uid` },
+              ],
+            },
+          ],
+        })),
+      };
+      return clauses.concat(orClause);
     },
   });
 
@@ -226,30 +290,7 @@ const registerDatalogTranslators = () => {
           }
         );
         if (andParts.length === 1) return andParts[0];
-        const collectVariables = (
-          clauses: (DatalogClause | DatalogAndClause)[]
-        ): Set<string> =>
-          new Set(
-            clauses.flatMap((c) => {
-              switch (c.type) {
-                case "data-pattern":
-                case "fn-expr":
-                case "pred-expr":
-                case "rule-expr":
-                  return [...c.arguments]
-                    .filter((a) => a.type === "variable")
-                    .map((a) => a.value);
-                case "not-join-clause":
-                case "or-join-clause":
-                case "not-clause":
-                case "or-clause":
-                case "and-clause":
-                  return Array.from(collectVariables(c.clauses));
-                default:
-                  return [];
-              }
-            })
-          );
+
         const orJoinedVars = collectVariables(andParts[0]);
         andParts.slice(1).forEach((a) => {
           const freeVars = collectVariables(a);
