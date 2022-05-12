@@ -179,10 +179,11 @@ const init = (
           ],
         type: graph.edges.uidsById[id],
         text,
-        shortcut: graph.edges.blocksById[
-          (graph.edges.childrenById[nchildren.find(findChild("shortcut"))] ||
-            [])[0]
-        ],
+        shortcut:
+          graph.edges.blocksById[
+            (graph.edges.childrenById[nchildren.find(findChild("shortcut"))] ||
+              [])[0]
+          ],
       };
     });
   graph.config.relations = (
@@ -391,6 +392,8 @@ const init = (
                 } else {
                   return [];
                 }
+              } else {
+                return [];
               }
             }
           );

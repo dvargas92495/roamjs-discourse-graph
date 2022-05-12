@@ -1,10 +1,14 @@
 import axios from "axios";
 import { render as loadingRender } from "./components/LoadingAlert";
-import localStorageGet from "roamjs-components/util/localStorageGet";
-import localStorageSet from "roamjs-components/util/localStorageSet";
-import localStorageRemove from "roamjs-components/util/localStorageRemove";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { Intent, Position } from "@blueprintjs/core";
+import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import { v4 } from "uuid";
+import setInputSetting from "roamjs-components/util/setInputSetting";
+import getSubTree from "roamjs-components/util/getSubTree";
+import deleteBlock from "roamjs-components/writes/deleteBlock";
+import getAuthorizationHeader from "roamjs-components/util/getAuthorizationHeader";
 
 const dataWorkerUrl = (document.currentScript as HTMLScriptElement).src.replace(
   /\/main\.js$/,
@@ -15,39 +19,53 @@ const dataWorker: { current: Worker; init: boolean } = {
   init: false,
 };
 export const listeners: { [name: string]: (a: unknown) => void } = {};
-const loadGraph = (update = false) =>
+const loadGraph = (configUid: string, update = false) =>
   new Promise<void>((resolve) => {
     const closeLoadingToast: { current?: () => void } = {
       current: undefined,
     };
+    const cachePath = getSettingValueFromTree({
+      tree: getBasicTreeByParentUid(configUid),
+      key: "cache",
+    });
     listeners["init"] = ({ graph }: { graph?: string }) => {
       delete listeners["init"];
       dataWorker.init = true;
       document.body.dispatchEvent(new Event("roamjs:data-worked:init"));
       closeLoadingToast.current?.();
       if (graph) {
-        try {
-          localStorageSet("graph-cache", graph);
-          renderToast({
-            id: "localstorage-success",
-            content: `Successfully loaded graph into cache! (${graph.length})`,
-            intent: Intent.SUCCESS,
-          });
-        } catch (e) {
-          if (e.name === "QuotaExceededError") {
+        (cachePath
+          ? Promise.resolve(cachePath)
+          : Promise.resolve(v4()).then((value) =>
+              setInputSetting({
+                blockUid: configUid,
+                key: "cache",
+                value,
+              }).then(() => value)
+            )
+        )
+          .then((path) =>
+            axios.post("https://lambda.roamjs.com/file", {
+              dev: process.env.NODE_ENV === "development",
+              extension: "discourse-graph",
+              body: graph,
+              path,
+            })
+          )
+          .then(() =>
             renderToast({
-              id: "localstorage-error",
-              content: `Failed to store your graph cache locally - it's too large.`,
-              intent: Intent.DANGER,
-            });
-          } else {
+              id: "localstorage-success",
+              content: `Successfully stored discourse graph cache!`,
+              intent: Intent.SUCCESS,
+            })
+          )
+          .catch((e) =>
             renderToast({
               id: "localstorage-error",
               content: `Unkown error: ${e.message}`,
               intent: Intent.DANGER,
-            });
-          }
-        }
+            })
+          );
       } else {
         renderToast({
           id: "localstorage-success",
@@ -57,10 +75,18 @@ const loadGraph = (update = false) =>
       }
       resolve();
     };
-    const cache = localStorageGet("graph-cache");
     return (
-      cache
-        ? Promise.resolve(cache)
+      cachePath
+        ? axios
+            .get(
+              `https://lambda.roamjs.com/file?extension=discourse-graph${
+                process.env.NODE_ENV === "development" ? "&dev=true" : ""
+              }&path=graph-cache/${cachePath}.json`,
+              {
+                headers: { Authorization: getAuthorizationHeader() },
+              }
+            )
+            .then((r) => r.data)
         : new Promise((innerResolve) => {
             loadingRender({
               operation: () => {
@@ -87,16 +113,12 @@ const loadGraph = (update = false) =>
                       )} ?t)]`
                     : "[?b :block/uid]"
                 }]`);
-                if (update) {
-                  console.log(blocks);
-                }
                 innerResolve(blocks);
               },
               content: "Please wait as we load your graph's discourse data...",
             });
           })
     ).then((blocks) => {
-      localStorageSet("graph-timestamp", new Date().valueOf().toString());
       closeLoadingToast.current = renderToast({
         id: "dataworker-loading",
         content: `Graph is continuing to build in the background...`,
@@ -121,7 +143,7 @@ const refreshAllUi = () =>
     }
   });
 
-export const initializeDataWorker = () =>
+export const initializeDataWorker = (configUid: string) =>
   axios
     .get(dataWorkerUrl, { responseType: "blob" })
     .then((r) => {
@@ -130,23 +152,24 @@ export const initializeDataWorker = () =>
         const { method, ...data } = e.data;
         listeners[method]?.(data);
       };
-      return loadGraph();
+      return loadGraph(configUid);
     })
     .then(() => {
       window.roamAlphaAPI.ui.commandPalette.addCommand({
         label: "Refresh Discourse Data",
         callback: () => {
-          localStorageRemove("graph-cache");
-          loadGraph().then(refreshAllUi);
+          deleteBlock(getSubTree({ parentUid: configUid, key: "cache" }).uid)
+            .then(() => loadGraph(configUid))
+            .then(refreshAllUi);
         },
       });
       window.roamAlphaAPI.ui.commandPalette.addCommand({
         label: "Update Discourse Data",
         callback: () => {
-          loadGraph(true).then(refreshAllUi);
+          loadGraph(configUid, true).then(refreshAllUi);
         },
       });
-      return dataWorker.current
+      return dataWorker.current;
     });
 
 export const shutdownDataWorker = () => {

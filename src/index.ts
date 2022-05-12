@@ -24,10 +24,7 @@ import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
-import {
-  getExperimentalOverlayMode,
-  render as discourseOverlayRender,
-} from "./components/DiscourseContextOverlay";
+import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
 import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
 import { initializeDataWorker, shutdownDataWorker } from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
@@ -70,6 +67,9 @@ import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
 import registerDatalogTranslators from "./utils/registerDatalogTranslators";
 import NodeAttributes from "./components/NodeAttributes";
 import deriveNodeAttribute from "./utils/deriveNodeAttribute";
+import { localStorageGet } from "roamjs-components/util/localStorageGet";
+import localStorageSet from "roamjs-components/util/localStorageSet";
+import localStorageRemove from "roamjs-components/util/localStorageRemove";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -370,7 +370,7 @@ runExtension("discourse-graph", async () => {
               options: {
                 onChange: (val) => {
                   if (getExperimentalOverlayMode()) {
-                    if (val) initializeDataWorker();
+                    if (val) initializeDataWorker(pageUid);
                     else shutdownDataWorker();
                   }
                   onPageRefObserverChange(overlayPageRefHandler)(val);
@@ -458,6 +458,33 @@ runExtension("discourse-graph", async () => {
       ],
       versioning: true,
     },
+  });
+
+  const getExperimentalOverlayMode = () =>
+    localStorageGet("experimental") === "true";
+
+  document.addEventListener("keydown", (e) => {
+    if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && e.key === "M") {
+      let experimentalOverlayMode = getExperimentalOverlayMode();
+      if (isFlagEnabled("grammar.overlay")) {
+        if (!experimentalOverlayMode) {
+          initializeDataWorker(pageUid);
+        } else {
+          shutdownDataWorker();
+        }
+      }
+      if (!experimentalOverlayMode) {
+        localStorageSet("experimental", "true");
+      } else {
+        localStorageRemove("experimental");
+      }
+      renderToast({
+        id: "experimental",
+        content: `${
+          experimentalOverlayMode ? "Dis" : "En"
+        }abled Experimental Overlay Mode`,
+      });
+    }
   });
 
   const configTree = getBasicTreeByParentUid(pageUid);
@@ -1043,7 +1070,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   setTimeout(() => {
     if (isFlagEnabled("preview")) pageRefObservers.add(previewPageRefHandler);
     if (isFlagEnabled("grammar.overlay")) {
-      if (getExperimentalOverlayMode()) initializeDataWorker();
+      if (getExperimentalOverlayMode()) initializeDataWorker(pageUid);
       pageRefObservers.add(overlayPageRefHandler);
     }
     if (pageRefObservers.size) enablePageRefObserver();
@@ -1109,5 +1136,8 @@ We expect that there will be no disruption in functionality. If you see issues a
   });
   showNotificationIcon(window.location.hash);
 
-  window.roamAlphaAPI.ui.commandPalette.addCommand({label: 'Open Feed', callback: () => renderBlockFeed({})})
+  window.roamAlphaAPI.ui.commandPalette.addCommand({
+    label: "Open Feed",
+    callback: () => renderBlockFeed({}),
+  });
 });

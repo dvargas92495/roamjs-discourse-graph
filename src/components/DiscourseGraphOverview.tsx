@@ -27,8 +27,8 @@ import {
   isNodeTitle,
   matchNode,
 } from "../util";
-import { getExperimentalOverlayMode } from "./DiscourseContextOverlay";
 import createQueryBuilderRender from "../utils/createQueryBuilderRender";
+import localStorageGet from "roamjs-components/util/localStorageGet";
 
 type Props = {
   pageUid: string;
@@ -148,7 +148,7 @@ const LoadingDiscourseData = ({
 };
 
 const getCyData = (): Promise<CyData> => {
-  if (getExperimentalOverlayMode()) {
+  if (localStorageGet("experimental") === "true") {
     return new Promise((resolve) => {
       listeners["overview"] = (data: CyData) => resolve(data);
       getDataWorker().then((worker) =>

@@ -14,10 +14,8 @@ import {
 import { useInViewport } from "react-in-viewport";
 import {
   getDataWorker,
-  initializeDataWorker,
   listeners,
   refreshUi,
-  shutdownDataWorker,
 } from "../dataWorkerClient";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
@@ -34,40 +32,12 @@ type DiscourseData = {
   refs: number;
 };
 
-let experimentalOverlayMode = localStorageGet("experimental") === "true";
-
-document.addEventListener("keydown", (e) => {
-  if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && e.key === "M") {
-    experimentalOverlayMode = !experimentalOverlayMode;
-    if (isFlagEnabled("grammar.overlay")) {
-      if (experimentalOverlayMode) {
-        initializeDataWorker();
-      } else {
-        shutdownDataWorker();
-      }
-    }
-    if (experimentalOverlayMode) {
-      localStorageSet("experimental", "true");
-    } else {
-      localStorageRemove("experimental");
-    }
-    renderToast({
-      id: "experimental",
-      content: `${
-        experimentalOverlayMode ? "En" : "Dis"
-      }abled Experimental Overlay Mode`,
-    });
-  }
-});
-
-export const getExperimentalOverlayMode = () => experimentalOverlayMode;
-
 const cache: {
   [title: string]: DiscourseData;
 } = {};
 const overlayQueue: (() => void)[] = [];
 const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
-  if (experimentalOverlayMode) {
+  if (localStorageGet("experimental") === "true") {
     return new Promise<DiscourseData>((resolve) => {
       listeners[`discourse-${tag}`] = (args: DiscourseData) => {
         resolve(args);
