@@ -464,7 +464,7 @@ runExtension("discourse-graph", async () => {
     localStorageGet("experimental") === "true";
 
   document.addEventListener("keydown", (e) => {
-    if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && e.key === "M") {
+    if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && (e.key === "M" || e.key === "KeyM")) {
       let experimentalOverlayMode = getExperimentalOverlayMode();
       if (isFlagEnabled("grammar.overlay")) {
         if (!experimentalOverlayMode) {
@@ -484,6 +484,8 @@ runExtension("discourse-graph", async () => {
           experimentalOverlayMode ? "Dis" : "En"
         }abled Experimental Overlay Mode`,
       });
+      e.preventDefault();
+      e.stopPropagation();
     }
   });
 
