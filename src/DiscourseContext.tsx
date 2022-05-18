@@ -1,12 +1,12 @@
 import { Switch, Tabs, Tab } from "@blueprintjs/core";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import { getDiscourseContextResults } from "./util";
 import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 
 type Props = {
   title: string;
-  results?: ReturnType<typeof getDiscourseContextResults>;
+  results?: Awaited<ReturnType<typeof getDiscourseContextResults>>;
 };
 
 const ContextTab = ({
@@ -91,13 +91,15 @@ const ContextTab = ({
 };
 
 export const ContextContent = ({ title, results }: Props) => {
-  const queryResults = useMemo(
-    () =>
-      (results || getDiscourseContextResults(title)).filter(
-        (r) => !!Object.keys(r.results).length
-      ),
-    [title, results]
-  );
+  const [queryResults, setQueryResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (results ? Promise.resolve(results) : getDiscourseContextResults(title))
+      .then((q) =>
+        setQueryResults(q.filter((r) => !!Object.keys(r.results).length))
+      )
+      .finally(() => setLoading(false));
+  }, [title, results, setQueryResults, setLoading]);
   const parentUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const [tabId, setTabId] = useState(0);
   const [groupByTarget, setGroupByTarget] = useState(false);
@@ -121,6 +123,8 @@ export const ContextContent = ({ title, results }: Props) => {
         />
       ))}
     </Tabs>
+  ) : loading ? (
+    <div>Loading discourse relations...</div>
   ) : (
     <div>No discourse relations found.</div>
   );

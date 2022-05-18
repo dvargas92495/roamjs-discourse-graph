@@ -338,7 +338,8 @@ export const isNodeTitle = (title: string) =>
     new RegExp(
       `^${n.format
         .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
-        .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`, 's'
+        .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`,
+      "s"
     ).test(title)
   );
 
@@ -506,7 +507,7 @@ const resultCache: Record<
   ReturnType<typeof window.roamjs.extension.queryBuilder.fireQuery>
 > = {};
 
-export const getDiscourseContextResults = (
+export const getDiscourseContextResults = async (
   title: string,
   nodes = getNodes(),
   relations = getRelations(),
@@ -518,113 +519,113 @@ export const getDiscourseContextResults = (
   const nodeTextByType = Object.fromEntries(
     nodes.map(({ type, text }) => [type, text])
   );
-  try {
-    const rawResults = [
-      ...relations
-        .filter((r) => r.source === nodeType)
-        .map((r) => {
-          const cacheKey = `${title}~${r.label}~${r.destination}`;
-          const conditionUid = window.roamAlphaAPI.util.generateUID();
-          const results =
-            useCache && resultCache[cacheKey]
-              ? resultCache[cacheKey]
-              : (resultCache[cacheKey] =
-                  window.roamjs.extension.queryBuilder.fireQuery({
-                    returnNode: nodeTextByType[r.destination],
-                    conditions: [
-                      {
-                        source: nodeTextByType[r.destination],
-                        relation: r.complement,
-                        target: title,
-                        uid: conditionUid,
-                        type: "clause",
-                      },
-                    ],
-                    selections: [
-                      {
-                        uid: window.roamAlphaAPI.util.generateUID(),
-                        label: "context",
-                        text: `node:${conditionUid}-Context`,
-                      },
-                    ],
-                  }));
-          return {
-            label: r.label,
-            target: r.destination,
-            complement: false,
-            id: r.id,
-            results,
-          };
-        }),
-      ...relations
-        .filter((r) => r.destination === nodeType)
-        .map((r) => {
-          const cacheKey = `${title}~${r.complement}~${r.source}`;
-          const conditionUid = window.roamAlphaAPI.util.generateUID();
-          const results =
-            useCache && resultCache[cacheKey]
-              ? resultCache[cacheKey]
-              : (resultCache[cacheKey] =
-                  window.roamjs.extension.queryBuilder.fireQuery({
-                    returnNode: nodeTextByType[r.source],
-                    conditions: [
-                      {
-                        source: nodeTextByType[r.source],
-                        relation: r.label,
-                        target: title,
-                        uid: conditionUid,
-                        type: "clause",
-                      },
-                    ],
-                    selections: [
-                      {
-                        uid: window.roamAlphaAPI.util.generateUID(),
-                        label: "context",
-                        text: `node:${conditionUid}-Context`,
-                      },
-                    ],
-                  }));
-          return {
-            label: r.complement,
-            complement: true,
-            target: r.source,
-            id: r.id,
-            results,
-          };
-        }),
-    ];
-    const groupedResults = Object.fromEntries(
-      rawResults.map((r) => [
-        r.label,
-        {} as Record<
-          string,
-          Partial<Result & { target: string; complement: boolean; id: string }>
-        >,
-      ])
-    );
-    rawResults.forEach((r) =>
-      r.results
-        .map(({ context, ["context-uid"]: contextUid, ...a }) => ({
-          ...a,
-          context: contextUid as string,
-        }))
-        .filter((a) => a.text !== title)
-        .forEach(
-          (res) =>
-            (groupedResults[r.label][res.uid] = {
-              ...res,
-              target: nodeTextByType[r.target],
-              complement: r.complement,
+  const rawResults = await Promise.all(
+    relations
+      .filter((r) => r.source === nodeType)
+      .map((r) => {
+        const cacheKey = `${title}~${r.label}~${r.destination}`;
+        const conditionUid = window.roamAlphaAPI.util.generateUID();
+        const resultsPromise =
+          useCache && resultCache[cacheKey]
+            ? Promise.resolve(resultCache[cacheKey])
+            : (resultCache[cacheKey] =
+                window.roamjs.extension.queryBuilder.fireQuery({
+                  returnNode: nodeTextByType[r.destination],
+                  conditions: [
+                    {
+                      source: nodeTextByType[r.destination],
+                      relation: r.complement,
+                      target: title,
+                      uid: conditionUid,
+                      type: "clause",
+                    },
+                  ],
+                  selections: [
+                    {
+                      uid: window.roamAlphaAPI.util.generateUID(),
+                      label: "context",
+                      text: `node:${conditionUid}-Context`,
+                    },
+                  ],
+                }));
+        return resultsPromise.then((results) => ({
+          label: r.label,
+          target: r.destination,
+          complement: false,
+          id: r.id,
+          results,
+        }));
+      })
+      .concat(
+        relations
+          .filter((r) => r.destination === nodeType)
+          .map((r) => {
+            const cacheKey = `${title}~${r.complement}~${r.source}`;
+            const conditionUid = window.roamAlphaAPI.util.generateUID();
+            const resultsPromise =
+              useCache && resultCache[cacheKey]
+                ? Promise.resolve(resultCache[cacheKey])
+                : (resultCache[cacheKey] =
+                    window.roamjs.extension.queryBuilder.fireQuery({
+                      returnNode: nodeTextByType[r.source],
+                      conditions: [
+                        {
+                          source: nodeTextByType[r.source],
+                          relation: r.label,
+                          target: title,
+                          uid: conditionUid,
+                          type: "clause",
+                        },
+                      ],
+                      selections: [
+                        {
+                          uid: window.roamAlphaAPI.util.generateUID(),
+                          label: "context",
+                          text: `node:${conditionUid}-Context`,
+                        },
+                      ],
+                    }));
+            return resultsPromise.then((results) => ({
+              label: r.complement,
+              complement: true,
+              target: r.source,
               id: r.id,
-            })
-        )
-    );
-    return Object.entries(groupedResults).map(([label, results]) => ({
-      label,
-      results,
-    }));
-  } catch (e) {
+              results,
+            }));
+          })
+      )
+  ).catch((e) => {
     console.error(e);
-    return [];
-  }
+    return [] as const;
+  });
+  const groupedResults = Object.fromEntries(
+    rawResults.map((r) => [
+      r.label,
+      {} as Record<
+        string,
+        Partial<Result & { target: string; complement: boolean; id: string }>
+      >,
+    ])
+  );
+  rawResults.forEach((r) =>
+    r.results
+      .map(({ context, ["context-uid"]: contextUid, ...a }) => ({
+        ...a,
+        context: contextUid as string,
+      }))
+      .filter((a) => a.text !== title)
+      .forEach(
+        (res) =>
+          (groupedResults[r.label][res.uid] = {
+            ...res,
+            target: nodeTextByType[r.target],
+            complement: r.complement,
+            id: r.id,
+          })
+      )
+  );
+  return Object.entries(groupedResults).map(([label, results]) => ({
+    label,
+    results,
+  }));
 };

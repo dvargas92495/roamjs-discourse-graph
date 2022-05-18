@@ -464,7 +464,13 @@ runExtension("discourse-graph", async () => {
     localStorageGet("experimental") === "true";
 
   document.addEventListener("keydown", (e) => {
-    if (e.shiftKey && e.altKey && e.ctrlKey && e.metaKey && (e.key === "M" || e.key === "KeyM")) {
+    if (
+      e.shiftKey &&
+      e.altKey &&
+      e.ctrlKey &&
+      e.metaKey &&
+      (e.key === "M" || e.key === "KeyM")
+    ) {
       let experimentalOverlayMode = getExperimentalOverlayMode();
       if (isFlagEnabled("grammar.overlay")) {
         if (!experimentalOverlayMode) {
@@ -575,13 +581,14 @@ We expect that there will be no disruption in functionality. If you see issues a
         mapper: (r, key) => {
           const attribute = key.substring("discourse:".length);
           const title = r[":node/title"] || "";
-          const results = getDiscourseContextResults(
+          return getDiscourseContextResults(
             title,
             getNodes(),
             getRelations(),
             true
+          ).then((results) =>
+            deriveNodeAttribute({ title, attribute, results })
           );
-          return deriveNodeAttribute({ title, attribute, results });
         },
       });
 
@@ -687,7 +694,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-05-11-23-43/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-18-15-33/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -699,7 +706,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-05-11-23-43/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-18-15-33/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({

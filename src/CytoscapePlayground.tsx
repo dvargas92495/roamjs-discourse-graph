@@ -642,32 +642,36 @@ const CytoscapePlayground = ({
             style={{ marginRight: 8, padding: "7px 5px" }}
             onClick={() => {
               const closeLoading = renderLoading(getCurrentPageUid());
-              setTimeout(() => {
+              setTimeout(async () => {
                 const elementsTree = getBasicTreeByParentUid(elementsUid);
                 const relationData = getRelations();
                 const nodeData = getNodes();
-                const nodes = elementsTree
-                  .map((n) => {
-                    const getNodeType = (t: RoamBasicNode) =>
-                      nodeTypeByColor[
-                        getSettingValueFromTree({
-                          tree: t.children,
-                          key: "color",
-                        })
-                      ];
-                    return { node: n.text, uid: n.uid, type: getNodeType(n) };
-                  })
-                  .filter((e) => !!e.type)
-                  .map((e) => ({
-                    id: e.uid,
-                    uid: getPageUidByPageTitle(e.node),
-                    results: getDiscourseContextResults(
-                      e.node,
-                      nodeData,
-                      relationData,
-                      true
-                    ),
-                  }));
+                const nodes = await Promise.all(
+                  elementsTree
+                    .map((n) => {
+                      const getNodeType = (t: RoamBasicNode) =>
+                        nodeTypeByColor[
+                          getSettingValueFromTree({
+                            tree: t.children,
+                            key: "color",
+                          })
+                        ];
+                      return { node: n.text, uid: n.uid, type: getNodeType(n) };
+                    })
+                    .filter((e) => !!e.type)
+                    .map((e) =>
+                      getDiscourseContextResults(
+                        e.node,
+                        nodeData,
+                        relationData,
+                        true
+                      ).then((results) => ({
+                        id: e.uid,
+                        uid: getPageUidByPageTitle(e.node),
+                        results,
+                      }))
+                    )
+                );
                 const validNodes = Object.fromEntries(
                   nodes.map((n) => [n.uid, n.id])
                 );

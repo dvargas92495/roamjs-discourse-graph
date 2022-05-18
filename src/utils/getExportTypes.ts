@@ -206,36 +206,40 @@ const getExportTypes = ({
     );
   };
   const getRelationData = (rels?: ReturnType<typeof getRelations>) =>
-    relations ||
-    (rels || getRelations())
-      .filter(
-        (s) =>
-          s.triples.some((t) => t[2] === "source" || t[2] === s.source) &&
-          s.triples.some(
-            (t) => t[2] === "destination" || t[2] === s.destination
-          )
-      )
-      .flatMap((s) => {
-        return window.roamjs.extension.queryBuilder
-          .fireQuery({
-            returnNode: s.source,
-            conditions: [
-              {
-                relation: s.label,
-                source: nodeLabelByType[s.source],
-                target: nodeLabelByType[s.destination],
-                uid: s.id,
-                type: "clause",
-              },
-            ],
-            selections: [],
-          })
-          .map((result) => ({
-            source: s.source,
-            target: result.uid,
-            label: s.label,
-          }));
-      });
+    Promise.resolve(relations) ||
+    Promise.all(
+      (rels || getRelations())
+        .filter(
+          (s) =>
+            s.triples.some((t) => t[2] === "source" || t[2] === s.source) &&
+            s.triples.some(
+              (t) => t[2] === "destination" || t[2] === s.destination
+            )
+        )
+        .flatMap((s) => {
+          return window.roamjs.extension.queryBuilder
+            .fireQuery({
+              returnNode: s.source,
+              conditions: [
+                {
+                  relation: s.label,
+                  source: nodeLabelByType[s.source],
+                  target: nodeLabelByType[s.destination],
+                  uid: s.id,
+                  type: "clause",
+                },
+              ],
+              selections: [],
+            })
+            .then((results) =>
+              results.map((result) => ({
+                source: s.source,
+                target: result.uid,
+                label: s.label,
+              }))
+            );
+        })
+    ).then((r) => r.flat());
   const getJsonData = () => {
     const allRelations = getRelations();
     const grammar = allRelations.map(({ label, destination, source }) => ({
@@ -255,12 +259,12 @@ const getExportTypes = ({
       };
     });
     const nodeSet = new Set(nodes.map((n) => n.uid));
-    const relations = uniqJsonArray(
-      getRelationData().filter(
-        (r) => nodeSet.has(r.source) && nodeSet.has(r.target)
-      )
-    );
-    return { grammar, nodes, relations };
+    return getRelationData().then((rels) => {
+      const relations = uniqJsonArray(
+        rels.filter((r) => nodeSet.has(r.source) && nodeSet.has(r.target))
+      );
+      return { grammar, nodes, relations };
+    });
   };
 
   return [
@@ -278,26 +282,28 @@ const getExportTypes = ({
           })
           .join("\n");
         const relationHeader = "start:START_ID,end:END_ID,label:TYPE\n";
-        const relationData = getRelationData().map(
-          ({ source, target, label }) =>
-            `${source},${target},${label.toUpperCase()}`
-        );
-        const relations = relationData.join("\n");
-        return [
-          {
-            title: `${filename.replace(/\.csv/, "")}_nodes.csv`,
-            content: `${nodeHeader}${nodeData}`,
-          },
-          {
-            title: `${filename.replace(/\.csv/, "")}_relations.csv`,
-            content: `${relationHeader}${relations}`,
-          },
-        ];
+        return getRelationData().then((rels) => {
+          const relationData = rels.map(
+            ({ source, target, label }) =>
+              `${source},${target},${label.toUpperCase()}`
+          );
+          const relations = relationData.join("\n");
+          return [
+            {
+              title: `${filename.replace(/\.csv/, "")}_nodes.csv`,
+              content: `${nodeHeader}${nodeData}`,
+            },
+            {
+              title: `${filename.replace(/\.csv/, "")}_relations.csv`,
+              content: `${relationHeader}${relations}`,
+            },
+          ];
+        });
       },
     },
     {
       name: "Markdown",
-      callback: () => {
+      callback: async () => {
         const configTree = getBasicTreeByParentUid(
           getPageUidByPageTitle("roam/js/discourse-graph")
         );
@@ -348,8 +354,8 @@ const getExportTypes = ({
               `author: {author}`,
               "date: {date}",
             ];
-        const pages = getPageData().map(
-          ({ text, uid, context: _, type, ...rest }) => {
+        const pages = await Promise.all(
+          getPageData().map(({ text, uid, context: _, type, ...rest }) => {
             const v = getPageViewType(text) || "bullet";
             const { date, displayName } = getPageMetadata(text);
             const resultCols = Object.keys(rest).filter(
@@ -367,88 +373,89 @@ const getExportTypes = ({
               type,
             };
             const treeNode = getFullTreeByParentUid(uid);
-            const discourseResults = getDiscourseContextResults(text);
-            const referenceResults = isFlagEnabled("render references")
-              ? window.roamAlphaAPI
-                  .q(
-                    `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
-                      text
-                    )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+            return getDiscourseContextResults(text).then((discourseResults) => {
+              const referenceResults = isFlagEnabled("render references")
+                ? window.roamAlphaAPI
+                    .q(
+                      `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
+                        text
+                      )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                    )
+                    .filter(([, { children = [] }]) => !!children.length)
+                : [];
+              const content = `---\n${yamlLines
+                .map((s) =>
+                  s.replace(/{([^}]+)}/g, (_, capt: string) =>
+                    result[capt].toString()
                   )
-                  .filter(([, { children = [] }]) => !!children.length)
-              : [];
-            const content = `---\n${yamlLines
-              .map((s) =>
-                s.replace(/{([^}]+)}/g, (_, capt: string) =>
-                  result[capt].toString()
                 )
-              )
-              .join("\n")}\n---\n\n${treeNode.children
-              .map((c) =>
-                toMarkdown({
-                  c,
-                  v,
-                  i: 0,
-                  opts: {
-                    refs: optsRefs,
-                    embeds: optsEmbeds,
-                    simplifiedFilename,
-                    allNodes,
-                    maxFilenameLength,
-                    removeSpecialCharacters,
-                  },
-                })
-              )
-              .join("\n")}\n${
-              discourseResults.length
-                ? `\n###### Discourse Context\n\n${discourseResults
-                    .flatMap((r) =>
-                      Object.values(r.results).map(
-                        (t) =>
-                          `- **${r.label}::** ${toLink(
+                .join("\n")}\n---\n\n${treeNode.children
+                .map((c) =>
+                  toMarkdown({
+                    c,
+                    v,
+                    i: 0,
+                    opts: {
+                      refs: optsRefs,
+                      embeds: optsEmbeds,
+                      simplifiedFilename,
+                      allNodes,
+                      maxFilenameLength,
+                      removeSpecialCharacters,
+                    },
+                  })
+                )
+                .join("\n")}\n${
+                discourseResults.length
+                  ? `\n###### Discourse Context\n\n${discourseResults
+                      .flatMap((r) =>
+                        Object.values(r.results).map(
+                          (t) =>
+                            `- **${r.label}::** ${toLink(
+                              getFilename({
+                                title: t.text,
+                                maxFilenameLength,
+                                simplifiedFilename,
+                                allNodes,
+                                removeSpecialCharacters,
+                              })
+                            )}`
+                        )
+                      )
+                      .join("\n")}\n`
+                  : ""
+              }${
+                referenceResults.length
+                  ? `\n###### References\n\n${referenceResults
+                      .map(
+                        (r) =>
+                          `${toLink(
                             getFilename({
-                              title: t.text,
+                              title: r[0].title,
                               maxFilenameLength,
                               simplifiedFilename,
                               allNodes,
                               removeSpecialCharacters,
                             })
-                          )}`
+                          )}\n\n${toMarkdown({
+                            c: r[1],
+                            opts: {
+                              refs: optsRefs,
+                              embeds: optsEmbeds,
+                              simplifiedFilename,
+                              allNodes,
+                              maxFilenameLength,
+                              removeSpecialCharacters,
+                            },
+                          })}`
                       )
-                    )
-                    .join("\n")}\n`
-                : ""
-            }${
-              referenceResults.length
-                ? `\n###### References\n\n${referenceResults
-                    .map(
-                      (r) =>
-                        `${toLink(
-                          getFilename({
-                            title: r[0].title,
-                            maxFilenameLength,
-                            simplifiedFilename,
-                            allNodes,
-                            removeSpecialCharacters,
-                          })
-                        )}\n\n${toMarkdown({
-                          c: r[1],
-                          opts: {
-                            refs: optsRefs,
-                            embeds: optsEmbeds,
-                            simplifiedFilename,
-                            allNodes,
-                            maxFilenameLength,
-                            removeSpecialCharacters,
-                          },
-                        })}`
-                    )
-                    .join("\n")}\n`
-                : ""
-            }`;
-            const uids = new Set(collectUids(treeNode));
-            return { title: text, content, uids };
-          }
+                      .join("\n")}\n`
+                  : ""
+              }`;
+              const uids = new Set(collectUids(treeNode));
+              return { title: text, content, uids };
+            });
+          })
         );
         return pages.map(({ title, content }) => ({
           title: getFilename({
@@ -464,26 +471,24 @@ const getExportTypes = ({
     },
     {
       name: "JSON",
-      callback: ({ filename }) => {
+      callback: async ({ filename }) => {
+        const data = await getJsonData();
         return [
           {
             title: `${filename.replace(/\.json$/, "")}.json`,
-            content: JSON.stringify(getJsonData()),
+            content: JSON.stringify(data),
           },
         ];
       },
     },
     {
       name: "graph",
-      callback: ({
-        filename,
-        // @ts-ignore
-        graph,
-      }) => {
+      callback: async ({ filename, graph }) => {
+        const data = await getJsonData();
         window.roamjs.extension.multiplayer.sendToGraph({
           operation: "IMPORT_DISCOURSE_GRAPH",
           data: {
-            ...getJsonData(),
+            ...data,
             title: filename,
           },
           graph,

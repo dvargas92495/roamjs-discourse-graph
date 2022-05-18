@@ -148,45 +148,49 @@ const QueryDrawerContent = ({
           // @ts-ignore
           { returnNode, conditions, selections }
         ) => {
-          const results = fireQuery({ returnNode, conditions, selections });
           const cons = getQBClauses(conditions);
-          return createBlock({
-            node: {
-              text: savedQueryLabel,
-              children: [
-                {
-                  text: "query",
+          return fireQuery({ returnNode, conditions, selections }).then(
+            (results) =>
+              createBlock({
+                node: {
+                  text: savedQueryLabel,
                   children: [
-                    { text: `Find ${returnNode} Where` },
-                    ...cons.map((c) => ({
-                      text: `${c.source} ${c.relation} ${c.target}`,
-                    })),
-                    ...selections.map((s: Selection) => ({
-                      text: `Select ${s.text} AS ${s.label}`,
-                    })),
+                    {
+                      text: "query",
+                      children: [
+                        { text: `Find ${returnNode} Where` },
+                        ...cons.map((c) => ({
+                          text: `${c.source} ${c.relation} ${c.target}`,
+                        })),
+                        ...selections.map((s: Selection) => ({
+                          text: `Select ${s.text} AS ${s.label}`,
+                        })),
+                      ],
+                    },
                   ],
                 },
-              ],
-            },
-            parentUid: blockUid,
-          }).then((newSavedUid) =>
-            Promise.all(
-              cons
-                .map((c) => deleteBlock(c.uid))
-                .concat(selections.map((s: Selection) => deleteBlock(s.uid)))
-            ).then(() => {
-              setSavedQueries([
-                { uid: newSavedUid, text: savedQueryLabel, results },
-                ...savedQueries,
-              ]);
-              setSavedQueryLabel(
-                // temporary
-                savedQueryLabel
-                  .split(" ")
-                  .map((s) => (s === "Query" ? s : `${Number(s) + 1}`))
-                  .join(" ")
-              );
-            })
+                parentUid: blockUid,
+              }).then((newSavedUid) =>
+                Promise.all(
+                  cons
+                    .map((c) => deleteBlock(c.uid))
+                    .concat(
+                      selections.map((s: Selection) => deleteBlock(s.uid))
+                    )
+                ).then(() => {
+                  setSavedQueries([
+                    { uid: newSavedUid, text: savedQueryLabel, results },
+                    ...savedQueries,
+                  ]);
+                  setSavedQueryLabel(
+                    // temporary
+                    savedQueryLabel
+                      .split(" ")
+                      .map((s) => (s === "Query" ? s : `${Number(s) + 1}`))
+                      .join(" ")
+                  );
+                })
+              )
           );
         }}
       />

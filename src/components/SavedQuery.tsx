@@ -56,13 +56,7 @@ const SavedQuery = ({
   const [initialQuery, setInitialQuery] = useState(!!initialResults);
   const [label, setLabel] = useState(() => getTextByBlockUid(uid));
   const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const {
-    returnNode,
-    // @ts-ignore
-    conditionNodes,
-    // @ts-ignore
-    selectionNodes,
-  } = useMemo(
+  const { returnNode, conditions, selections } = useMemo(
     () =>
       window.roamjs.extension.queryBuilder.parseQuery(
         // @ts-ignore
@@ -73,12 +67,13 @@ const SavedQuery = ({
   useEffect(() => {
     if (!initialQuery && !minimized) {
       setInitialQuery(true);
-      const results = window.roamjs.extension.queryBuilder.fireQuery({
-        returnNode,
-        conditions: conditionNodes,
-        selections: selectionNodes,
-      });
-      setResults(results);
+      window.roamjs.extension.queryBuilder
+        .fireQuery({
+          returnNode,
+          conditions,
+          selections,
+        })
+        .then(setResults);
     }
   }, [initialQuery, minimized, setInitialQuery, setResults]);
   const { ResultsView } = window.roamjs.extension.queryBuilder;
@@ -139,36 +134,38 @@ const SavedQuery = ({
                   icon={"export"}
                   minimal
                   onClick={() => {
-                    const records = results.length
-                      ? results
+                    (results.length
+                      ? Promise.resolve(results)
                       : window.roamjs.extension.queryBuilder.fireQuery({
                           returnNode,
-                          conditions: conditionNodes,
-                          selections: selectionNodes,
-                        });
-
-                    const conditions = getQBClauses(
-                      //@ts-ignore
-                      window.roamjs.extension.queryBuilder.parseQuery(
-                        //@ts-ignore
-                        query
-                        //@ts-ignore
-                      ).conditionNodes
-                    ).map((c) => ({
-                      predicate: {
-                        text: c.target,
-                        uid: getPageUidByPageTitle(c.target),
-                      },
-                      relation: c.relation,
-                    }));
-                    exportRender({
-                      fromQuery: {
-                        nodes: records.concat(
-                          conditions
-                            .map((c) => c.predicate)
-                            .filter((c) => !!c.uid)
-                        ),
-                      },
+                          conditions,
+                          selections,
+                        })
+                    ).then((records) => {
+                      const cons = getQBClauses(
+                        window.roamjs.extension.queryBuilder.parseQuery({
+                          children: query.map((text) => ({
+                            text,
+                            uid: "",
+                            children: [],
+                          })),
+                          uid: "",
+                          text: "",
+                        }).conditions
+                      ).map((c) => ({
+                        predicate: {
+                          text: c.target,
+                          uid: getPageUidByPageTitle(c.target),
+                        },
+                        relation: c.relation,
+                      }));
+                      exportRender({
+                        fromQuery: {
+                          nodes: records.concat(
+                            cons.map((c) => c.predicate).filter((c) => !!c.uid)
+                          ),
+                        },
+                      });
                     });
                   }}
                 />

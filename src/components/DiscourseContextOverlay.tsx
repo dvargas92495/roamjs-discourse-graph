@@ -4,38 +4,29 @@ import ReactDOM from "react-dom";
 import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
 import {
-  ANY_REGEX,
   getDiscourseContextResults,
   getNodes,
   getRelations,
-  isFlagEnabled,
   matchNode,
 } from "../util";
 import { useInViewport } from "react-in-viewport";
-import {
-  getDataWorker,
-  listeners,
-  refreshUi,
-} from "../dataWorkerClient";
-import { render as renderToast } from "roamjs-components/components/Toast";
+import { getDataWorker, listeners, refreshUi } from "../dataWorkerClient";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
 import localStorageGet from "roamjs-components/util/localStorageGet";
-import localStorageSet from "roamjs-components/util/localStorageSet";
-import localStorageRemove from "roamjs-components/util/localStorageRemove";
 import deriveNodeAttribute from "../utils/deriveNodeAttribute";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 
 type DiscourseData = {
-  results: ReturnType<typeof getDiscourseContextResults>;
+  results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
   refs: number;
 };
 
 const cache: {
   [title: string]: DiscourseData;
 } = {};
-const overlayQueue: (() => void)[] = [];
+const overlayQueue: (() => Promise<void>)[] = [];
 const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
   if (localStorageGet("experimental") === "true") {
     return new Promise<DiscourseData>((resolve) => {
@@ -58,20 +49,24 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
       const triggerNow = overlayQueue.length === 0;
       overlayQueue.push(() => {
         const start = new Date();
-        const output = (cache[tag] = {
-          results: getDiscourseContextResults(tag, nodes, relations, true),
-          refs: window.roamAlphaAPI.q(
-            `[:find ?a :where [?b :node/title "${normalizePageTitle(
-              tag
-            )}"] [?a :block/refs ?b]]`
-          ).length,
-        });
-        const runTime = differenceInMilliseconds(new Date(), start);
-        setTimeout(() => {
-          overlayQueue.splice(0, 1);
-          overlayQueue[0]?.();
-        }, runTime * 4);
-        resolve(output);
+        return getDiscourseContextResults(tag, nodes, relations, true).then(
+          (results) => {
+            const output = (cache[tag] = {
+              results,
+              refs: window.roamAlphaAPI.q(
+                `[:find ?a :where [?b :node/title "${normalizePageTitle(
+                  tag
+                )}"] [?a :block/refs ?b]]`
+              ).length,
+            });
+            const runTime = differenceInMilliseconds(new Date(), start);
+            setTimeout(() => {
+              overlayQueue.splice(0, 1);
+              overlayQueue[0]?.();
+            }, runTime * 4);
+            resolve(output);
+          }
+        );
       });
       if (triggerNow) overlayQueue[0]();
     });

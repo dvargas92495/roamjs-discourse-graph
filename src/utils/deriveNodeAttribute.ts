@@ -18,7 +18,7 @@ const deriveNodeAttribute = ({
 }: {
   attribute: string;
   title: string;
-  results: ReturnType<typeof getDiscourseContextResults>;
+  results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
 }) => {
   const nodeType = getNodes().find((n) =>
     matchNode({ format: n.format, title })
