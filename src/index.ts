@@ -690,15 +690,20 @@ We expect that there will be no disruption in functionality. If you see issues a
     },
     { once: true }
   );
+  if (window.roamjs.loaded.has("query-builder")) {
+    console.warn(`It appears that you have the Query Builder extension installed as well as Discourse Graph.
+    
+    This is not necessary, as the Discourse Graph extension already comes preloaded with its own copy of Query Builder by default. Please remove the Query Builder extension as this redundancy could cause unforseen issues`);
+  }
   if (process.env.NODE_ENV === "development") {
     addScriptAsDependency({
-      id: "roamjs-query-builder",
+      id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-05-18-15-33/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-18-17-15/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
-      id: "roamjs-multiplayer",
+      id: "roamjs-multiplayer-main",
       // src: "http://localhost:3200/main.js",
       src: "https://roamjs.com/multiplayer/2022-04-18-01-40/main.js",
       dataAttributes: { source: "discourse-graph" },
@@ -706,7 +711,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-05-18-15-33/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-18-17-15/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -974,6 +979,9 @@ We expect that there will be no disruption in functionality. If you see issues a
           }
         }
       } else if (title.startsWith("discourse-graph/queries/")) {
+        // in order to deprecate this branch we need to do two things:
+        // - add `discourse-graph/queries` as a prefix to qb config
+        // - ensure that query pages could still get DG export types
         const uid = getPageUidByPageTitle(title);
         const attribute = `data-roamjs-${uid}`;
         const containerParent = h1.parentElement?.parentElement;

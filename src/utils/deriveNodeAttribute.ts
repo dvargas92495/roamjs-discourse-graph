@@ -34,7 +34,7 @@ const deriveNodeAttribute = ({
     key: attribute,
     defaultValue: "{count:Has Any Relation To:any}",
   });
-  const postProcess = scoreFormula.replace(/{([^}]+)}/g, (_, interpolation) => {
+  const postProcess = scoreFormula.replace(/{([^}]+)}/g, (_, interpolation:string) => {
     const [op, ...args] = interpolation.split(":");
     if (op === "count") {
       return results
