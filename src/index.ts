@@ -26,7 +26,11 @@ import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
 import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
-import { initializeDataWorker, shutdownDataWorker } from "./dataWorkerClient";
+import {
+  initializeDataWorker,
+  listeners,
+  shutdownDataWorker,
+} from "./dataWorkerClient";
 import { render as cyRender } from "./CytoscapePlayground";
 import { render as overviewRender } from "./components/DiscourseGraphOverview";
 import { render as previewRender } from "./LivePreview";
@@ -70,6 +74,8 @@ import deriveNodeAttribute from "./utils/deriveNodeAttribute";
 import { localStorageGet } from "roamjs-components/util/localStorageGet";
 import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
+import { DatalogClause, PullBlock } from "roamjs-components/types/native";
+import { v4 } from "uuid";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -369,10 +375,6 @@ runExtension("discourse-graph", async () => {
                 "Whether to overlay discourse context information over node references",
               options: {
                 onChange: (val) => {
-                  if (getExperimentalOverlayMode()) {
-                    if (val) initializeDataWorker(pageUid);
-                    else shutdownDataWorker();
-                  }
                   onPageRefObserverChange(overlayPageRefHandler)(val);
                 },
               },
@@ -463,6 +465,66 @@ runExtension("discourse-graph", async () => {
   const getExperimentalOverlayMode = () =>
     localStorageGet("experimental") === "true";
 
+  type FireQuery = typeof window.roamjs.extension.queryBuilder.fireQuery;
+  let fireQueryRef: FireQuery;
+  const toggleExperimentalMode = () => {
+    let experimentalOverlayMode = getExperimentalOverlayMode();
+    if (!experimentalOverlayMode) {
+      initializeDataWorker(pageUid).then((worker) => {
+        fireQueryRef = window.roamjs.extension.queryBuilder.fireQuery;
+        window.roamjs.extension.queryBuilder.fireQuery = async (args) => {
+          // @ts-ignore temporary
+          const { getDatalogQueryComponents } =
+            window.roamjs.extension.queryBuilder;
+          const { where, definedSelections } = (
+            getDatalogQueryComponents as (args: Parameters<FireQuery>[0]) => {
+              where: DatalogClause[];
+              definedSelections: {
+                pull: string;
+                label: string;
+                key: string;
+              }[];
+            }
+          )(args);
+          const pull = definedSelections
+            .flatMap((sel) => {
+              const pullExec = /\(pull \?([^\s]+) \[([^\]]+)\]\)/.exec(
+                sel.pull
+              );
+              if (!pullExec || pullExec.length < 3) return [];
+              const [_, _var, fields] = pullExec;
+              return fields.split(/\s+/).map((field) => ({
+                label: sel.label,
+                field,
+                _var,
+              }));
+            })
+            .filter((s) => !!s);
+          return new Promise((resolve) => {
+            const uuid = v4();
+            const listenerKey = `fireQuery_${uuid}`;
+            listeners[listenerKey] = (response) => {
+              delete listeners[listenerKey];
+              resolve(
+                (response as { results: ReturnType<FireQuery> })?.results
+              );
+            };
+            worker.postMessage({
+              method: "fireQuery",
+              uuid,
+              where,
+              pull,
+            });
+          });
+        };
+      });
+    } else {
+      window.roamjs.extension.queryBuilder.fireQuery = fireQueryRef;
+      shutdownDataWorker();
+    }
+    return experimentalOverlayMode;
+  };
+
   document.addEventListener("keydown", (e) => {
     if (
       e.shiftKey &&
@@ -471,24 +533,15 @@ runExtension("discourse-graph", async () => {
       e.metaKey &&
       (e.key === "M" || e.key === "KeyM")
     ) {
-      let experimentalOverlayMode = getExperimentalOverlayMode();
-      if (isFlagEnabled("grammar.overlay")) {
-        if (!experimentalOverlayMode) {
-          initializeDataWorker(pageUid);
-        } else {
-          shutdownDataWorker();
-        }
-      }
-      if (!experimentalOverlayMode) {
+      const oldVal = toggleExperimentalMode();
+      if (!oldVal) {
         localStorageSet("experimental", "true");
       } else {
         localStorageRemove("experimental");
       }
       renderToast({
         id: "experimental",
-        content: `${
-          experimentalOverlayMode ? "Dis" : "En"
-        }abled Experimental Overlay Mode`,
+        content: `${oldVal ? "Dis" : "En"}abled Experimental Overlay Mode`,
       });
       e.preventDefault();
       e.stopPropagation();
@@ -1087,7 +1140,6 @@ We expect that there will be no disruption in functionality. If you see issues a
   setTimeout(() => {
     if (isFlagEnabled("preview")) pageRefObservers.add(previewPageRefHandler);
     if (isFlagEnabled("grammar.overlay")) {
-      if (getExperimentalOverlayMode()) initializeDataWorker(pageUid);
       pageRefObservers.add(overlayPageRefHandler);
     }
     if (pageRefObservers.size) enablePageRefObserver();

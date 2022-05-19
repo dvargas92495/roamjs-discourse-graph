@@ -2,6 +2,9 @@
 // - DEFAULT_[NODE|RELATIONS]_VALUES
 // - Config, graph updates update cache
 
+import type { DatalogClause } from "roamjs-components/types/native";
+import type { Result } from "roamjs-components/types/query-builder";
+
 const graph: {
   config: {
     nodes: {
@@ -649,13 +652,6 @@ const matchNode = ({
   );
 };
 
-type Result = {
-  text: string;
-  uid: string;
-  createdTime: number;
-  editedTime: number;
-};
-
 const getDiscourseContextResults = (title: string) => {
   const rawResults = graph.discourseRelations[graph.edges.pageIdByTitle[title]];
   if (!rawResults) return [];
@@ -730,14 +726,406 @@ const overview = () => {
   });
 };
 
+export type QueryArgs = {
+  where: DatalogClause[];
+  pull: {
+    _var: string;
+    field: string;
+    label: string;
+  }[];
+};
+
+const query = ({ where, pull }: QueryArgs) => {
+  const { assignments } = where.reduce(
+    (programs, clause, index) => {
+      if (programs.assignments.size === 0 && index > 0) return programs;
+      if (clause.type === "data-pattern") {
+        const [source, relation, target] = clause.arguments;
+        if (source.type !== "variable") {
+          console.warn("Expected source type to be variable");
+          return programs;
+        }
+        const v = source.value.toLowerCase();
+        if (relation.type !== "constant") {
+          console.warn("Expected relation type to be constant");
+          return programs;
+        }
+        const rel = relation.value.toLowerCase();
+        if (programs.vars.has(v)) {
+          const newAssignments = Array.from(programs.assignments).flatMap(
+            (dict) => {
+              const sourceEntry = dict[v];
+              if (typeof sourceEntry !== "object") {
+                console.warn("Expected the source variable to map to a node");
+                return [];
+              }
+              const sourceId = sourceEntry.id;
+              if (rel === ":block/refs") {
+                if (target.type !== "variable") {
+                  console.warn(
+                    "Expected target for :block/refs to be a variable"
+                  );
+                  return [];
+                }
+                const targetVar = target.value.toLowerCase();
+                const targetEntry = dict[targetVar];
+                const refs = (
+                  typeof targetEntry === "object"
+                    ? [targetEntry.id]
+                    : graph.edges.referencesById[sourceId] || []
+                ).map((ref) => ({
+                  ...dict,
+                  [targetVar]: { id: ref },
+                }));
+                if (refs.length) programs.vars.add(targetVar);
+                return refs;
+              } else if (rel === ":block/page") {
+                if (target.type !== "variable") {
+                  console.warn(
+                    "Expected target for :block/page to be a variable"
+                  );
+                  return [];
+                }
+                const targetVar = target.value.toLowerCase();
+                const targetEntry = dict[targetVar];
+                if (graph.edges.pagesById[sourceId]) {
+                  return [];
+                } else if (typeof targetEntry === "object") {
+                  return targetEntry.id === graph.edges.blocksPageById[sourceId]
+                    ? [dict]
+                    : [];
+                } else {
+                  programs.vars.add(targetVar);
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: { id: graph.edges.blocksPageById[sourceId] },
+                    },
+                  ];
+                }
+              } else if (rel === ":node/title") {
+                if (target.type === "constant") {
+                  if (graph.edges.pagesById[sourceId] === target.value) {
+                    return [dict];
+                  } else {
+                    return [];
+                  }
+                } else if (target.type === "underscore") {
+                  return [dict];
+                } else {
+                  return [
+                    {
+                      ...dict,
+                      [target.value.toLowerCase()]:
+                        graph.edges.pagesById[sourceId],
+                    },
+                  ];
+                }
+              } else if (rel === ":block/children") {
+                if (target.type !== "variable") {
+                  console.warn(
+                    "Expected target for :block/children to be a variable"
+                  );
+                  return [];
+                }
+                const targetVar = target.value.toLowerCase();
+                const targetEntry = dict[targetVar];
+                const children = (
+                  typeof targetEntry === "object"
+                    ? [targetEntry.id]
+                    : graph.edges.childrenById[sourceId] || []
+                ).map((child) => ({
+                  ...dict,
+                  [targetVar]: { id: child },
+                }));
+                if (children.length) programs.vars.add(targetVar);
+                return children;
+              } else if (rel === ":block/parents") {
+                if (target.type !== "variable") {
+                  console.warn(
+                    "Expected target for :block/parents to be a variable"
+                  );
+                  return [];
+                }
+                const targetVar = target.value.toLowerCase();
+                const targetEntry = dict[targetVar];
+                const ancestors = (
+                  typeof targetEntry === "object"
+                    ? [targetEntry.id]
+                    : Array.from(graph.edges.ancestorsById[sourceId] || [])
+                ).map((child) => ({
+                  ...dict,
+                  [targetVar]: { id: child },
+                }));
+                if (ancestors.length) programs.vars.add(targetVar);
+                return ancestors;
+              } else if (rel === ":block/string") {
+                if (target.type === "constant") {
+                  if (graph.edges.blocksById[sourceId] === target.value) {
+                    return [dict];
+                  } else {
+                    return [];
+                  }
+                } else if (target.type === "underscore") {
+                  return [dict];
+                } else {
+                  return [
+                    {
+                      ...dict,
+                      [target.value.toLowerCase()]:
+                        graph.edges.blocksById[sourceId],
+                    },
+                  ];
+                }
+              } else {
+                return [];
+              }
+            }
+          );
+          programs.assignments = new Set(newAssignments);
+        } else if (
+          target.type === "variable" &&
+          programs.vars.has(target.value.toString())
+        ) {
+          const newAssignments = Array.from(programs.assignments).flatMap(
+            (dict) => {
+              const targetVar = target.value.toLowerCase();
+              const targetEntry = dict[targetVar];
+              if (rel === ":block/refs") {
+                if (typeof targetEntry !== "object") {
+                  console.warn(
+                    "Expected the target variable to map to a node in :block/refs"
+                  );
+                  return [];
+                }
+                const targetId = targetEntry.id;
+                const refs = (
+                  graph.edges.linkedReferencesById[targetId] || []
+                ).map((ref) => ({
+                  ...dict,
+                  [v]: { id: ref },
+                }));
+                if (refs.length) programs.vars.add(v);
+                return refs;
+              } else if (rel === ":block/page") {
+                if (typeof targetEntry !== "object") {
+                  console.warn(
+                    "Expected the target variable to map to a node in :block/page"
+                  );
+                  return [];
+                }
+                const targetId = targetEntry.id;
+                if (!graph.edges.pagesById[targetId]) {
+                  return [];
+                } else {
+                  const children = Array.from(
+                    graph.edges.descendantsById[targetId] || []
+                  ).map((d) => ({
+                    ...dict,
+                    [v]: { id: d },
+                  }));
+                  if (children.length) programs.vars.add(v);
+                  return children;
+                }
+              } else if (rel === ":node/title") {
+                if (typeof targetEntry !== "string") {
+                  console.warn(
+                    "Expected the target variable to map to a string in :block/refs"
+                  );
+                  return [];
+                }
+                const page = graph.edges.pageIdByTitle[targetEntry];
+                if (page) {
+                  programs.vars.add(v);
+                  return [
+                    {
+                      ...dict,
+                      [v]: { id: page },
+                    },
+                  ];
+                }
+                return [];
+              } else if (rel === ":block/children") {
+                if (typeof targetEntry !== "object") {
+                  console.warn(
+                    "Expected the target variable to map to a node in :block/children"
+                  );
+                  return [];
+                }
+                const targetId = targetEntry.id;
+                const parent = graph.edges.parentById[targetId];
+                if (parent) {
+                  programs.vars.add(v);
+                  return [
+                    {
+                      ...dict,
+                      [v]: { id: parent },
+                    },
+                  ];
+                } else {
+                  return [];
+                }
+              } else if (rel === ":block/parents") {
+                if (typeof targetEntry !== "object") {
+                  console.warn(
+                    "Expected the target variable to map to a node in :block/parents"
+                  );
+                  return [];
+                }
+                const targetId = targetEntry.id;
+                const ancestors = Array.from(
+                  graph.edges.ancestorsById[targetId] || []
+                ).map((child) => ({
+                  ...dict,
+                  [v]: { id: child },
+                }));
+                if (ancestors.length) programs.vars.add(v);
+                return ancestors;
+              } else if (rel === ":block/string") {
+                if (typeof targetEntry !== "string") {
+                  console.warn(
+                    "Expected the target variable to map to a string in :block/string"
+                  );
+                  return [];
+                }
+                const blocks = Object.entries(graph.edges.blocksById)
+                  .filter(([_, v]) => v === targetEntry)
+                  .map(([child]) => ({
+                    ...dict,
+                    [v]: { id: Number(child) },
+                  }));
+                if (blocks.length) programs.vars.add(v);
+                return blocks;
+              }
+            }
+          );
+          programs.assignments = new Set(newAssignments);
+        } else {
+          const matches: { [v: string]: number | string | { id: number } }[] =
+            rel === ":block/refs"
+              ? target.type !== "variable"
+                ? []
+                : Object.entries(graph.edges.referencesById).flatMap(
+                    ([source, refs]) =>
+                      refs.map((ref) => ({
+                        [v]: { id: Number(source) },
+                        [target.value.toLowerCase()]: { id: ref },
+                      }))
+                  )
+              : rel === ":block/page"
+              ? target.type !== "variable"
+                ? []
+                : Object.entries(graph.edges.blocksPageById).map((b, p) => ({
+                    [v]: { id: Number(b) },
+                    [target.value.toLowerCase()]: { id: p },
+                  }))
+              : rel === ":node/title"
+              ? target.type === "constant"
+                ? graph.edges.pageIdByTitle[target.value]
+                  ? [{ [v]: graph.edges.pageIdByTitle[target.value] }]
+                  : []
+                : target.type === "underscore"
+                ? Object.values(graph.edges.pageIdByTitle).map((id) => ({
+                    [v]: { id },
+                  }))
+                : Object.entries(graph.edges.pageIdByTitle).map(
+                    ([title, id]) => ({
+                      [v]: { id },
+                      [target.value.toLowerCase()]: title,
+                    })
+                  )
+              : rel === ":block/children"
+              ? target.type !== "variable"
+                ? []
+                : Object.entries(graph.edges.childrenById).flatMap(
+                    ([source, refs]) =>
+                      refs.map((ref) => ({
+                        [v]: { id: Number(source) },
+                        [target.value.toLowerCase()]: { id: ref },
+                      }))
+                  )
+              : rel === ":block/parents"
+              ? target.type !== "variable"
+                ? []
+                : Object.entries(graph.edges.ancestorsById).flatMap(
+                    ([source, refs]) =>
+                      Array.from(refs).map((ref) => ({
+                        [v]: { id: Number(source) },
+                        [target.value.toLowerCase()]: { id: ref },
+                      }))
+                  )
+              : rel === ":block/string"
+              ? target.type === "constant"
+                ? Object.entries(graph.edges.blocksById)
+                    .filter(([_, text]) => text !== target.value)
+                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                : target.type === "underscore"
+                ? Object.keys(graph.edges.blocksById).map((id) => ({
+                    [v]: { id: Number(id) },
+                  }))
+                : Object.entries(graph.edges.blocksById).map(([id, text]) => ({
+                    [v]: { id: Number(id) },
+                    [target.value.toLowerCase()]: text,
+                  }))
+              : [];
+          programs.assignments = new Set(
+            Array.from(programs.assignments).flatMap((dict) =>
+              matches.map((dic) => ({
+                ...dict,
+                ...dic,
+              }))
+            )
+          );
+          if (matches.length) {
+            programs.vars.add(v);
+            if (target.type === "variable") {
+              programs.vars.add(target.value.toLowerCase());
+            }
+          }
+        }
+      }
+
+      return programs;
+    },
+    {
+      assignments: new Set<Record<string, { id: number } | string | number>>(
+        []
+      ),
+      vars: new Set<string>([]),
+    }
+  );
+  return Array.from(assignments).map((res) =>
+    Object.fromEntries(
+      pull
+        .map(({ _var, field, label }) => {
+          const node = res[_var];
+          if (field === ":block/string" && typeof node === "object") {
+            return [label, graph.edges.blocksById[node.id]];
+          } else if (field === ":block/uid" && typeof node === "object") {
+            return [label, graph.edges.uidsById[node.id]];
+          }
+          return [];
+        })
+        .filter((k) => k.length === 2)
+    )
+  );
+};
+
+const fireQuery = ({ uuid, ...args }: { uuid: string } & QueryArgs) => {
+  postMessage({ method: `fireQuery_${uuid}`, results: query(args) });
+};
+
 onmessage = (e) => {
-  const { data } = e;
-  if (data.method === "discourse") {
-    discourse(data.tag);
-  } else if (data.method === "overview") {
+  const { data = {} } = e;
+  const { method, ...args } = data;
+  if (method === "discourse") {
+    discourse(args.tag);
+  } else if (method === "overview") {
     overview();
-  } else if (data.method === "init") {
-    init(data.blocks);
+  } else if (method === "init") {
+    init(args.blocks);
+  } else if (method === "query") {
+    fireQuery(args);
   }
 };
 
