@@ -467,63 +467,74 @@ runExtension("discourse-graph", async () => {
 
   type FireQuery = typeof window.roamjs.extension.queryBuilder.fireQuery;
   let fireQueryRef: FireQuery;
-  const toggleExperimentalMode = () => {
-    let experimentalOverlayMode = getExperimentalOverlayMode();
-    if (!experimentalOverlayMode) {
+  const toggleExperimentalMode = (experimentalOverlayMode: boolean) => {
+    if (experimentalOverlayMode) {
       initializeDataWorker(pageUid).then((worker) => {
-        fireQueryRef = window.roamjs.extension.queryBuilder.fireQuery;
-        window.roamjs.extension.queryBuilder.fireQuery = async (args) => {
-          // @ts-ignore temporary
-          const { getDatalogQueryComponents } =
-            window.roamjs.extension.queryBuilder;
-          const { where, definedSelections } = (
-            getDatalogQueryComponents as (args: Parameters<FireQuery>[0]) => {
-              where: DatalogClause[];
-              definedSelections: {
-                pull: string;
-                label: string;
-                key: string;
-              }[];
-            }
-          )(args);
-          const pull = definedSelections
-            .flatMap((sel) => {
-              const pullExec = /\(pull \?([^\s]+) \[([^\]]+)\]\)/.exec(
-                sel.pull
-              );
-              if (!pullExec || pullExec.length < 3) return [];
-              const [_, _var, fields] = pullExec;
-              return fields.split(/\s+/).map((field) => ({
-                label: sel.label,
-                field,
-                _var,
-              }));
-            })
-            .filter((s) => !!s);
-          return new Promise((resolve) => {
-            const uuid = v4();
-            const listenerKey = `fireQuery_${uuid}`;
-            listeners[listenerKey] = (response) => {
-              delete listeners[listenerKey];
-              resolve(
-                (response as { results: ReturnType<FireQuery> })?.results
-              );
-            };
-            worker.postMessage({
-              method: "fireQuery",
-              uuid,
-              where,
-              pull,
+        const swapFireQuery = () => {
+          fireQueryRef = window.roamjs.extension.queryBuilder.fireQuery;
+          window.roamjs.extension.queryBuilder.fireQuery = async (args) => {
+            // @ts-ignore temporary
+            const { getDatalogQueryComponents } =
+              window.roamjs.extension.queryBuilder;
+            const { where, definedSelections } = (
+              getDatalogQueryComponents as (args: Parameters<FireQuery>[0]) => {
+                where: DatalogClause[];
+                definedSelections: {
+                  pull: string;
+                  label: string;
+                  key: string;
+                }[];
+              }
+            )(args);
+            const pull = definedSelections
+              .flatMap((sel) => {
+                const pullExec = /\(pull \?([^\s]+) \[([^\]]+)\]\)/.exec(
+                  sel.pull
+                );
+                if (!pullExec || pullExec.length < 3) return [];
+                const [_, _var, fields] = pullExec;
+                return fields.split(/\s+/).map((field) => ({
+                  label: sel.label,
+                  field,
+                  _var,
+                }));
+              })
+              .filter((s) => !!s);
+            return new Promise((resolve) => {
+              const uuid = v4();
+              const listenerKey = `fireQuery_${uuid}`;
+              listeners[listenerKey] = (response) => {
+                delete listeners[listenerKey];
+                resolve(
+                  (response as { results: ReturnType<FireQuery> })?.results
+                );
+              };
+              worker.postMessage({
+                method: "fireQuery",
+                uuid,
+                where,
+                pull,
+              });
             });
-          });
+          };
         };
+        if (window.roamjs.extension.queryBuilder) {
+          swapFireQuery();
+        } else {
+          document.body.addEventListener(
+            "roamjs:discourse-graph:query-builder",
+            swapFireQuery,
+            { once: true }
+          );
+        }
       });
     } else {
-      window.roamjs.extension.queryBuilder.fireQuery = fireQueryRef;
+      if (fireQueryRef)
+        window.roamjs.extension.queryBuilder.fireQuery = fireQueryRef;
       shutdownDataWorker();
     }
-    return experimentalOverlayMode;
   };
+  toggleExperimentalMode(getExperimentalOverlayMode());
 
   document.addEventListener("keydown", (e) => {
     if (
@@ -533,7 +544,8 @@ runExtension("discourse-graph", async () => {
       e.metaKey &&
       (e.key === "M" || e.key === "KeyM")
     ) {
-      const oldVal = toggleExperimentalMode();
+      const oldVal = getExperimentalOverlayMode();
+      toggleExperimentalMode(!oldVal);
       if (!oldVal) {
         localStorageSet("experimental", "true");
       } else {
@@ -752,7 +764,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-05-18-17-15/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-19-17-53/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -764,7 +776,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-05-18-17-15/main.js",
+      src: "https://roamjs.com/query-builder/2022-05-19-17-53/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({

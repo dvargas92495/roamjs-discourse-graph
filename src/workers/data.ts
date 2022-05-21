@@ -90,12 +90,10 @@ const init = (
           createdBy?: number;
         }
       ][]
-    | string
+    | typeof graph
 ) => {
-  if (typeof blocks === "string") {
-    const { discourseRelations, config, edges } = JSON.parse(
-      blocks
-    ) as typeof graph;
+  if (!Array.isArray(blocks)) {
+    const { discourseRelations, config, edges } = blocks;
     graph.discourseRelations = discourseRelations;
     graph.config = config;
     graph.edges = edges;
@@ -751,6 +749,8 @@ const query = ({ where, pull }: QueryArgs) => {
           return programs;
         }
         const rel = relation.value.toLowerCase();
+        const targetString = target.value.replace(/^"/, "").replace(/"$/, "");
+        const targetVar = target.value.toLowerCase();
         if (programs.vars.has(v)) {
           const newAssignments = Array.from(programs.assignments).flatMap(
             (dict) => {
@@ -767,7 +767,6 @@ const query = ({ where, pull }: QueryArgs) => {
                   );
                   return [];
                 }
-                const targetVar = target.value.toLowerCase();
                 const targetEntry = dict[targetVar];
                 const refs = (
                   typeof targetEntry === "object"
@@ -786,7 +785,6 @@ const query = ({ where, pull }: QueryArgs) => {
                   );
                   return [];
                 }
-                const targetVar = target.value.toLowerCase();
                 const targetEntry = dict[targetVar];
                 if (graph.edges.pagesById[sourceId]) {
                   return [];
@@ -805,7 +803,7 @@ const query = ({ where, pull }: QueryArgs) => {
                 }
               } else if (rel === ":node/title") {
                 if (target.type === "constant") {
-                  if (graph.edges.pagesById[sourceId] === target.value) {
+                  if (graph.edges.pagesById[sourceId] === targetString) {
                     return [dict];
                   } else {
                     return [];
@@ -816,8 +814,7 @@ const query = ({ where, pull }: QueryArgs) => {
                   return [
                     {
                       ...dict,
-                      [target.value.toLowerCase()]:
-                        graph.edges.pagesById[sourceId],
+                      [targetVar]: graph.edges.pagesById[sourceId],
                     },
                   ];
                 }
@@ -828,7 +825,6 @@ const query = ({ where, pull }: QueryArgs) => {
                   );
                   return [];
                 }
-                const targetVar = target.value.toLowerCase();
                 const targetEntry = dict[targetVar];
                 const children = (
                   typeof targetEntry === "object"
@@ -847,7 +843,6 @@ const query = ({ where, pull }: QueryArgs) => {
                   );
                   return [];
                 }
-                const targetVar = target.value.toLowerCase();
                 const targetEntry = dict[targetVar];
                 const ancestors = (
                   typeof targetEntry === "object"
@@ -861,7 +856,7 @@ const query = ({ where, pull }: QueryArgs) => {
                 return ancestors;
               } else if (rel === ":block/string") {
                 if (target.type === "constant") {
-                  if (graph.edges.blocksById[sourceId] === target.value) {
+                  if (graph.edges.blocksById[sourceId] === targetString) {
                     return [dict];
                   } else {
                     return [];
@@ -872,8 +867,7 @@ const query = ({ where, pull }: QueryArgs) => {
                   return [
                     {
                       ...dict,
-                      [target.value.toLowerCase()]:
-                        graph.edges.blocksById[sourceId],
+                      [targetVar]: graph.edges.blocksById[sourceId],
                     },
                   ];
                 }
@@ -883,13 +877,9 @@ const query = ({ where, pull }: QueryArgs) => {
             }
           );
           programs.assignments = new Set(newAssignments);
-        } else if (
-          target.type === "variable" &&
-          programs.vars.has(target.value.toString())
-        ) {
+        } else if (target.type === "variable" && programs.vars.has(targetVar)) {
           const newAssignments = Array.from(programs.assignments).flatMap(
             (dict) => {
-              const targetVar = target.value.toLowerCase();
               const targetEntry = dict[targetVar];
               if (rel === ":block/refs") {
                 if (typeof targetEntry !== "object") {
@@ -1009,7 +999,7 @@ const query = ({ where, pull }: QueryArgs) => {
                     ([source, refs]) =>
                       refs.map((ref) => ({
                         [v]: { id: Number(source) },
-                        [target.value.toLowerCase()]: { id: ref },
+                        [targetVar]: { id: ref },
                       }))
                   )
               : rel === ":block/page"
@@ -1017,12 +1007,12 @@ const query = ({ where, pull }: QueryArgs) => {
                 ? []
                 : Object.entries(graph.edges.blocksPageById).map((b, p) => ({
                     [v]: { id: Number(b) },
-                    [target.value.toLowerCase()]: { id: p },
+                    [targetVar]: { id: p },
                   }))
               : rel === ":node/title"
               ? target.type === "constant"
-                ? graph.edges.pageIdByTitle[target.value]
-                  ? [{ [v]: graph.edges.pageIdByTitle[target.value] }]
+                ? graph.edges.pageIdByTitle[targetString]
+                  ? [{ [v]: graph.edges.pageIdByTitle[targetString] }]
                   : []
                 : target.type === "underscore"
                 ? Object.values(graph.edges.pageIdByTitle).map((id) => ({
@@ -1031,7 +1021,7 @@ const query = ({ where, pull }: QueryArgs) => {
                 : Object.entries(graph.edges.pageIdByTitle).map(
                     ([title, id]) => ({
                       [v]: { id },
-                      [target.value.toLowerCase()]: title,
+                      [targetVar]: title,
                     })
                   )
               : rel === ":block/children"
@@ -1041,7 +1031,7 @@ const query = ({ where, pull }: QueryArgs) => {
                     ([source, refs]) =>
                       refs.map((ref) => ({
                         [v]: { id: Number(source) },
-                        [target.value.toLowerCase()]: { id: ref },
+                        [targetVar]: { id: ref },
                       }))
                   )
               : rel === ":block/parents"
@@ -1051,13 +1041,13 @@ const query = ({ where, pull }: QueryArgs) => {
                     ([source, refs]) =>
                       Array.from(refs).map((ref) => ({
                         [v]: { id: Number(source) },
-                        [target.value.toLowerCase()]: { id: ref },
+                        [targetVar]: { id: ref },
                       }))
                   )
               : rel === ":block/string"
               ? target.type === "constant"
                 ? Object.entries(graph.edges.blocksById)
-                    .filter(([_, text]) => text !== target.value)
+                    .filter(([_, text]) => text !== targetString)
                     .map(([id]) => ({ [v]: { id: Number(id) } }))
                 : target.type === "underscore"
                 ? Object.keys(graph.edges.blocksById).map((id) => ({
@@ -1065,21 +1055,23 @@ const query = ({ where, pull }: QueryArgs) => {
                   }))
                 : Object.entries(graph.edges.blocksById).map(([id, text]) => ({
                     [v]: { id: Number(id) },
-                    [target.value.toLowerCase()]: text,
+                    [targetVar]: text,
                   }))
               : [];
           programs.assignments = new Set(
-            Array.from(programs.assignments).flatMap((dict) =>
-              matches.map((dic) => ({
-                ...dict,
-                ...dic,
-              }))
-            )
+            index === 0
+              ? matches
+              : Array.from(programs.assignments).flatMap((dict) =>
+                  matches.map((dic) => ({
+                    ...dict,
+                    ...dic,
+                  }))
+                )
           );
           if (matches.length) {
             programs.vars.add(v);
             if (target.type === "variable") {
-              programs.vars.add(target.value.toLowerCase());
+              programs.vars.add(targetVar);
             }
           }
         }
@@ -1124,7 +1116,7 @@ onmessage = (e) => {
     overview();
   } else if (method === "init") {
     init(args.blocks);
-  } else if (method === "query") {
+  } else if (method === "fireQuery") {
     fireQuery(args);
   }
 };
