@@ -177,6 +177,7 @@ const getExportTypes = ({
   const nodeLabelByType = Object.fromEntries(
     allNodes.map((a) => [a.type, a.text])
   );
+  nodeLabelByType["*"] = "Any";
   const getPageData = (): (Result & { type: string })[] => {
     const allPages = window.roamAlphaAPI
       .q("[:find (pull ?e [:block/uid :node/title]) :where [?e :node/title _]]")
@@ -211,10 +212,8 @@ const getExportTypes = ({
       (rels || getRelations())
         .filter(
           (s) =>
-            s.triples.some((t) => t[2] === "source" || t[2] === s.source) &&
-            s.triples.some(
-              (t) => t[2] === "destination" || t[2] === s.destination
-            )
+            s.triples.some((t) => t[2] === "source") &&
+            s.triples.some((t) => t[2] === "destination")
         )
         .flatMap((s) => {
           return window.roamjs.extension.queryBuilder

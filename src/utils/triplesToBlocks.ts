@@ -27,10 +27,9 @@ const triplesToBlocks =
         target: "",
       };
       return /is a/i.test(rel.relation)
-        ? (nodeFormatsByLabel[rel.target] || "").replace(
-            "{content}",
-            `This is a ${rel.target} page.`
-          )
+        ? (nodeFormatsByLabel[rel.target] || "")
+            .replace("{content}", `This is a ${rel.target} page.`)
+            .replace(".+", "This is a page of any node type")
         : /has title/i.test(rel.relation)
         ? rel.target
         : /with text/i.test(rel.relation)

@@ -48,6 +48,7 @@ const registerDatalogTranslators = () => {
       ...discourseNodes.map((n) => [n.type, n.format]),
       ...discourseNodes.map((n) => [n.text, n.format]),
     ]);
+    const freeVar = target === "*" ? `any-Title` : `${target}-Title`;
     return [
       {
         type: "data-pattern",
@@ -59,14 +60,28 @@ const registerDatalogTranslators = () => {
           { type: "constant", value: ":node/title" },
           {
             type: "variable",
-            value: `${target}-Title`,
+            value: freeVar,
           },
         ],
       },
-      ...nodeFormatToDatalog({
-        freeVar: `${target}-Title`,
-        nodeFormat: formatByType[target],
-      }),
+      ...(target === "*"
+        ? ([
+            {
+              type: "or-join-clause" as const,
+              variables: [{ type: "variable" as const, value: freeVar }],
+              clauses: discourseNodes.map((dn) => ({
+                type: "and-clause" as const,
+                clauses: nodeFormatToDatalog({
+                  freeVar,
+                  nodeFormat: dn.format,
+                }),
+              })),
+            },
+          ])
+        : nodeFormatToDatalog({
+            freeVar,
+            nodeFormat: formatByType[target],
+          })),
     ];
   };
   const discourseNodes = getNodes();
@@ -156,9 +171,11 @@ const registerDatalogTranslators = () => {
   ) => {
     const sourceType = nodeLabelByType[relation.source];
     const targetType = nodeLabelByType[relation.destination];
-    const sourceMatches = sourceType === condition.source;
+    const sourceMatches =
+      sourceType === condition.source || relation.source === "*";
     const targetMatches =
       targetType === condition.target ||
+      relation.destination === "*" ||
       matchNode({
         format: nodeFormatByType[relation.destination],
         title: condition.target,

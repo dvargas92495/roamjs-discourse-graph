@@ -243,10 +243,12 @@ const RelationEditPanel = ({
   );
   const initialSource = useMemo(
     () =>
-      getPageTitleByPageUid(initialSourceUid).replace(
-        /^discourse-graph\/nodes\//,
-        ""
-      ),
+      initialSourceUid === "*"
+        ? "Any"
+        : getPageTitleByPageUid(initialSourceUid).replace(
+            /^discourse-graph\/nodes\//,
+            ""
+          ),
     [initialSourceUid]
   );
   const [source, setSource] = useState(initialSourceUid);
@@ -260,10 +262,12 @@ const RelationEditPanel = ({
   );
   const initialDestination = useMemo(
     () =>
-      getPageTitleByPageUid(initialDestinationUid).replace(
-        /^discourse-graph\/nodes\//,
-        ""
-      ),
+      initialDestinationUid === "*"
+        ? "Any"
+        : getPageTitleByPageUid(initialDestinationUid).replace(
+            /^discourse-graph\/nodes\//,
+            ""
+          ),
     [initialDestinationUid]
   );
   const [destination, setDestination] = useState(initialDestinationUid);
@@ -1014,22 +1018,28 @@ export const RelationConfigPanel: Panel = ({ uid, parentUid }) => {
         : [],
     [uid]
   );
-  const nodes = useMemo(
-    () =>
-      Object.fromEntries(
-        getNodes().map((n) => [n.type, { label: n.text, format: n.format }])
-      ),
-    []
-  );
+  const nodes = useMemo(() => {
+    const nodes = Object.fromEntries(
+      getNodes().map((n) => [n.type, { label: n.text, format: n.format }])
+    );
+    // TypeError: Iterator value * is not an entry object
+    nodes["*"] = { label: "Any", format: ".+" };
+    return nodes;
+  }, []);
   const previewUid = useSubTree({ parentUid, key: "preview" }).uid;
-  const [translatorKeys, setTranslatorKeys] = useState(() => window.roamjs.extension.queryBuilder?.getConditionLabels?.() ||[]);
+  const [translatorKeys, setTranslatorKeys] = useState(
+    () => window.roamjs.extension.queryBuilder?.getConditionLabels?.() || []
+  );
   useEffect(() => {
     document.body.addEventListener(
       "roamjs:discourse-graph:query-builder",
-      () => setTranslatorKeys(window.roamjs.extension.queryBuilder.getConditionLabels()),
+      () =>
+        setTranslatorKeys(
+          window.roamjs.extension.queryBuilder.getConditionLabels()
+        ),
       { once: true }
     );
-  }, [])
+  }, []);
   const [relations, setRelations] = useState(refreshRelations);
   const [editingRelation, setEditingRelation] = useState("");
   const [newRelation, setNewRelation] = useState("");

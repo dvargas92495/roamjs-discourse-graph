@@ -792,22 +792,24 @@ const CytoscapePlayground = ({
                   const found = relationData.find(
                     (r) =>
                       (r.label === e.relation &&
-                        [TEXT_TYPE, r.source].includes(e.source.type) &&
-                        [TEXT_TYPE, r.destination].includes(e.target.type)) ||
+                        ([TEXT_TYPE, r.source].includes(e.source.type) ||
+                          r.source === "*") &&
+                        ([TEXT_TYPE, r.destination].includes(e.target.type) ||
+                          r.destination === "*")) ||
                       (r.complement === e.relation &&
-                        [TEXT_TYPE, r.source].includes(e.target.type) &&
-                        [TEXT_TYPE, r.destination].includes(e.source.type))
+                        ([TEXT_TYPE, r.source].includes(e.target.type) ||
+                          r.source === "*") &&
+                        ([TEXT_TYPE, r.destination].includes(e.source.type) ||
+                          r.destination === "*"))
                   );
                   if (!found) return [];
-                  const { triples, label, source, destination } = found;
+                  const { triples, label } = found;
                   const isOriginal = label === e.relation;
                   const newTriples = triples.map((t) => {
                     if (/is a/i.test(t[1])) {
                       const targetNode =
-                        ((t[2] === "source" || t[2] === source) &&
-                          isOriginal) ||
-                        ((t[2] === "destination" || t[2] === destination) &&
-                          !isOriginal)
+                        (t[2] === "source" && isOriginal) ||
+                        (t[2] === "destination" && !isOriginal)
                           ? e.source
                           : e.target;
                       return [

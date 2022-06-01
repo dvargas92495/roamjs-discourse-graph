@@ -519,9 +519,10 @@ export const getDiscourseContextResults = async (
   const nodeTextByType = Object.fromEntries(
     nodes.map(({ type, text }) => [type, text])
   );
+  nodeTextByType["*"] = "Any";
   const rawResults = await Promise.all(
     relations
-      .filter((r) => r.source === nodeType)
+      .filter((r) => r.source === nodeType || r.source === "*")
       .map((r) => {
         const cacheKey = `${title}~${r.label}~${r.destination}`;
         const conditionUid = window.roamAlphaAPI.util.generateUID();
@@ -558,7 +559,7 @@ export const getDiscourseContextResults = async (
       })
       .concat(
         relations
-          .filter((r) => r.destination === nodeType)
+          .filter((r) => r.destination === nodeType || r.destination === "*")
           .map((r) => {
             const cacheKey = `${title}~${r.complement}~${r.source}`;
             const conditionUid = window.roamAlphaAPI.util.generateUID();
