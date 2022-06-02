@@ -9,6 +9,7 @@ import setInputSetting from "roamjs-components/util/setInputSetting";
 import getSubTree from "roamjs-components/util/getSubTree";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getAuthorizationHeader from "roamjs-components/util/getAuthorizationHeader";
+import getGraph from "roamjs-components/util/getGraph";
 
 const dataWorkerUrl = (document.currentScript as HTMLScriptElement).src.replace(
   /\/main\.js$/,
@@ -18,6 +19,7 @@ const dataWorker: { current: Worker; init: boolean } = {
   current: undefined,
   init: false,
 };
+
 export const listeners: { [name: string]: (a: unknown) => void } = {};
 const loadGraph = (configUid: string, update = false) =>
   new Promise<void>((resolve) => {
@@ -147,6 +149,7 @@ const loadGraph = (configUid: string, update = false) =>
         dataWorker.current.postMessage({
           method: "init",
           blocks,
+          graph: getGraph(),
         });
       })
       .catch((e) => {

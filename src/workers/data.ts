@@ -4,6 +4,7 @@
 
 import type { DatalogClause } from "roamjs-components/types/native";
 import type { Result } from "roamjs-components/types/query-builder";
+import { unpack } from "msgpackr/unpack";
 
 const graph: {
   config: {
@@ -73,6 +74,55 @@ const graph: {
   },
 };
 
+const accessBlocksDirectly = (graph: string) => {
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(`v10_SLASH_dbs_SLASH_${graph}`);
+    request.onerror = (e) => {
+      reject((e.target as IDBRequest).error);
+    };
+    request.onsuccess = (event) => {
+      resolve((event.target as IDBRequest<IDBDatabase>).result);
+    };
+  })
+    .then(
+      (db) =>
+        new Promise<[{ db_msgpack_array: Uint8Array }]>((resolve, reject) => {
+          const request = db
+            .transaction("snapshot")
+            .objectStore("snapshot")
+            .getAll();
+          request.onerror = (e) => {
+            reject((e.target as IDBRequest).error);
+          };
+          request.onsuccess = (event) => {
+            resolve(
+              (event.target as IDBRequest<[{ db_msgpack_array: Uint8Array }]>)
+                .result
+            );
+          };
+        })
+    )
+    .then((result) => {
+      // const serialized = new TextDecoder().decode(result[0].db_msgpack_array);
+      // get blocks from snapshot
+      const serialized = unpack(result[0].db_msgpack_array) as {
+        eavt: [number, number, unknown][];
+        attrs: string[];
+      };
+      const objs = {} as Record<number, Record<string, unknown>>;
+      serialized.eavt.forEach((eavt) => {
+        const [e, a, v] = eavt;
+        const attr = serialized.attrs[a];
+        if (objs[e]) {
+          objs[e][attr] = v;
+        } else {
+          objs[e] = { [attr]: v };
+        }
+      });
+      console.log(objs);
+    });
+};
+
 const init = (
   blocks:
     | [
@@ -90,8 +140,10 @@ const init = (
           createdBy?: number;
         }
       ][]
-    | typeof graph
+    | typeof graph,
+  _graph: string
 ) => {
+  accessBlocksDirectly(_graph);
   if (!Array.isArray(blocks)) {
     const { discourseRelations, config, edges } = blocks;
     graph.discourseRelations = discourseRelations;
@@ -1012,7 +1064,7 @@ const query = ({ where, pull }: QueryArgs) => {
               : rel === ":node/title"
               ? target.type === "constant"
                 ? graph.edges.pageIdByTitle[targetString]
-                  ? [{ [v]: graph.edges.pageIdByTitle[targetString] }]
+                  ? [{ [v]: { id: graph.edges.pageIdByTitle[targetString] } }]
                   : []
                 : target.type === "underscore"
                 ? Object.values(graph.edges.pageIdByTitle).map((id) => ({
@@ -1098,7 +1150,7 @@ const query = ({ where, pull }: QueryArgs) => {
           }
           return [];
         })
-        .filter((k) => k.length === 2)
+        .filter((k) => k.length === 2 && typeof k[1] !== "undefined")
     )
   );
 };
@@ -1115,7 +1167,7 @@ onmessage = (e) => {
   } else if (method === "overview") {
     overview();
   } else if (method === "init") {
-    init(args.blocks);
+    init(args.blocks, args.graph);
   } else if (method === "fireQuery") {
     fireQuery(args);
   }

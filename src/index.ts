@@ -494,7 +494,7 @@ runExtension("discourse-graph", async () => {
                 if (!pullExec || pullExec.length < 3) return [];
                 const [_, _var, fields] = pullExec;
                 return fields.split(/\s+/).map((field) => ({
-                  label: sel.label,
+                  label: field.endsWith("uid") ? `${sel.label}-uid` : sel.label,
                   field,
                   _var,
                 }));
