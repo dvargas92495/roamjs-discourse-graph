@@ -28,49 +28,34 @@ const cache: {
 } = {};
 const overlayQueue: (() => Promise<void>)[] = [];
 const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
-  if (localStorageGet("experimental") === "true") {
-    return new Promise<DiscourseData>((resolve) => {
-      listeners[`discourse-${tag}`] = (args: DiscourseData) => {
-        resolve(args);
-        delete listeners[`discourse-${tag}`];
-      };
-      getDataWorker().then((worker) =>
-        worker.postMessage({
-          method: `discourse`,
-          tag,
-        })
+  if (cache[tag]) return Promise.resolve(cache[tag]);
+  const nodes = getNodes();
+  const relations = getRelations();
+  return new Promise((resolve) => {
+    const triggerNow = overlayQueue.length === 0;
+    overlayQueue.push(() => {
+      const start = new Date();
+      return getDiscourseContextResults(tag, nodes, relations, true).then(
+        (results) => {
+          const output = (cache[tag] = {
+            results,
+            refs: window.roamAlphaAPI.q(
+              `[:find ?a :where [?b :node/title "${normalizePageTitle(
+                tag
+              )}"] [?a :block/refs ?b]]`
+            ).length,
+          });
+          const runTime = differenceInMilliseconds(new Date(), start);
+          setTimeout(() => {
+            overlayQueue.splice(0, 1);
+            overlayQueue[0]?.();
+          }, runTime * 4);
+          resolve(output);
+        }
       );
     });
-  } else {
-    if (cache[tag]) return Promise.resolve(cache[tag]);
-    const nodes = getNodes();
-    const relations = getRelations();
-    return new Promise((resolve) => {
-      const triggerNow = overlayQueue.length === 0;
-      overlayQueue.push(() => {
-        const start = new Date();
-        return getDiscourseContextResults(tag, nodes, relations, true).then(
-          (results) => {
-            const output = (cache[tag] = {
-              results,
-              refs: window.roamAlphaAPI.q(
-                `[:find ?a :where [?b :node/title "${normalizePageTitle(
-                  tag
-                )}"] [?a :block/refs ?b]]`
-              ).length,
-            });
-            const runTime = differenceInMilliseconds(new Date(), start);
-            setTimeout(() => {
-              overlayQueue.splice(0, 1);
-              overlayQueue[0]?.();
-            }, runTime * 4);
-            resolve(output);
-          }
-        );
-      });
-      if (triggerNow) overlayQueue[0]();
-    });
-  }
+    if (triggerNow) overlayQueue[0]();
+  });
 };
 
 const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {

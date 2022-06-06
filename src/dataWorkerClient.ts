@@ -64,7 +64,7 @@ const loadGraph = (configUid: string, update = false) =>
             closeLoadingToast.current?.();
             renderToast({
               id: "storage-success",
-              content: `Successfully stored discourse graph cache!`,
+              content: `Successfully stored discourse graph data!`,
               intent: Intent.SUCCESS,
             });
           })
@@ -85,38 +85,6 @@ const loadGraph = (configUid: string, update = false) =>
       }
       resolve();
     };
-    const loadCache = () =>
-      new Promise((innerResolve) => {
-        loadingRender({
-          operation: () => {
-            const blocks = window.roamAlphaAPI.q(`[:find 
-          (pull ?b 
-            [
-              :db/id 
-              :node/title 
-              :block/string 
-              :block/page 
-              :block/refs 
-              :block/uid 
-              :block/children 
-              [:create/time :as "createdTime"] 
-              [:edit/time :as "editedTime"]
-              [:user/display-name :as "displayName"]
-              [:create/user :as "createdBy"]
-            ]
-          ) 
-          :where ${
-            update
-              ? `[?b :edit/time ?t] [(< ${localStorage.getItem(
-                  "graph-timestamp"
-                )} ?t)]`
-              : "[?b :block/uid]"
-          }]`);
-            innerResolve(blocks);
-          },
-          content: "Please wait as we load your graph's discourse data...",
-        });
-      });
     return (
       cachePathNodes.length
         ? axios
@@ -131,25 +99,24 @@ const loadGraph = (configUid: string, update = false) =>
               if (e.response?.status === 404) {
                 return Promise.all(
                   cachePathNodes.map((n) => deleteBlock(n.uid))
-                ).then(loadCache);
+                ).then(getGraph);
               } else {
                 throw e;
               }
             })
-        : loadCache()
+        : Promise.resolve(getGraph())
     )
-      .then((blocks) => {
+      .then((graph) => {
         closeLoadingToast.current = renderToast({
           id: "dataworker-loading",
-          content: `Graph is continuing to build in the background...`,
+          content: `Discourse graph is building in the background...`,
           intent: Intent.PRIMARY,
           position: Position.BOTTOM_RIGHT,
           timeout: 0,
         });
         dataWorker.current.postMessage({
           method: "init",
-          blocks,
-          graph: getGraph(),
+          graph,
         });
       })
       .catch((e) => {
