@@ -492,9 +492,10 @@ const CytoscapePlayground = ({
           } = Object.fromEntries(
             children.map(({ text, children = [] }) => [text, children[0]?.text])
           );
+          console.log(text);
           return {
             data: {
-              label: text,
+              label: text || "Click to edit text",
               color,
               id: uid,
               ...data,
@@ -515,9 +516,13 @@ const CytoscapePlayground = ({
             "text-wrap": "wrap",
             "text-halign": "center",
             "text-valign": "center",
-            "text-max-width": "160",
-            width: 160,
-            height: 160,
+            "text-max-width": "320",
+            width: "label",
+            "padding-left": "16",
+            "padding-right": "16",
+            "padding-bottom": "8",
+            "padding-top": "8",
+            height: "label",
           },
         },
         {
@@ -549,7 +554,7 @@ const CytoscapePlayground = ({
       if (!editingRef.current && !sourceRef.current) {
         const nodeType = nodeTypeByColor[nodeColorRef.current];
         createNode(
-          nodeFormatTextByType[nodeType],
+          nodeFormatTextByType[nodeType] || "Click to edit text",
           e.position,
           nodeColorRef.current
         );
@@ -955,26 +960,6 @@ const CytoscapePlayground = ({
             if (e.key === "Enter") {
               clearEditingRef();
               shadowInputRef.current.blur();
-            } else if (e.key === "ArrowUp") {
-              const val = Number(
-                editingRef.current.style("text-max-width").replace(/px$/, "")
-              );
-              editingRef.current.style("height", val * 1.1);
-              editingRef.current.style("width", val * 1.1);
-              editingRef.current.style(
-                "text-max-width",
-                (val * 1.1).toString()
-              );
-            } else if (e.key === "ArrowDown") {
-              const val = Number(
-                editingRef.current.style("text-max-width").replace(/px$/, "")
-              );
-              editingRef.current.style("height", val / 1.1);
-              editingRef.current.style("width", val / 1.1);
-              editingRef.current.style(
-                "text-max-width",
-                (val / 1.1).toString()
-              );
             }
           }}
           onChange={(e) => {
