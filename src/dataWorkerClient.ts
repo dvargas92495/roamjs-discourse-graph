@@ -174,7 +174,7 @@ export const shutdownDataWorker = () => {
   window.roamAlphaAPI.ui.commandPalette.removeCommand({
     label: "Update Discourse Data",
   });
-  dataWorker.current.terminate();
+  dataWorker.current?.terminate();
 };
 
 export const getDataWorker = (): Promise<Worker> =>

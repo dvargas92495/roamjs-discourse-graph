@@ -462,12 +462,9 @@ runExtension("discourse-graph", async () => {
     },
   });
 
-  const getExperimentalOverlayMode = () =>
-    localStorageGet("experimental") === "true";
-
   type FireQuery = typeof window.roamjs.extension.queryBuilder.fireQuery;
   let fireQueryRef: FireQuery;
-  const toggleExperimentalMode = (experimentalOverlayMode: boolean) => {
+  const toggleExperimentalModeFeatures = (experimentalOverlayMode: boolean) => {
     if (experimentalOverlayMode) {
       initializeDataWorker(pageUid).then((worker) => {
         const swapFireQuery = () => {
@@ -528,37 +525,47 @@ runExtension("discourse-graph", async () => {
           );
         }
       });
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Disable RoamJS Experimental Mode",
+        callback: () => {
+          localStorageRemove("experimental");
+          toggleExperimentalModeFeatures(false);
+          renderToast({
+            id: "experimental",
+            content: `Disabled RoamJS Experimental Mode`,
+          });
+        },
+      });
+      window.roamAlphaAPI.ui.commandPalette.removeCommand({
+        label: "Enable RoamJS Experimental Mode",
+      });
     } else {
       if (fireQueryRef)
         window.roamjs.extension.queryBuilder.fireQuery = fireQueryRef;
       shutdownDataWorker();
+      window.roamAlphaAPI.ui.commandPalette.addCommand({
+        label: "Enable RoamJS Experimental Mode",
+        callback: () => {
+          renderAlert({
+            content:
+              "WARNING! Experimental features are not meant for public use for most users. Enabling has a higher likelihood of unintended consequences affecting your graph.\n\nAre you sure you want to enable the experimental features of RoamJS extensions?",
+            onConfirm: () => {
+              localStorageSet("experimental", "true");
+              toggleExperimentalModeFeatures(true);
+              renderToast({
+                id: "experimental",
+                content: `Enabled RoamJS Experimental Mode`,
+              });
+            },
+          });
+        },
+      });
+      window.roamAlphaAPI.ui.commandPalette.removeCommand({
+        label: "Disable RoamJS Experimental Mode",
+      });
     }
   };
-  toggleExperimentalMode(getExperimentalOverlayMode());
-
-  document.addEventListener("keydown", (e) => {
-    if (
-      e.shiftKey &&
-      e.altKey &&
-      e.ctrlKey &&
-      e.metaKey &&
-      (e.key === "M" || e.key === "KeyM")
-    ) {
-      const oldVal = getExperimentalOverlayMode();
-      toggleExperimentalMode(!oldVal);
-      if (!oldVal) {
-        localStorageSet("experimental", "true");
-      } else {
-        localStorageRemove("experimental");
-      }
-      renderToast({
-        id: "experimental",
-        content: `${oldVal ? "Dis" : "En"}abled Experimental Overlay Mode`,
-      });
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  });
+  toggleExperimentalModeFeatures(localStorageGet("experimental") === "true");
 
   const configTree = getBasicTreeByParentUid(pageUid);
   const grammarTree = getSubTree({ tree: configTree, key: "grammar" }).children;
