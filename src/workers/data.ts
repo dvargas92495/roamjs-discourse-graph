@@ -33,15 +33,19 @@ const graph: {
     pageIdByTitle: Record<string, number>;
     blocksPageById: Record<number, number>;
     blocksById: Record<number, string>;
+    headingsById: Record<number, number>;
     childrenById: Record<number, number[]>;
     parentById: Record<number, number>;
     ancestorsById: Record<number, number[]>;
     descendantsById: Record<number, number[]>;
-    timeById: Record<number, { createdTime: number; editedTime: number }>;
     referencesById: Record<number, number[]>;
     linkedReferencesById: Record<number, number[]>;
     createUserById: Record<number, number>;
+    editUserById: Record<number, number>;
+    createTimeById: Record<number, number>;
+    editTimeById: Record<number, number>;
     userDisplayById: Record<number, string>;
+    userIdByDisplay: Record<string, number>;
   };
 } = {
   config: {
@@ -55,15 +59,19 @@ const graph: {
     pageIdByTitle: {},
     blocksPageById: {},
     blocksById: {},
+    headingsById: {},
     childrenById: {},
     parentById: {},
     ancestorsById: {},
     descendantsById: {},
-    timeById: {},
     referencesById: {},
     linkedReferencesById: {},
     createUserById: {},
+    editUserById: {},
+    createTimeById: {},
+    editTimeById: {},
     userDisplayById: {},
+    userIdByDisplay: {},
   },
 };
 
@@ -141,6 +149,7 @@ const accessBlocksDirectly = (graph: string) => {
         displayName: obj[":user/display-name"] as string,
         createdBy: obj[":create/user"] as number,
         editedBy: obj[":edit/user"] as number,
+        heading: obj[":block/heading"] as number,
       }));
     });
 };
@@ -163,16 +172,21 @@ const init = (_graph: string | typeof graph) => {
         string,
         children,
         uid,
+        heading,
         createdTime,
         editedTime,
         displayName,
         createdBy,
+        editedBy,
       }) => {
         graph.edges.uidsById[id] = uid;
         graph.edges.createUserById[id] = createdBy;
-        graph.edges.timeById[id] = { createdTime, editedTime };
+        graph.edges.editUserById[id] = editedBy;
+        graph.edges.createTimeById[id] = createdTime;
+        graph.edges.editTimeById[id] = editedTime;
         if (!title && !string) {
           graph.edges.userDisplayById[id] = displayName;
+          graph.edges.userIdByDisplay[displayName] = id;
         } else if (!page && title) {
           graph.edges.pagesById[id] = title;
           graph.edges.pageIdByTitle[title] = id;
@@ -181,6 +195,7 @@ const init = (_graph: string | typeof graph) => {
           }
         } else if (page) {
           graph.edges.blocksById[id] = string;
+          graph.edges.headingsById[id] = heading || 0;
           graph.edges.blocksPageById[id] = page;
         }
         if (refs) {
@@ -329,48 +344,6 @@ const matchNode = ({
   );
 };
 
-const getDiscourseContextResults = (title: string) => {
-  const rawResults:
-    | undefined
-    | { label: string; target: string; results: { id: number }[] }[] =
-    undefined; // graph.discourseRelations[graph.edges.pageIdByTitle[title]];
-  if (!rawResults) return [];
-  const nodeTextByType = Object.fromEntries(
-    graph.config.nodes.map(({ type, text }) => [type, text])
-  );
-  const groupedResults = Object.fromEntries(
-    rawResults.map((r) => [
-      r.label,
-      {} as Record<string, Partial<Result & { target: string }>>,
-    ])
-  );
-  rawResults.forEach((r) =>
-    r.results.forEach((tag) => {
-      const uid = graph.edges.uidsById[tag.id];
-      groupedResults[r.label][uid] = {
-        uid,
-        ...graph.edges.timeById[tag.id],
-        text: graph.edges.pagesById[tag.id],
-        target: nodeTextByType[r.target],
-      };
-    })
-  );
-  return Object.entries(groupedResults).map(([label, results]) => ({
-    label,
-    results,
-  }));
-};
-
-const discourse = (tag: string) => {
-  postMessage({
-    method: `discourse-${tag}`,
-    refs:
-      graph.edges.linkedReferencesById[graph.edges.pageIdByTitle[tag]]
-        ?.length || 0,
-    results: getDiscourseContextResults(tag),
-  });
-};
-
 const overview = () => {
   const edges: unknown[] = [];
   /*Object.entries(graph.discourseRelations).flatMap(
@@ -416,7 +389,10 @@ export type QueryArgs = {
   }[];
 };
 
-type Assignment = Record<string, { id: number } | string | number>;
+type NodeAssignment = { id: number };
+type Assignment = Record<string, NodeAssignment | string | number | RegExp>;
+const isNode = (v: Assignment[string]): v is NodeAssignment =>
+  typeof v === "object" && !(v instanceof RegExp);
 
 const getAssignments = (
   where: (DatalogClause | DatalogAndClause)[],
@@ -456,7 +432,7 @@ const getAssignments = (
           const newAssignments = Array.from(programs.assignments).flatMap(
             (dict) => {
               const sourceEntry = dict[v];
-              if (typeof sourceEntry !== "object") {
+              if (!isNode(sourceEntry)) {
                 console.warn("Expected the source variable to map to a node");
                 return [];
               }
@@ -470,7 +446,7 @@ const getAssignments = (
                 }
                 const targetEntry = dict[targetVar];
                 const refs = (
-                  typeof targetEntry === "object"
+                  isNode(targetEntry)
                     ? [targetEntry.id]
                     : graph.edges.referencesById[sourceId] || []
                 ).map((ref) => ({
@@ -489,7 +465,7 @@ const getAssignments = (
                 const targetEntry = dict[targetVar];
                 if (graph.edges.pagesById[sourceId]) {
                   return [];
-                } else if (typeof targetEntry === "object") {
+                } else if (isNode(targetEntry)) {
                   return targetEntry.id === graph.edges.blocksPageById[sourceId]
                     ? [dict]
                     : [];
@@ -528,7 +504,7 @@ const getAssignments = (
                 }
                 const targetEntry = dict[targetVar];
                 const children = (
-                  typeof targetEntry === "object"
+                  isNode(targetEntry)
                     ? [targetEntry.id]
                     : graph.edges.childrenById[sourceId] || []
                 ).map((child) => ({
@@ -546,7 +522,7 @@ const getAssignments = (
                 }
                 const targetEntry = dict[targetVar];
                 const ancestors = (
-                  typeof targetEntry === "object"
+                  isNode(targetEntry)
                     ? [targetEntry.id]
                     : Array.from(graph.edges.ancestorsById[sourceId] || [])
                 ).map((child) => ({
@@ -572,7 +548,123 @@ const getAssignments = (
                     },
                   ];
                 }
+              } else if (rel === ":block/heading") {
+                if (target.type === "constant") {
+                  if (
+                    graph.edges.headingsById[sourceId] === Number(targetString)
+                  ) {
+                    return [dict];
+                  } else {
+                    return [];
+                  }
+                } else if (target.type === "underscore") {
+                  return [dict];
+                } else {
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: graph.edges.headingsById[sourceId],
+                    },
+                  ];
+                }
+              } else if (rel === ":create/user") {
+                if (target.type !== "variable") {
+                  console.warn(
+                    "Expected target for :create/user to be a variable"
+                  );
+                  return [];
+                }
+                const targetEntry = dict[targetVar];
+                const userId = graph.edges.createUserById[sourceId];
+                if (isNode(targetEntry)) {
+                  return targetEntry.id === userId ? [dict] : [];
+                } else {
+                  programs.vars.add(targetVar);
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: { id: userId },
+                    },
+                  ];
+                }
+              } else if (rel === ":edit/user") {
+                if (target.type !== "variable") {
+                  console.warn(
+                    "Expected target for :edit/user to be a variable"
+                  );
+                  return [];
+                }
+                const targetEntry = dict[targetVar];
+                const userId = graph.edges.editUserById[sourceId];
+                if (isNode(targetEntry)) {
+                  return targetEntry.id === userId ? [dict] : [];
+                } else {
+                  programs.vars.add(targetVar);
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: { id: userId },
+                    },
+                  ];
+                }
+              } else if (rel === ":create/time") {
+                if (target.type === "constant") {
+                  if (
+                    graph.edges.createTimeById[sourceId] ===
+                    Number(targetString)
+                  ) {
+                    return [dict];
+                  } else {
+                    return [];
+                  }
+                } else if (target.type === "underscore") {
+                  return [dict];
+                } else {
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: graph.edges.createTimeById[sourceId],
+                    },
+                  ];
+                }
+              } else if (rel === ":edit/time") {
+                if (target.type === "constant") {
+                  if (
+                    graph.edges.editTimeById[sourceId] === Number(targetString)
+                  ) {
+                    return [dict];
+                  } else {
+                    return [];
+                  }
+                } else if (target.type === "underscore") {
+                  return [dict];
+                } else {
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: graph.edges.editTimeById[sourceId],
+                    },
+                  ];
+                }
+              } else if (rel === ":user/display-name") {
+                if (target.type === "constant") {
+                  if (graph.edges.userDisplayById[sourceId] === targetString) {
+                    return [dict];
+                  } else {
+                    return [];
+                  }
+                } else if (target.type === "underscore") {
+                  return [dict];
+                } else {
+                  return [
+                    {
+                      ...dict,
+                      [targetVar]: graph.edges.userDisplayById[sourceId],
+                    },
+                  ];
+                }
               } else {
+                console.warn(`Unknown rel: ${rel}`);
                 return [];
               }
             }
@@ -583,7 +675,7 @@ const getAssignments = (
             (dict) => {
               const targetEntry = dict[targetVar];
               if (rel === ":block/refs") {
-                if (typeof targetEntry !== "object") {
+                if (!isNode(targetEntry)) {
                   console.warn(
                     "Expected the target variable to map to a node in :block/refs"
                   );
@@ -599,7 +691,7 @@ const getAssignments = (
                 if (refs.length) programs.vars.add(v);
                 return refs;
               } else if (rel === ":block/page") {
-                if (typeof targetEntry !== "object") {
+                if (!isNode(targetEntry)) {
                   console.warn(
                     "Expected the target variable to map to a node in :block/page"
                   );
@@ -637,7 +729,7 @@ const getAssignments = (
                 }
                 return [];
               } else if (rel === ":block/children") {
-                if (typeof targetEntry !== "object") {
+                if (!isNode(targetEntry)) {
                   console.warn(
                     "Expected the target variable to map to a node in :block/children"
                   );
@@ -657,7 +749,7 @@ const getAssignments = (
                   return [];
                 }
               } else if (rel === ":block/parents") {
-                if (typeof targetEntry !== "object") {
+                if (!isNode(targetEntry)) {
                   console.warn(
                     "Expected the target variable to map to a node in :block/parents"
                   );
@@ -687,6 +779,113 @@ const getAssignments = (
                   }));
                 if (blocks.length) programs.vars.add(v);
                 return blocks;
+              } else if (rel === ":block/heading") {
+                if (typeof targetEntry !== "number") {
+                  console.warn(
+                    "Expected the target variable to map to a number in :block/heading"
+                  );
+                  return [];
+                }
+                const blocks = Object.entries(graph.edges.headingsById)
+                  .filter(([_, v]) => v === targetEntry)
+                  .map(([child]) => ({
+                    ...dict,
+                    [v]: { id: Number(child) },
+                  }));
+                if (blocks.length) programs.vars.add(v);
+                return blocks;
+              } else if (rel === ":create/user") {
+                if (!isNode(targetEntry)) {
+                  console.warn(
+                    "Expected the target variable to map to a node in :create/user"
+                  );
+                  return [];
+                }
+                const targetId = targetEntry.id;
+                const children = Object.keys(graph.edges.createUserById)
+                  .filter(
+                    (node) =>
+                      graph.edges.createUserById[Number(node)] === targetId
+                  )
+                  .map((d) => ({
+                    ...dict,
+                    [v]: { id: Number(d) },
+                  }));
+                if (children.length) programs.vars.add(v);
+                return children;
+              } else if (rel === ":edit/user") {
+                if (!isNode(targetEntry)) {
+                  console.warn(
+                    "Expected the target variable to map to a node in :edit/user"
+                  );
+                  return [];
+                }
+                const targetId = targetEntry.id;
+                const children = Object.keys(graph.edges.editUserById)
+                  .filter(
+                    (node) =>
+                      graph.edges.editUserById[Number(node)] === targetId
+                  )
+                  .map((d) => ({
+                    ...dict,
+                    [v]: { id: Number(d) },
+                  }));
+                if (children.length) programs.vars.add(v);
+                return children;
+              } else if (rel === ":create/time") {
+                if (typeof targetEntry !== "number") {
+                  console.warn(
+                    "Expected the target variable to map to a number in :create/time"
+                  );
+                  return [];
+                }
+                const blocks = Object.entries(graph.edges.createTimeById)
+                  .filter(([_, v]) => v === targetEntry)
+                  .map(([child]) => ({
+                    ...dict,
+                    [v]: { id: Number(child) },
+                  }));
+                if (blocks.length) programs.vars.add(v);
+                return blocks;
+              } else if (rel === ":edit/time") {
+                if (typeof targetEntry !== "number") {
+                  console.warn(
+                    "Expected the target variable to map to a number in :edit/time"
+                  );
+                  return [];
+                }
+                const blocks = Object.entries(graph.edges.editTimeById)
+                  .filter(([_, v]) => v === targetEntry)
+                  .map(([child]) => ({
+                    ...dict,
+                    [v]: { id: Number(child) },
+                  }));
+                if (blocks.length) programs.vars.add(v);
+                return blocks;
+              } else if (rel === ":user/display-name") {
+                if (typeof targetEntry !== "string") {
+                  console.warn(
+                    "Expected the target variable to map to a string in :block/refs"
+                  );
+                  return [];
+                }
+                const displayName = targetEntry
+                  .replace(/^"/, "")
+                  .replace(/"$/, "");
+                const user = graph.edges.userIdByDisplay[displayName];
+                if (user) {
+                  programs.vars.add(v);
+                  return [
+                    {
+                      ...dict,
+                      [v]: { id: Number(user) },
+                    },
+                  ];
+                }
+                return [];
+              } else {
+                console.warn(`Unknown rel: ${rel}`);
+                return [];
               }
             }
           );
@@ -758,6 +957,80 @@ const getAssignments = (
                     [v]: { id: Number(id) },
                     [targetVar]: text,
                   }))
+              : rel === ":block/heading"
+              ? target.type === "constant"
+                ? Object.entries(graph.edges.headingsById)
+                    .filter(([_, text]) => text !== Number(targetString))
+                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                : target.type === "underscore"
+                ? Object.keys(graph.edges.headingsById).map((id) => ({
+                    [v]: { id: Number(id) },
+                  }))
+                : Object.entries(graph.edges.headingsById).map(
+                    ([id, text]) => ({
+                      [v]: { id: Number(id) },
+                      [targetVar]: text,
+                    })
+                  )
+              : rel === ":create/user"
+              ? target.type !== "variable"
+                ? []
+                : Object.entries(graph.edges.createUserById).map((b, p) => ({
+                    [v]: { id: Number(b) },
+                    [targetVar]: { id: p },
+                  }))
+              : rel === ":edit/user"
+              ? target.type !== "variable"
+                ? []
+                : Object.entries(graph.edges.editUserById).map((b, p) => ({
+                    [v]: { id: Number(b) },
+                    [targetVar]: { id: p },
+                  }))
+              : rel === ":create/time"
+              ? target.type === "constant"
+                ? Object.entries(graph.edges.createTimeById)
+                    .filter(([_, text]) => text !== Number(targetString))
+                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                : target.type === "underscore"
+                ? Object.keys(graph.edges.createTimeById).map((id) => ({
+                    [v]: { id: Number(id) },
+                  }))
+                : Object.entries(graph.edges.createTimeById).map(
+                    ([id, text]) => ({
+                      [v]: { id: Number(id) },
+                      [targetVar]: text,
+                    })
+                  )
+              : rel === ":edit/time"
+              ? target.type === "constant"
+                ? Object.entries(graph.edges.editTimeById)
+                    .filter(([_, text]) => text !== Number(targetString))
+                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                : target.type === "underscore"
+                ? Object.keys(graph.edges.editTimeById).map((id) => ({
+                    [v]: { id: Number(id) },
+                  }))
+                : Object.entries(graph.edges.editTimeById).map(
+                    ([id, text]) => ({
+                      [v]: { id: Number(id) },
+                      [targetVar]: text,
+                    })
+                  )
+              : rel === ":user/display-name"
+              ? target.type === "constant"
+                ? graph.edges.userIdByDisplay[targetString]
+                  ? [{ [v]: { id: graph.edges.userIdByDisplay[targetString] } }]
+                  : []
+                : target.type === "underscore"
+                ? Object.values(graph.edges.userIdByDisplay).map((id) => ({
+                    [v]: { id },
+                  }))
+                : Object.entries(graph.edges.userIdByDisplay).map(
+                    ([title, id]) => ({
+                      [v]: { id },
+                      [targetVar]: title,
+                    })
+                  )
               : [];
           reconcile(matches, target.type === "variable" ? [v, targetVar] : [v]);
         }
@@ -801,7 +1074,7 @@ const getAssignments = (
             return programs;
           }
           const v = variable.value.toLowerCase();
-          if (programs.vars.has(v)) {
+          if (!programs.vars.has(v)) {
             console.warn(
               "Expected first clojure.string/includes? argument to be predefined variable."
             );
@@ -841,7 +1114,7 @@ const getAssignments = (
             );
             return programs;
           }
-          if (programs.vars.has(v)) {
+          if (!programs.vars.has(v)) {
             console.warn(
               "Expected first clojure.string/starts-with? argument to be predefined variable."
             );
@@ -881,7 +1154,7 @@ const getAssignments = (
             );
             return programs;
           }
-          if (programs.vars.has(v)) {
+          if (!programs.vars.has(v)) {
             console.warn(
               "Expected first clojure.string/ends-with? argument to be predefined variable."
             );
@@ -912,6 +1185,153 @@ const getAssignments = (
             }
           );
           programs.assignments = new Set(newAssignments);
+        } else if (clause.pred === "re-find") {
+          const [regex, variable] = clause.arguments;
+          const v = variable.value.toLowerCase();
+          const r = regex.value.toLowerCase();
+          if (variable?.type !== "variable") {
+            console.warn(
+              "Expected type to be variable for first re-find argument."
+            );
+            return programs;
+          }
+          if (!programs.vars.has(v)) {
+            console.warn(
+              "Expected first re-find argument to be predefined variable."
+            );
+            return programs;
+          }
+          if (regex?.type !== "variable") {
+            console.warn(
+              "Expected type to be variable for second re-find argument."
+            );
+            return programs;
+          }
+          if (!programs.vars.has(r)) {
+            console.warn(
+              "Expected second re-find argument to be predefined variable."
+            );
+            return programs;
+          }
+          const newAssignments = Array.from(programs.assignments).filter(
+            (dict) => {
+              const regexEntry = dict[r];
+              if (!(regexEntry instanceof RegExp)) {
+                console.warn("Expected the variable to map to a regexp");
+                return false;
+              }
+              const targetEntry = dict[v];
+              if (typeof targetEntry !== "string") {
+                console.warn("Expected the variable to map to a string");
+                return false;
+              }
+              return regexEntry.test(targetEntry);
+            }
+          );
+          programs.assignments = new Set(newAssignments);
+        } else if (clause.pred === ">") {
+          const [left, right] = clause.arguments;
+          const l = left.value.toLowerCase();
+          const r = right.value.toLowerCase();
+          if (left?.type === "variable" && !programs.vars.has(l)) {
+            console.warn(
+              "If left argument is a variable, it must be predefined"
+            );
+            return programs;
+          }
+          if (right?.type === "variable" && !programs.vars.has(r)) {
+            console.warn(
+              "If right argument is a variable, it must be predefined"
+            );
+            return programs;
+          }
+          const newAssignments = Array.from(programs.assignments).filter(
+            (dict) => {
+              const leftValue =
+                left.type === "constant" ? Number(left.value) : dict[r];
+              if (typeof leftValue !== "number") {
+                console.warn("Left argument must be a number");
+                return false;
+              }
+              const rightValue =
+                right.type === "constant" ? Number(right.value) : dict[r];
+              if (typeof leftValue !== "number") {
+                console.warn("Right argument must be a number");
+                return false;
+              }
+              return leftValue > rightValue;
+            }
+          );
+          programs.assignments = new Set(newAssignments);
+        } else if (clause.pred === "<") {
+          const [left, right] = clause.arguments;
+          const l = left.value.toLowerCase();
+          const r = right.value.toLowerCase();
+          if (left?.type === "variable" && !programs.vars.has(l)) {
+            console.warn(
+              "If left argument is a variable, it must be predefined"
+            );
+            return programs;
+          }
+          if (right?.type === "variable" && !programs.vars.has(r)) {
+            console.warn(
+              "If right argument is a variable, it must be predefined"
+            );
+            return programs;
+          }
+          const newAssignments = Array.from(programs.assignments).filter(
+            (dict) => {
+              const leftValue =
+                left.type === "constant" ? Number(left.value) : dict[r];
+              if (typeof leftValue !== "number") {
+                console.warn("Left argument must be a number");
+                return false;
+              }
+              const rightValue =
+                right.type === "constant" ? Number(right.value) : dict[r];
+              if (typeof leftValue !== "number") {
+                console.warn("Right argument must be a number");
+                return false;
+              }
+              return leftValue < rightValue;
+            }
+          );
+          programs.assignments = new Set(newAssignments);
+        } else {
+          console.warn(`Unexpected predicate ${clause.pred}`);
+          return programs;
+        }
+      } else if (clause.type === "fn-expr") {
+        if (clause.fn === "re-pattern") {
+          const [constant] = clause.arguments;
+          if (constant?.type !== "constant") {
+            console.warn(
+              "Expected type to be constant for first re-pattern argument."
+            );
+            return programs;
+          }
+          const { binding } = clause;
+          if (binding.type !== "bind-scalar") {
+            console.warn(
+              "Expected type to be scalar for first re-pattern binding."
+            );
+            return programs;
+          }
+          const newAssignments = Array.from(programs.assignments).map(
+            (dict) => {
+              return {
+                ...dict,
+                [binding.variable.value.toLowerCase()]: new RegExp(
+                  constant.value.replace(/^"/, "").replace(/"$/, "")
+                ),
+              };
+            }
+          );
+          programs.assignments = new Set(newAssignments);
+          return programs;
+        } else {
+          console.warn(`Unexpected fn name ${clause.fn}`);
+          return programs;
         }
       }
       return programs;
@@ -930,12 +1350,14 @@ const query = ({ where, pull }: QueryArgs) => {
       pull
         .map(({ _var, field, label }) => {
           const node = res[_var.toLowerCase()];
-          if (field === ":node/title" && typeof node === "object") {
-            return [label, graph.edges.pagesById[node.id]];
-          } else if (field === ":block/string" && typeof node === "object") {
-            return [label, graph.edges.blocksById[node.id]];
-          } else if (field === ":block/uid" && typeof node === "object") {
-            return [label, graph.edges.uidsById[node.id]];
+          if (isNode(node)) {
+            if (field === ":node/title") {
+              return [label, graph.edges.pagesById[node.id]];
+            } else if (field === ":block/string") {
+              return [label, graph.edges.blocksById[node.id]];
+            } else if (field === ":block/uid") {
+              return [label, graph.edges.uidsById[node.id]];
+            }
           }
           return [];
         })
@@ -951,9 +1373,7 @@ const fireQuery = ({ uuid, ...args }: { uuid: string } & QueryArgs) => {
 onmessage = (e) => {
   const { data = {} } = e;
   const { method, ...args } = data;
-  if (method === "discourse") {
-    discourse(args.tag);
-  } else if (method === "overview") {
+  if (method === "overview") {
     overview();
   } else if (method === "init") {
     init(args.graph);
