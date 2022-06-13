@@ -8,6 +8,37 @@ import type {
 } from "roamjs-components/types/native";
 import type { Result } from "roamjs-components/types/query-builder";
 import { unpack } from "msgpackr/unpack";
+import apiGet from "roamjs-components/util/apiGet";
+import apiPut from "roamjs-components/util/apiPut";
+
+const resetGraph = (): typeof graph => ({
+  latest: 0,
+  updater: 0,
+  config: {
+    nodes: [],
+    relations: [],
+    uid: "",
+  },
+  edges: {
+    pagesByUid: {},
+    pageUidByTitle: {},
+    blocksPageByUid: {},
+    blocksByUid: {},
+    headingsByUid: {},
+    childrenByUid: {},
+    parentByUid: {},
+    ancestorsByUid: {},
+    descendantsByUid: {},
+    referencesByUid: {},
+    linkedReferencesByUid: {},
+    createUserByUid: {},
+    editUserByUid: {},
+    createTimeByUid: {},
+    editTimeByUid: {},
+    userDisplayByUid: {},
+    userUidByDisplay: {},
+  },
+});
 
 const graph: {
   config: {
@@ -25,55 +56,30 @@ const graph: {
       destination: string;
       complement: string;
     }[];
-    id: number;
+    uid: string;
   };
   edges: {
-    pagesById: Record<number, string>;
-    uidsById: Record<number, string>;
-    pageIdByTitle: Record<string, number>;
-    blocksPageById: Record<number, number>;
-    blocksById: Record<number, string>;
-    headingsById: Record<number, number>;
-    childrenById: Record<number, number[]>;
-    parentById: Record<number, number>;
-    ancestorsById: Record<number, number[]>;
-    descendantsById: Record<number, number[]>;
-    referencesById: Record<number, number[]>;
-    linkedReferencesById: Record<number, number[]>;
-    createUserById: Record<number, number>;
-    editUserById: Record<number, number>;
-    createTimeById: Record<number, number>;
-    editTimeById: Record<number, number>;
-    userDisplayById: Record<number, string>;
-    userIdByDisplay: Record<string, number>;
+    pagesByUid: Record<string, string>;
+    pageUidByTitle: Record<string, string>;
+    blocksPageByUid: Record<string, string>;
+    blocksByUid: Record<string, string>;
+    headingsByUid: Record<string, number>;
+    childrenByUid: Record<string, string[]>;
+    parentByUid: Record<string, string>;
+    ancestorsByUid: Record<string, string[]>;
+    descendantsByUid: Record<string, string[]>;
+    referencesByUid: Record<string, string[]>;
+    linkedReferencesByUid: Record<string, string[]>;
+    createUserByUid: Record<string, string>;
+    editUserByUid: Record<string, string>;
+    createTimeByUid: Record<string, number>;
+    editTimeByUid: Record<string, number>;
+    userDisplayByUid: Record<string, string>;
+    userUidByDisplay: Record<string, string>;
   };
-} = {
-  config: {
-    nodes: [],
-    relations: [],
-    id: 0,
-  },
-  edges: {
-    pagesById: {},
-    uidsById: {},
-    pageIdByTitle: {},
-    blocksPageById: {},
-    blocksById: {},
-    headingsById: {},
-    childrenById: {},
-    parentById: {},
-    ancestorsById: {},
-    descendantsById: {},
-    referencesById: {},
-    linkedReferencesById: {},
-    createUserById: {},
-    editUserById: {},
-    createTimeById: {},
-    editTimeById: {},
-    userDisplayById: {},
-    userIdByDisplay: {},
-  },
-};
+  latest: number;
+  updater: number;
+} = resetGraph();
 
 const accessBlocksDirectly = (graph: string) => {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -112,9 +118,10 @@ const accessBlocksDirectly = (graph: string) => {
         number,
         Record<string, string | number | number[] | bigint>
       >;
-      serialized.eavt.forEach((eavt) => {
+      const { eavt, attrs } = serialized;
+      eavt.forEach((eavt) => {
         const [e, a, v] = eavt;
-        const attr = serialized.attrs[a];
+        const attr = attrs[a];
         const isArrayProp =
           attr === ":block/refs" || attr === ":block/children";
         if (objs[e]) {
@@ -154,177 +161,507 @@ const accessBlocksDirectly = (graph: string) => {
     });
 };
 
-const init = (_graph: string | typeof graph) => {
-  if (typeof _graph !== "string") {
-    const { config, edges } = _graph;
+type Updates = (
+  | { deleted_by_snapshot: true; source_t: number }
+  | {
+      deleted_by_snapshot: false;
+      source_t: number;
+      tx: string;
+      tx_id: string;
+      tx_meta: {
+        "event-id": string;
+        "event-name":
+          | "add-comment"
+          | "add-log-day"
+          | "call-close-block"
+          | "call-open-block"
+          | "clean-db"
+          | "collapse-window"
+          | "create-block"
+          | "create-ghost-block"
+          | "create-new-or-unindent"
+          | "delete-block"
+          | "dnd-move-blocks"
+          | "edit-record-seen"
+          | "indent-block"
+          | "insert-s-at"
+          | "join-above-or-delete"
+          | "move-block-down"
+          | "move-block-up"
+          | "open-sidebar"
+          | "open-window"
+          | "sidebar-main-zoom-fn"
+          | "undo"
+          | "unindent-block"
+          | "unindent-blocks"
+          | "update-block"
+          | "user-focus-block";
+        "force-child-evts-sync?": boolean;
+        "tx-id": string;
+        "tx-name":
+          | "add-log-day"
+          | "call-close-block"
+          | "call-open-block"
+          | "clean-db"
+          | "create-block"
+          | "create-ghost-block"
+          | "delete-block-uids"
+          | "dnd-move-blocks"
+          | "edit-record-seen"
+          | "indent-block"
+          | "insert-new-child-at"
+          | "join-above-or-delete"
+          | "move-block-down"
+          | "move-block-up"
+          | "split-block-at-selection"
+          | "undo"
+          | "unindent-block"
+          | "unindent-sibling-group"
+          | "update-block-attrs"
+          | "update-block-path-and-page"
+          | "update-block-refs"
+          | "update-block-string"
+          | "update-user-settings";
+      };
+    }
+)[];
+
+type UpdateNode = {
+  "~:block/uid"?: string;
+  "~:block/string"?: string;
+  "~:edit/time"?: number;
+  "~:edit/user"?: UpdateNode;
+  "~:create/time"?: number;
+  "~:create/user"?: UpdateNode;
+  "~:user/uid"?: string;
+  "~:block/parents"?: UpdateNode[] | UpdateNode;
+  "~:block/page"?: UpdateNode;
+  "~:block/children"?: UpdateNode[] | UpdateNode;
+  "~:db/retract"?: UpdateNode;
+  "~:block/order"?: number;
+  "~:db/add"?: UpdateNode;
+  "~:block/refs"?: UpdateNode[];
+};
+
+const parseTxData = (s: string) => {
+  const fields = Array.from(s.matchAll(/"~:[a-z\/-]+"/g)).map((k) =>
+    k[0].slice(1, -1)
+  );
+  const parseUpdate = (args: unknown[]): UpdateNode =>
+    Object.fromEntries(
+      (args[0] === "^ " ? args.slice(1) : args)
+        .map((arg, i, all) =>
+          i < all.length - 1 ? [arg, all[i + 1]] : [arg, arg]
+        )
+        .filter((_, i) => i % 2 === 0)
+        .map(([k, v]) => [
+          typeof k === "string" && /^\^\d+$/.test(k)
+            ? fields[Number(k.slice(1))]
+            : k,
+          Array.isArray(v)
+            ? Array.isArray(v[0])
+              ? v.map((vv) => parseUpdate(vv))
+              : parseUpdate(v)
+            : v,
+        ])
+    );
+
+  const parseUpdates = (updates: unknown[]): UpdateNode[] =>
+    updates[0] == "~#list"
+      ? parseUpdates(updates[1] as unknown[])
+      : updates.every((u) => Array.isArray(u))
+      ? updates.map((u) => parseUpdate(u as unknown[]))
+      : [];
+
+  return parseUpdates(JSON.parse(s) as unknown[]);
+};
+
+const init = ({
+  graph: _graph,
+  id,
+  authorization,
+  cached,
+}: {
+  graph: string;
+  id: string;
+  authorization: string;
+  cached: boolean;
+}) => {
+  clearTimeout(graph.updater);
+  const save = () =>
+    apiPut({
+      path: "file",
+      data: {
+        extension: "discourse-graph",
+        body: JSON.stringify(graph),
+        path: `graph-cache/${id}.json`,
+      },
+      authorization,
+    }).then(() => {
+      // @ts-ignore
+      graph.updater = global.setTimeout(updateWithLog, 10000) as number;
+    });
+  const updateWithLog = () => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(`v10_SLASH_dbs_SLASH_${_graph}`);
+      request.onerror = (e) => {
+        reject((e.target as IDBRequest).error);
+      };
+      request.onsuccess = (event) => {
+        resolve((event.target as IDBRequest<IDBDatabase>).result);
+      };
+    })
+      .then(
+        (db) =>
+          new Promise<Updates>((resolve, reject) => {
+            const request = db
+              .transaction("confirmed-log")
+              .objectStore("confirmed-log")
+              .getAll(IDBKeyRange.lowerBound(graph.latest, true));
+            request.onerror = (e) => {
+              reject((e.target as IDBRequest).error);
+            };
+            request.onsuccess = (event) => {
+              resolve((event.target as IDBRequest<Updates>).result);
+            };
+          })
+      )
+      .then((results) => {
+        console.log("need to apply", results.length, "updates");
+        // Using `some` to do forEach with `break`
+        const failedToParse = results.some((result) => {
+          // ts why is this not discriminated without the `=== true`??
+          if (result.deleted_by_snapshot === true) {
+            graph.latest = result.source_t;
+            return;
+          }
+          const txName = result.tx_meta["tx-name"];
+          try {
+            if (txName === "update-block-string") {
+              graph.latest = result.source_t;
+              const [update] = parseTxData(result.tx);
+              const uid = update["~:block/uid"];
+              graph.edges.blocksByUid[uid] = update["~:block/string"];
+              graph.edges.editTimeByUid[uid] = update["~:edit/time"];
+              const user = update["~:edit/user"];
+              graph.edges.editUserByUid[uid] = user["~:user/uid"];
+            } else if (txName === "update-block-path-and-page") {
+              const updates = parseTxData(result.tx);
+              const add = updates.find((u) => u["~:db/add"]);
+              const update = updates.find((u) => u["~:block/parents"]);
+
+              const uid = update["~:block/uid"];
+              const parentUid = (update["~:block/parents"] as UpdateNode)[
+                "~:block/uid"
+              ];
+              graph.edges.parentByUid[uid] = parentUid;
+              graph.edges.ancestorsByUid[uid] = (
+                graph.edges.ancestorsByUid[uid] || []
+              ).concat(parentUid);
+
+              if (add) {
+                graph.edges.blocksPageByUid[uid] =
+                  add["~:block/page"]["~:block/uid"];
+              }
+            } else if (
+              txName === "indent-block" ||
+              txName === "unindent-block"
+            ) {
+              const updates = parseTxData(result.tx);
+              const del = updates.find((u) => u["~:db/retract"]);
+              const update = updates.find((u) => u["~:block/uid"]);
+              const add = updates.find((u) => u["~:db/add"]);
+
+              const parentUid = del["~:db/retract"]["~:block/uid"];
+              const childUid = (del["~:block/children"] as UpdateNode)[
+                "~:block/uid"
+              ];
+              graph.edges.childrenByUid[parentUid] = graph.edges.childrenByUid[
+                parentUid
+              ].filter((i) => childUid !== i);
+
+              const newParentUid = update["~:block/uid"];
+              graph.edges.childrenByUid[newParentUid] = (
+                [] || graph.edges.childrenByUid[newParentUid]
+              )
+                .slice(0, update["~:block/order"])
+                .concat([childUid])
+                .concat(
+                  ([] || graph.edges.childrenByUid[newParentUid]).slice(
+                    update["~:block/order"]
+                  )
+                );
+              if (add) {
+                // I think this should already be covered, might be coming up on drag
+              }
+            } else if (txName === "insert-new-child-at") {
+              const updates = parseTxData(result.tx);
+              const insert = updates.find((u) => !!u["~:block/uid"]);
+              const parentUid = insert["~:block/uid"];
+              const blocks = insert["~:block/children"] as UpdateNode[];
+              blocks.forEach((block) => {
+                const uid = block["~:block/uid"];
+                graph.edges.editTimeByUid[uid] = block["~:edit/time"];
+                graph.edges.editUserByUid[uid] =
+                  block["~:edit/user"]["~:user/uid"];
+                graph.edges.createTimeByUid[uid] = block["~:create/time"];
+                graph.edges.createUserByUid[uid] =
+                  block["~:create/user"]["~:user/uid"];
+                graph.edges.blocksByUid[uid] = block["~:block/string"];
+                graph.edges.headingsByUid[uid] = 0;
+                // TODO :block/open
+                graph.edges.childrenByUid[parentUid] =
+                  graph.edges.childrenByUid[parentUid] || [];
+                graph.edges.childrenByUid[parentUid].splice(
+                  block["~:block/order"],
+                  0,
+                  uid
+                );
+              });
+            } else if (txName === "update-block-refs") {
+              const updates = parseTxData(result.tx);
+              const update = updates.find((u) => u["~:block/uid"]);
+              const uid = update["~:block/uid"];
+              const refs = update["~:block/refs"].map((r) => r["~:block/uid"]);
+              graph.edges.referencesByUid[uid] = (
+                graph.edges.referencesByUid[uid] || []
+              ).concat(refs);
+              refs.forEach((refId) => {
+                if (graph.edges.linkedReferencesByUid[refId]) {
+                  graph.edges.linkedReferencesByUid[refId].push(uid);
+                } else {
+                  graph.edges.linkedReferencesByUid[refId] = [uid];
+                }
+              });
+            } else if (txName === "update-user-settings") {
+              // ignore
+            } else if (txName === "call-open-block") {
+              // ignore
+            } else if (txName === "edit-record-seen") {
+              // ignore
+            } else {
+              console.warn(
+                "didnt know how to parse event",
+                result.tx_meta["event-name"],
+                "tx",
+                result.tx_meta["tx-name"],
+                "data",
+                JSON.parse(result.tx)
+              );
+              return true;
+            }
+
+            graph.latest = result.source_t;
+          } catch (e) {
+            console.warn(
+              "didnt know how to parse event",
+              txName,
+              "data",
+              JSON.parse(result.tx)
+            );
+            console.error(e);
+            return true;
+          }
+        });
+        if (!failedToParse) console.log("Processed all updates!");
+        return save();
+      });
+  };
+  if (cached) {
+    return apiGet<typeof graph>({
+      path: `file`,
+      data: {
+        extension: "discourse-graph",
+        path: `graph-cache/${id}.json`,
+      },
+      authorization,
+    }).then((r) => {
+      const { config, edges, latest } = r;
+      graph.config = config;
+      graph.edges = edges;
+      graph.latest = latest;
+      postMessage({ method: "init" });
+      // @ts-ignore
+      graph.updater = global.setTimeout(updateWithLog, 10000) as number;
+    });
+  } else {
+    // TODO: only on update
+    const { config, edges, latest } = resetGraph();
     graph.config = config;
     graph.edges = edges;
-    postMessage({ method: "init" });
-    return;
+    graph.latest = latest;
   }
-  accessBlocksDirectly(_graph).then((blocks) => {
-    blocks.forEach(
-      ({
-        id,
-        page,
-        refs,
-        title,
-        string,
-        children,
-        uid,
-        heading,
-        createdTime,
-        editedTime,
-        displayName,
-        createdBy,
-        editedBy,
-      }) => {
-        graph.edges.uidsById[id] = uid;
-        graph.edges.createUserById[id] = createdBy;
-        graph.edges.editUserById[id] = editedBy;
-        graph.edges.createTimeById[id] = createdTime;
-        graph.edges.editTimeById[id] = editedTime;
-        if (!title && !string) {
-          graph.edges.userDisplayById[id] = displayName;
-          graph.edges.userIdByDisplay[displayName] = id;
-        } else if (!page && title) {
-          graph.edges.pagesById[id] = title;
-          graph.edges.pageIdByTitle[title] = id;
-          if (title === "roam/js/discourse-graph") {
-            graph.config.id = id;
-          }
-        } else if (page) {
-          graph.edges.blocksById[id] = string;
-          graph.edges.headingsById[id] = heading || 0;
-          graph.edges.blocksPageById[id] = page;
-        }
-        if (refs) {
-          refs.forEach((refId) => {
-            if (graph.edges.linkedReferencesById[refId]) {
-              graph.edges.linkedReferencesById[refId].push(id);
-            } else {
-              graph.edges.linkedReferencesById[refId] = [id];
+  return accessBlocksDirectly(_graph)
+    .then((blocks) => {
+      const getUid = Object.fromEntries(
+        blocks.map((b) => [b.id, b.uid])
+      ) as Record<number, string>;
+      blocks.forEach(
+        ({
+          page,
+          refs,
+          title,
+          string,
+          children,
+          uid,
+          heading,
+          createdTime,
+          editedTime,
+          displayName,
+          createdBy,
+          editedBy,
+        }) => {
+          graph.edges.createUserByUid[uid] = getUid[createdBy];
+          graph.edges.editUserByUid[uid] = getUid[editedBy];
+          graph.edges.createTimeByUid[uid] = createdTime;
+          graph.edges.editTimeByUid[uid] = editedTime;
+          if (!title && !string) {
+            graph.edges.userDisplayByUid[uid] = displayName;
+            graph.edges.userUidByDisplay[displayName] = uid;
+          } else if (!page && title) {
+            graph.edges.pagesByUid[uid] = title;
+            graph.edges.pageUidByTitle[title] = uid;
+            if (title === "roam/js/discourse-graph") {
+              graph.config.uid = uid;
             }
-          });
-          graph.edges.referencesById[id] = refs.slice(0);
+          } else if (page) {
+            graph.edges.blocksByUid[uid] = string;
+            graph.edges.headingsByUid[uid] = heading || 0;
+            graph.edges.blocksPageByUid[uid] = getUid[page];
+          }
+          if (refs) {
+            refs.forEach((refId) => {
+              if (graph.edges.linkedReferencesByUid[refId]) {
+                graph.edges.linkedReferencesByUid[refId].push(uid);
+              } else {
+                graph.edges.linkedReferencesByUid[refId] = [uid];
+              }
+            });
+            graph.edges.referencesByUid[uid] = refs.map((id) => getUid[id]);
+          }
+          if (children) {
+            graph.edges.childrenByUid[uid] = children.map((id) => getUid[id]);
+            children.forEach((c) => (graph.edges.parentByUid[c] = uid));
+          }
         }
-        if (children) {
-          graph.edges.childrenById[id] = children.slice(0);
-          children.forEach((c) => (graph.edges.parentById[c] = id));
-        }
-      }
-    );
+      );
 
-    const findChild = (text: string) => (c: number) =>
-      new RegExp(`^\\s*${text}\\s*$`, "i").test(graph.edges.blocksById[c]);
-    const getSettingValueFromTree = ({
-      tree,
-      key,
-    }: {
-      tree: number[];
-      key: string;
-    }) =>
-      graph.edges.blocksById[
-        graph.edges.childrenById[tree.find(findChild(key))]?.[0]
-      ] || "";
-    const grammarChildren =
-      graph.edges.childrenById[
-        (graph.edges.childrenById[graph.config.id] || []).find(
-          findChild("grammar")
-        )
-      ] || [];
+      const findChild = (text: string) => (c: string) =>
+        new RegExp(`^\\s*${text}\\s*$`, "i").test(graph.edges.blocksByUid[c]);
+      const getSettingValueFromTree = ({
+        tree,
+        key,
+      }: {
+        tree: string[];
+        key: string;
+      }) =>
+        graph.edges.blocksByUid[
+          graph.edges.childrenByUid[tree.find(findChild(key))]?.[0]
+        ] || "";
+      const grammarChildren =
+        graph.edges.childrenByUid[
+          (graph.edges.childrenByUid[graph.config.uid] || []).find(
+            findChild("grammar")
+          )
+        ] || [];
 
-    graph.config.nodes = Object.entries(graph.edges.pagesById)
-      .filter(([, title]) => title.startsWith("discourse-graph/nodes/"))
-      .map(([_id, text]) => {
-        const id = Number(_id);
-        const nchildren = graph.edges.childrenById[id] || [];
-        return {
-          format:
-            graph.edges.blocksById[
-              (graph.edges.childrenById[nchildren.find(findChild("format"))] ||
-                [])[0]
-            ],
-          type: graph.edges.uidsById[id],
-          text,
-          shortcut:
-            graph.edges.blocksById[
-              (graph.edges.childrenById[
-                nchildren.find(findChild("shortcut"))
-              ] || [])[0]
-            ],
+      graph.config.nodes = Object.entries(graph.edges.pagesByUid)
+        .filter(([, title]) => title.startsWith("discourse-graph/nodes/"))
+        .map(([_uid, text]) => {
+          const nchildren = graph.edges.childrenByUid[_uid] || [];
+          return {
+            format:
+              graph.edges.blocksByUid[
+                (graph.edges.childrenByUid[
+                  nchildren.find(findChild("format"))
+                ] || [])[0]
+              ],
+            type: _uid,
+            text,
+            shortcut:
+              graph.edges.blocksByUid[
+                (graph.edges.childrenByUid[
+                  nchildren.find(findChild("shortcut"))
+                ] || [])[0]
+              ],
+          };
+        });
+      graph.config.relations = (
+        graph.edges.childrenByUid[
+          grammarChildren.find(findChild("relations"))
+        ] || ([] as const)
+      ).flatMap((r, i) => {
+        const tree: string[] = graph.edges.childrenByUid[r] || [];
+        const data = {
+          id: r || `${graph.edges.blocksByUid[r]}-${i}`,
+          label: graph.edges.blocksByUid[r],
+          source: getSettingValueFromTree({
+            tree,
+            key: "Source",
+          }),
+          destination: getSettingValueFromTree({
+            tree,
+            key: "Destination",
+          }),
+          complement: getSettingValueFromTree({
+            tree,
+            key: "Complement",
+          }),
         };
+        return graph.edges.childrenByUid[tree.find(findChild("if"))].map(
+          (c) => {
+            return {
+              ...data,
+              triples: (graph.edges.childrenByUid[c] || [])
+                .filter(
+                  (t) => !/node positions/i.test(graph.edges.blocksByUid[t])
+                )
+                .map((t) => {
+                  const firstChild = (graph.edges.childrenByUid[t] || [])?.[0];
+                  const lastChild = (graph.edges.childrenByUid[firstChild] ||
+                    [])?.[0];
+                  return [
+                    graph.edges.blocksByUid[t] || "",
+                    graph.edges.blocksByUid[firstChild] || "",
+                    graph.edges.blocksByUid[lastChild] || "",
+                  ];
+                }),
+            };
+          }
+        );
       });
-    graph.config.relations = (
-      graph.edges.childrenById[grammarChildren.find(findChild("relations"))] ||
-      []
-    ).flatMap((r, i) => {
-      const tree = graph.edges.childrenById[r] || [];
-      const data = {
-        id: graph.edges.uidsById[r] || `${graph.edges.blocksById[r]}-${i}`,
-        label: graph.edges.blocksById[r],
-        source: getSettingValueFromTree({
-          tree,
-          key: "Source",
-        }),
-        destination: getSettingValueFromTree({
-          tree,
-          key: "Destination",
-        }),
-        complement: getSettingValueFromTree({
-          tree,
-          key: "Complement",
-        }),
+
+      const allPages = new Set(Object.keys(graph.edges.pagesByUid));
+      const allBlocks = new Set(Object.keys(graph.edges.blocksByUid));
+
+      const getDescendants = (uid: string): string[] => {
+        const des = (graph.edges.childrenByUid[uid] || []).flatMap((i) => [
+          i,
+          ...getDescendants(i),
+        ]);
+        graph.edges.descendantsByUid[uid] = des;
+        return des;
       };
-      return graph.edges.childrenById[tree.find(findChild("if"))].map((c) => {
-        return {
-          ...data,
-          triples: (graph.edges.childrenById[c] || [])
-            .filter((t) => !/node positions/i.test(graph.edges.blocksById[t]))
-            .map((t) => {
-              const firstChild = (graph.edges.childrenById[t] || [])?.[0];
-              const lastChild = (graph.edges.childrenById[firstChild] ||
-                [])?.[0];
-              return [
-                graph.edges.blocksById[t] || "",
-                graph.edges.blocksById[firstChild] || "",
-                graph.edges.blocksById[lastChild] || "",
-              ];
-            }),
-        };
+      allPages.forEach(getDescendants);
+
+      allBlocks.forEach((uid) => {
+        graph.edges.ancestorsByUid[uid] = [];
+        for (
+          let i = graph.edges.parentByUid[uid];
+          !!i;
+          i = graph.edges.parentByUid[i]
+        ) {
+          graph.edges.ancestorsByUid[uid].push(i);
+        }
       });
+
+      return save().then(() => {
+        postMessage({ method: "init", id });
+      });
+    })
+    .catch((e) => {
+      postMessage({ method: "init", error: e.message });
     });
-
-    const allPages = new Set(
-      Object.keys(graph.edges.pagesById).map((i) => Number(i))
-    );
-    const allBlocks = new Set(
-      Object.keys(graph.edges.blocksById).map((i) => Number(i))
-    );
-
-    const getDescendants = (id: number): number[] => {
-      const des = (graph.edges.childrenById[id] || []).flatMap((i) => [
-        i,
-        ...getDescendants(i),
-      ]);
-      graph.edges.descendantsById[id] = des;
-      return des;
-    };
-    allPages.forEach(getDescendants);
-
-    allBlocks.forEach((id) => {
-      graph.edges.ancestorsById[id] = [];
-      for (
-        let i = graph.edges.parentById[id];
-        !!i;
-        i = graph.edges.parentById[i]
-      ) {
-        graph.edges.ancestorsById[id].push(i);
-      }
-    });
-
-    postMessage({ method: "init", graph: JSON.stringify(graph) });
-  });
 };
 
 const matchNode = ({
@@ -361,7 +698,7 @@ const overview = () => {
             }))
         )
   );*/
-  const nodes = Object.entries(graph.edges.pagesById)
+  const nodes = Object.entries(graph.edges.pagesByUid)
     .map(([id, title]) => ({
       id,
       label: title,
@@ -389,7 +726,7 @@ export type QueryArgs = {
   }[];
 };
 
-type NodeAssignment = { id: number };
+type NodeAssignment = { uid: string };
 type Assignment = Record<string, NodeAssignment | string | number | RegExp>;
 const isNode = (v: Assignment[string]): v is NodeAssignment =>
   typeof v === "object" && !(v instanceof RegExp);
@@ -404,25 +741,37 @@ const getAssignments = (
       const reconcile = (matches: Assignment[], vars: string[]) => {
         vars.forEach((v) => programs.vars.add(v));
         programs.assignments = new Set(
-          programs.assignments.size === 0 && index === 0
-            ? matches
-            : Array.from(programs.assignments).flatMap((dict) =>
-                matches.map((dic) => ({
-                  ...dict,
-                  ...dic,
-                }))
+          Array.from(
+            new Set(
+              (programs.assignments.size === 0 && index === 0
+                ? matches
+                : Array.from(programs.assignments).flatMap((dict) =>
+                    matches.map((dic) => ({
+                      ...dict,
+                      ...dic,
+                    }))
+                  )
+              ).map((a) =>
+                // remove duplicate assignments
+                JSON.stringify(
+                  Object.entries(a).sort(([ka], [kb]) => ka.localeCompare(kb))
+                )
               )
+            )
+          ).map((s) => Object.fromEntries(JSON.parse(s)))
         );
       };
       if (clause.type === "data-pattern") {
         const [source, relation, target] = clause.arguments;
         if (source.type !== "variable") {
           console.warn("Expected source type to be variable");
+          programs.assignments = new Set();
           return programs;
         }
         const v = source.value.toLowerCase();
         if (relation.type !== "constant") {
           console.warn("Expected relation type to be constant");
+          programs.assignments = new Set();
           return programs;
         }
         const rel = relation.value.toLowerCase();
@@ -436,7 +785,7 @@ const getAssignments = (
                 console.warn("Expected the source variable to map to a node");
                 return [];
               }
-              const sourceId = sourceEntry.id;
+              const sourceId = sourceEntry.uid;
               if (rel === ":block/refs") {
                 if (target.type !== "variable") {
                   console.warn(
@@ -447,11 +796,11 @@ const getAssignments = (
                 const targetEntry = dict[targetVar];
                 const refs = (
                   isNode(targetEntry)
-                    ? [targetEntry.id]
-                    : graph.edges.referencesById[sourceId] || []
+                    ? [targetEntry.uid]
+                    : graph.edges.referencesByUid[sourceId] || []
                 ).map((ref) => ({
                   ...dict,
-                  [targetVar]: { id: ref },
+                  [targetVar]: { uid: ref },
                 }));
                 if (refs.length) programs.vars.add(targetVar);
                 return refs;
@@ -463,10 +812,11 @@ const getAssignments = (
                   return [];
                 }
                 const targetEntry = dict[targetVar];
-                if (graph.edges.pagesById[sourceId]) {
+                if (graph.edges.pagesByUid[sourceId]) {
                   return [];
                 } else if (isNode(targetEntry)) {
-                  return targetEntry.id === graph.edges.blocksPageById[sourceId]
+                  return targetEntry.uid ===
+                    graph.edges.blocksPageByUid[sourceId]
                     ? [dict]
                     : [];
                 } else {
@@ -474,24 +824,29 @@ const getAssignments = (
                   return [
                     {
                       ...dict,
-                      [targetVar]: { id: graph.edges.blocksPageById[sourceId] },
+                      [targetVar]: {
+                        uid: graph.edges.blocksPageByUid[sourceId],
+                      },
                     },
                   ];
                 }
               } else if (rel === ":node/title") {
                 if (target.type === "constant") {
-                  if (graph.edges.pagesById[sourceId] === targetString) {
+                  if (graph.edges.pagesByUid[sourceId] === targetString) {
                     return [dict];
                   } else {
                     return [];
                   }
                 } else if (target.type === "underscore") {
                   return [dict];
+                } else if (!graph.edges.pagesByUid[sourceId]) {
+                  return [];
                 } else {
+                  programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: graph.edges.pagesById[sourceId],
+                      [targetVar]: graph.edges.pagesByUid[sourceId],
                     },
                   ];
                 }
@@ -505,11 +860,11 @@ const getAssignments = (
                 const targetEntry = dict[targetVar];
                 const children = (
                   isNode(targetEntry)
-                    ? [targetEntry.id]
-                    : graph.edges.childrenById[sourceId] || []
+                    ? [targetEntry.uid]
+                    : graph.edges.childrenByUid[sourceId] || []
                 ).map((child) => ({
                   ...dict,
-                  [targetVar]: { id: child },
+                  [targetVar]: { uid: child },
                 }));
                 if (children.length) programs.vars.add(targetVar);
                 return children;
@@ -523,17 +878,17 @@ const getAssignments = (
                 const targetEntry = dict[targetVar];
                 const ancestors = (
                   isNode(targetEntry)
-                    ? [targetEntry.id]
-                    : Array.from(graph.edges.ancestorsById[sourceId] || [])
+                    ? [targetEntry.uid]
+                    : Array.from(graph.edges.ancestorsByUid[sourceId] || [])
                 ).map((child) => ({
                   ...dict,
-                  [targetVar]: { id: child },
+                  [targetVar]: { uid: child },
                 }));
                 if (ancestors.length) programs.vars.add(targetVar);
                 return ancestors;
               } else if (rel === ":block/string") {
                 if (target.type === "constant") {
-                  if (graph.edges.blocksById[sourceId] === targetString) {
+                  if (graph.edges.blocksByUid[sourceId] === targetString) {
                     return [dict];
                   } else {
                     return [];
@@ -541,17 +896,18 @@ const getAssignments = (
                 } else if (target.type === "underscore") {
                   return [dict];
                 } else {
+                  programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: graph.edges.blocksById[sourceId],
+                      [targetVar]: graph.edges.blocksByUid[sourceId],
                     },
                   ];
                 }
               } else if (rel === ":block/heading") {
                 if (target.type === "constant") {
                   if (
-                    graph.edges.headingsById[sourceId] === Number(targetString)
+                    graph.edges.headingsByUid[sourceId] === Number(targetString)
                   ) {
                     return [dict];
                   } else {
@@ -560,10 +916,11 @@ const getAssignments = (
                 } else if (target.type === "underscore") {
                   return [dict];
                 } else {
+                  programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: graph.edges.headingsById[sourceId],
+                      [targetVar]: graph.edges.headingsByUid[sourceId],
                     },
                   ];
                 }
@@ -575,15 +932,15 @@ const getAssignments = (
                   return [];
                 }
                 const targetEntry = dict[targetVar];
-                const userId = graph.edges.createUserById[sourceId];
+                const userId = graph.edges.createUserByUid[sourceId];
                 if (isNode(targetEntry)) {
-                  return targetEntry.id === userId ? [dict] : [];
+                  return targetEntry.uid === userId ? [dict] : [];
                 } else {
                   programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: { id: userId },
+                      [targetVar]: { uid: userId },
                     },
                   ];
                 }
@@ -595,22 +952,22 @@ const getAssignments = (
                   return [];
                 }
                 const targetEntry = dict[targetVar];
-                const userId = graph.edges.editUserById[sourceId];
+                const userId = graph.edges.editUserByUid[sourceId];
                 if (isNode(targetEntry)) {
-                  return targetEntry.id === userId ? [dict] : [];
+                  return targetEntry.uid === userId ? [dict] : [];
                 } else {
                   programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: { id: userId },
+                      [targetVar]: { uid: userId },
                     },
                   ];
                 }
               } else if (rel === ":create/time") {
                 if (target.type === "constant") {
                   if (
-                    graph.edges.createTimeById[sourceId] ===
+                    graph.edges.createTimeByUid[sourceId] ===
                     Number(targetString)
                   ) {
                     return [dict];
@@ -620,17 +977,18 @@ const getAssignments = (
                 } else if (target.type === "underscore") {
                   return [dict];
                 } else {
+                  programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: graph.edges.createTimeById[sourceId],
+                      [targetVar]: graph.edges.createTimeByUid[sourceId],
                     },
                   ];
                 }
               } else if (rel === ":edit/time") {
                 if (target.type === "constant") {
                   if (
-                    graph.edges.editTimeById[sourceId] === Number(targetString)
+                    graph.edges.editTimeByUid[sourceId] === Number(targetString)
                   ) {
                     return [dict];
                   } else {
@@ -639,16 +997,17 @@ const getAssignments = (
                 } else if (target.type === "underscore") {
                   return [dict];
                 } else {
+                  programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: graph.edges.editTimeById[sourceId],
+                      [targetVar]: graph.edges.editTimeByUid[sourceId],
                     },
                   ];
                 }
               } else if (rel === ":user/display-name") {
                 if (target.type === "constant") {
-                  if (graph.edges.userDisplayById[sourceId] === targetString) {
+                  if (graph.edges.userDisplayByUid[sourceId] === targetString) {
                     return [dict];
                   } else {
                     return [];
@@ -656,10 +1015,11 @@ const getAssignments = (
                 } else if (target.type === "underscore") {
                   return [dict];
                 } else {
+                  programs.vars.add(targetVar);
                   return [
                     {
                       ...dict,
-                      [targetVar]: graph.edges.userDisplayById[sourceId],
+                      [targetVar]: graph.edges.userDisplayByUid[sourceId],
                     },
                   ];
                 }
@@ -681,12 +1041,12 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const targetId = targetEntry.id;
+                const targetId = targetEntry.uid;
                 const refs = (
-                  graph.edges.linkedReferencesById[targetId] || []
+                  graph.edges.linkedReferencesByUid[targetId] || []
                 ).map((ref) => ({
                   ...dict,
-                  [v]: { id: ref },
+                  [v]: { uid: ref },
                 }));
                 if (refs.length) programs.vars.add(v);
                 return refs;
@@ -697,15 +1057,15 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const targetId = targetEntry.id;
-                if (!graph.edges.pagesById[targetId]) {
+                const targetId = targetEntry.uid;
+                if (!graph.edges.pagesByUid[targetId]) {
                   return [];
                 } else {
                   const children = Array.from(
-                    graph.edges.descendantsById[targetId] || []
+                    graph.edges.descendantsByUid[targetId] || []
                   ).map((d) => ({
                     ...dict,
-                    [v]: { id: d },
+                    [v]: { uid: d },
                   }));
                   if (children.length) programs.vars.add(v);
                   return children;
@@ -717,13 +1077,13 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const page = graph.edges.pageIdByTitle[targetEntry];
+                const page = graph.edges.pageUidByTitle[targetEntry];
                 if (page) {
                   programs.vars.add(v);
                   return [
                     {
                       ...dict,
-                      [v]: { id: page },
+                      [v]: { uid: page },
                     },
                   ];
                 }
@@ -735,14 +1095,14 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const targetId = targetEntry.id;
-                const parent = graph.edges.parentById[targetId];
+                const targetId = targetEntry.uid;
+                const parent = graph.edges.parentByUid[targetId];
                 if (parent) {
                   programs.vars.add(v);
                   return [
                     {
                       ...dict,
-                      [v]: { id: parent },
+                      [v]: { uid: parent },
                     },
                   ];
                 } else {
@@ -755,12 +1115,12 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const targetId = targetEntry.id;
+                const targetId = targetEntry.uid;
                 const ancestors = Array.from(
-                  graph.edges.ancestorsById[targetId] || []
+                  graph.edges.ancestorsByUid[targetId] || []
                 ).map((child) => ({
                   ...dict,
-                  [v]: { id: child },
+                  [v]: { uid: child },
                 }));
                 if (ancestors.length) programs.vars.add(v);
                 return ancestors;
@@ -771,11 +1131,11 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const blocks = Object.entries(graph.edges.blocksById)
+                const blocks = Object.entries(graph.edges.blocksByUid)
                   .filter(([_, v]) => v === targetEntry)
                   .map(([child]) => ({
                     ...dict,
-                    [v]: { id: Number(child) },
+                    [v]: { uid: child },
                   }));
                 if (blocks.length) programs.vars.add(v);
                 return blocks;
@@ -786,11 +1146,11 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const blocks = Object.entries(graph.edges.headingsById)
+                const blocks = Object.entries(graph.edges.headingsByUid)
                   .filter(([_, v]) => v === targetEntry)
                   .map(([child]) => ({
                     ...dict,
-                    [v]: { id: Number(child) },
+                    [v]: { uid: child },
                   }));
                 if (blocks.length) programs.vars.add(v);
                 return blocks;
@@ -801,15 +1161,14 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const targetId = targetEntry.id;
-                const children = Object.keys(graph.edges.createUserById)
+                const targetId = targetEntry.uid;
+                const children = Object.keys(graph.edges.createUserByUid)
                   .filter(
-                    (node) =>
-                      graph.edges.createUserById[Number(node)] === targetId
+                    (node) => graph.edges.createUserByUid[node] === targetId
                   )
                   .map((d) => ({
                     ...dict,
-                    [v]: { id: Number(d) },
+                    [v]: { uid: d },
                   }));
                 if (children.length) programs.vars.add(v);
                 return children;
@@ -820,15 +1179,15 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const targetId = targetEntry.id;
-                const children = Object.keys(graph.edges.editUserById)
+                const targetId = targetEntry.uid;
+                const children = Object.keys(graph.edges.editUserByUid)
                   .filter(
                     (node) =>
-                      graph.edges.editUserById[Number(node)] === targetId
+                      graph.edges.editUserByUid[Number(node)] === targetId
                   )
                   .map((d) => ({
                     ...dict,
-                    [v]: { id: Number(d) },
+                    [v]: { uid: d },
                   }));
                 if (children.length) programs.vars.add(v);
                 return children;
@@ -839,11 +1198,11 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const blocks = Object.entries(graph.edges.createTimeById)
+                const blocks = Object.entries(graph.edges.createTimeByUid)
                   .filter(([_, v]) => v === targetEntry)
                   .map(([child]) => ({
                     ...dict,
-                    [v]: { id: Number(child) },
+                    [v]: { uid: child },
                   }));
                 if (blocks.length) programs.vars.add(v);
                 return blocks;
@@ -854,11 +1213,11 @@ const getAssignments = (
                   );
                   return [];
                 }
-                const blocks = Object.entries(graph.edges.editTimeById)
+                const blocks = Object.entries(graph.edges.editTimeByUid)
                   .filter(([_, v]) => v === targetEntry)
                   .map(([child]) => ({
                     ...dict,
-                    [v]: { id: Number(child) },
+                    [v]: { uid: child },
                   }));
                 if (blocks.length) programs.vars.add(v);
                 return blocks;
@@ -872,13 +1231,13 @@ const getAssignments = (
                 const displayName = targetEntry
                   .replace(/^"/, "")
                   .replace(/"$/, "");
-                const user = graph.edges.userIdByDisplay[displayName];
+                const user = graph.edges.userUidByDisplay[displayName];
                 if (user) {
                   programs.vars.add(v);
                   return [
                     {
                       ...dict,
-                      [v]: { id: Number(user) },
+                      [v]: { uid: user },
                     },
                   ];
                 }
@@ -891,143 +1250,151 @@ const getAssignments = (
           );
           programs.assignments = new Set(newAssignments);
         } else {
-          const matches: { [v: string]: number | string | { id: number } }[] =
+          const matches: Assignment[] =
             rel === ":block/refs"
               ? target.type !== "variable"
                 ? []
-                : Object.entries(graph.edges.referencesById).flatMap(
+                : Object.entries(graph.edges.referencesByUid).flatMap(
                     ([source, refs]) =>
                       refs.map((ref) => ({
-                        [v]: { id: Number(source) },
-                        [targetVar]: { id: ref },
+                        [v]: { uid: source },
+                        [targetVar]: { uid: ref },
                       }))
                   )
               : rel === ":block/page"
               ? target.type !== "variable"
                 ? []
-                : Object.entries(graph.edges.blocksPageById).map((b, p) => ({
-                    [v]: { id: Number(b) },
-                    [targetVar]: { id: p },
+                : Object.entries(graph.edges.blocksPageByUid).map(([b, p]) => ({
+                    [v]: { uid: b },
+                    [targetVar]: { uid: p },
                   }))
               : rel === ":node/title"
               ? target.type === "constant"
-                ? graph.edges.pageIdByTitle[targetString]
-                  ? [{ [v]: { id: graph.edges.pageIdByTitle[targetString] } }]
+                ? graph.edges.pageUidByTitle[targetString]
+                  ? [{ [v]: { uid: graph.edges.pageUidByTitle[targetString] } }]
                   : []
                 : target.type === "underscore"
-                ? Object.values(graph.edges.pageIdByTitle).map((id) => ({
-                    [v]: { id },
+                ? Object.values(graph.edges.pageUidByTitle).map((uid) => ({
+                    [v]: { uid },
                   }))
-                : Object.entries(graph.edges.pageIdByTitle).map(
-                    ([title, id]) => ({
-                      [v]: { id },
+                : Object.entries(graph.edges.pageUidByTitle).map(
+                    ([title, uid]) => ({
+                      [v]: { uid },
                       [targetVar]: title,
                     })
                   )
               : rel === ":block/children"
               ? target.type !== "variable"
                 ? []
-                : Object.entries(graph.edges.childrenById).flatMap(
+                : Object.entries(graph.edges.childrenByUid).flatMap(
                     ([source, refs]) =>
                       refs.map((ref) => ({
-                        [v]: { id: Number(source) },
-                        [targetVar]: { id: ref },
+                        [v]: { uid: source },
+                        [targetVar]: { uid: ref },
                       }))
                   )
               : rel === ":block/parents"
               ? target.type !== "variable"
                 ? []
-                : Object.entries(graph.edges.ancestorsById).flatMap(
+                : Object.entries(graph.edges.ancestorsByUid).flatMap(
                     ([source, refs]) =>
                       Array.from(refs).map((ref) => ({
-                        [v]: { id: Number(source) },
-                        [targetVar]: { id: ref },
+                        [v]: { uid: source },
+                        [targetVar]: { uid: ref },
                       }))
                   )
               : rel === ":block/string"
               ? target.type === "constant"
-                ? Object.entries(graph.edges.blocksById)
+                ? Object.entries(graph.edges.blocksByUid)
                     .filter(([_, text]) => text !== targetString)
-                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                    .map(([uid]) => ({ [v]: { uid } }))
                 : target.type === "underscore"
-                ? Object.keys(graph.edges.blocksById).map((id) => ({
-                    [v]: { id: Number(id) },
+                ? Object.keys(graph.edges.blocksByUid).map((uid) => ({
+                    [v]: { uid },
                   }))
-                : Object.entries(graph.edges.blocksById).map(([id, text]) => ({
-                    [v]: { id: Number(id) },
-                    [targetVar]: text,
-                  }))
+                : Object.entries(graph.edges.blocksByUid).map(
+                    ([uid, text]) => ({
+                      [v]: { uid },
+                      [targetVar]: text,
+                    })
+                  )
               : rel === ":block/heading"
               ? target.type === "constant"
-                ? Object.entries(graph.edges.headingsById)
+                ? Object.entries(graph.edges.headingsByUid)
                     .filter(([_, text]) => text !== Number(targetString))
-                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                    .map(([uid]) => ({ [v]: { uid } }))
                 : target.type === "underscore"
-                ? Object.keys(graph.edges.headingsById).map((id) => ({
-                    [v]: { id: Number(id) },
+                ? Object.keys(graph.edges.headingsByUid).map((uid) => ({
+                    [v]: { uid },
                   }))
-                : Object.entries(graph.edges.headingsById).map(
-                    ([id, text]) => ({
-                      [v]: { id: Number(id) },
+                : Object.entries(graph.edges.headingsByUid).map(
+                    ([uid, text]) => ({
+                      [v]: { uid },
                       [targetVar]: text,
                     })
                   )
               : rel === ":create/user"
               ? target.type !== "variable"
                 ? []
-                : Object.entries(graph.edges.createUserById).map((b, p) => ({
-                    [v]: { id: Number(b) },
-                    [targetVar]: { id: p },
+                : Object.entries(graph.edges.createUserByUid).map(([b, p]) => ({
+                    [v]: { uid: b },
+                    [targetVar]: { uid: p },
                   }))
               : rel === ":edit/user"
               ? target.type !== "variable"
                 ? []
-                : Object.entries(graph.edges.editUserById).map((b, p) => ({
-                    [v]: { id: Number(b) },
-                    [targetVar]: { id: p },
+                : Object.entries(graph.edges.editUserByUid).map(([b, p]) => ({
+                    [v]: { uid: b },
+                    [targetVar]: { uid: p },
                   }))
               : rel === ":create/time"
               ? target.type === "constant"
-                ? Object.entries(graph.edges.createTimeById)
+                ? Object.entries(graph.edges.createTimeByUid)
                     .filter(([_, text]) => text !== Number(targetString))
-                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                    .map(([uid]) => ({ [v]: { uid } }))
                 : target.type === "underscore"
-                ? Object.keys(graph.edges.createTimeById).map((id) => ({
-                    [v]: { id: Number(id) },
+                ? Object.keys(graph.edges.createTimeByUid).map((uid) => ({
+                    [v]: { uid },
                   }))
-                : Object.entries(graph.edges.createTimeById).map(
-                    ([id, text]) => ({
-                      [v]: { id: Number(id) },
+                : Object.entries(graph.edges.createTimeByUid).map(
+                    ([uid, text]) => ({
+                      [v]: { uid },
                       [targetVar]: text,
                     })
                   )
               : rel === ":edit/time"
               ? target.type === "constant"
-                ? Object.entries(graph.edges.editTimeById)
+                ? Object.entries(graph.edges.editTimeByUid)
                     .filter(([_, text]) => text !== Number(targetString))
-                    .map(([id]) => ({ [v]: { id: Number(id) } }))
+                    .map(([uid]) => ({ [v]: { uid } }))
                 : target.type === "underscore"
-                ? Object.keys(graph.edges.editTimeById).map((id) => ({
-                    [v]: { id: Number(id) },
+                ? Object.keys(graph.edges.editTimeByUid).map((uid) => ({
+                    [v]: { uid },
                   }))
-                : Object.entries(graph.edges.editTimeById).map(
-                    ([id, text]) => ({
-                      [v]: { id: Number(id) },
+                : Object.entries(graph.edges.editTimeByUid).map(
+                    ([uid, text]) => ({
+                      [v]: { uid },
                       [targetVar]: text,
                     })
                   )
               : rel === ":user/display-name"
               ? target.type === "constant"
-                ? graph.edges.userIdByDisplay[targetString]
-                  ? [{ [v]: { id: graph.edges.userIdByDisplay[targetString] } }]
+                ? graph.edges.userUidByDisplay[targetString]
+                  ? [
+                      {
+                        [v]: {
+                          uid: graph.edges.userUidByDisplay[targetString],
+                        },
+                      },
+                    ]
                   : []
                 : target.type === "underscore"
-                ? Object.values(graph.edges.userIdByDisplay).map((id) => ({
-                    [v]: { id },
+                ? Object.values(graph.edges.userUidByDisplay).map((uid) => ({
+                    [v]: { uid },
                   }))
-                : Object.entries(graph.edges.userIdByDisplay).map(
-                    ([title, id]) => ({
-                      [v]: { id },
+                : Object.entries(graph.edges.userUidByDisplay).map(
+                    ([title, uid]) => ({
+                      [v]: { uid },
                       [targetVar]: title,
                     })
                   )
@@ -1071,6 +1438,7 @@ const getAssignments = (
             console.warn(
               "Expected type to be variable for first clojure.string/includes? argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const v = variable.value.toLowerCase();
@@ -1078,12 +1446,14 @@ const getAssignments = (
             console.warn(
               "Expected first clojure.string/includes? argument to be predefined variable."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (constant?.type !== "constant") {
             console.warn(
               "Expected type to be constant for second clojure.string/includes? argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).flatMap(
@@ -1112,18 +1482,21 @@ const getAssignments = (
             console.warn(
               "Expected type to be variable for first clojure.string/starts-with? argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (!programs.vars.has(v)) {
             console.warn(
               "Expected first clojure.string/starts-with? argument to be predefined variable."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (constant?.type !== "constant") {
             console.warn(
               "Expected type to be constant for second clojure.string/starts-with? argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).flatMap(
@@ -1152,18 +1525,21 @@ const getAssignments = (
             console.warn(
               "Expected type to be variable for first clojure.string/ends-with? argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (!programs.vars.has(v)) {
             console.warn(
               "Expected first clojure.string/ends-with? argument to be predefined variable."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (constant?.type !== "constant") {
             console.warn(
               "Expected type to be constant for second clojure.string/ends-with? argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).flatMap(
@@ -1193,24 +1569,28 @@ const getAssignments = (
             console.warn(
               "Expected type to be variable for first re-find argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (!programs.vars.has(v)) {
             console.warn(
               "Expected first re-find argument to be predefined variable."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (regex?.type !== "variable") {
             console.warn(
               "Expected type to be variable for second re-find argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (!programs.vars.has(r)) {
             console.warn(
               "Expected second re-find argument to be predefined variable."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).filter(
@@ -1237,12 +1617,14 @@ const getAssignments = (
             console.warn(
               "If left argument is a variable, it must be predefined"
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (right?.type === "variable" && !programs.vars.has(r)) {
             console.warn(
               "If right argument is a variable, it must be predefined"
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).filter(
@@ -1271,12 +1653,14 @@ const getAssignments = (
             console.warn(
               "If left argument is a variable, it must be predefined"
             );
+            programs.assignments = new Set();
             return programs;
           }
           if (right?.type === "variable" && !programs.vars.has(r)) {
             console.warn(
               "If right argument is a variable, it must be predefined"
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).filter(
@@ -1299,7 +1683,7 @@ const getAssignments = (
           programs.assignments = new Set(newAssignments);
         } else {
           console.warn(`Unexpected predicate ${clause.pred}`);
-          return programs;
+          programs.assignments = new Set();
         }
       } else if (clause.type === "fn-expr") {
         if (clause.fn === "re-pattern") {
@@ -1308,6 +1692,7 @@ const getAssignments = (
             console.warn(
               "Expected type to be constant for first re-pattern argument."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const { binding } = clause;
@@ -1315,6 +1700,7 @@ const getAssignments = (
             console.warn(
               "Expected type to be scalar for first re-pattern binding."
             );
+            programs.assignments = new Set();
             return programs;
           }
           const newAssignments = Array.from(programs.assignments).map(
@@ -1328,11 +1714,13 @@ const getAssignments = (
             }
           );
           programs.assignments = new Set(newAssignments);
-          return programs;
         } else {
           console.warn(`Unexpected fn name ${clause.fn}`);
-          return programs;
+          programs.assignments = new Set();
         }
+      } else {
+        console.warn(`Unexpected type ${clause.type}`);
+        programs.assignments = new Set();
       }
       return programs;
     },
@@ -1352,11 +1740,11 @@ const query = ({ where, pull }: QueryArgs) => {
           const node = res[_var.toLowerCase()];
           if (isNode(node)) {
             if (field === ":node/title") {
-              return [label, graph.edges.pagesById[node.id]];
+              return [label, graph.edges.pagesByUid[node.uid]];
             } else if (field === ":block/string") {
-              return [label, graph.edges.blocksById[node.id]];
+              return [label, graph.edges.blocksByUid[node.uid]];
             } else if (field === ":block/uid") {
-              return [label, graph.edges.uidsById[node.id]];
+              return [label, node.uid];
             }
           }
           return [];
@@ -1366,8 +1754,8 @@ const query = ({ where, pull }: QueryArgs) => {
   );
 };
 
-const fireQuery = ({ uuid, ...args }: { uuid: string } & QueryArgs) => {
-  postMessage({ method: `fireQuery_${uuid}`, results: query(args) });
+const fireQuery = ({ id, ...args }: { id: string } & QueryArgs) => {
+  postMessage({ method: `fireQuery_${id}`, results: query(args) });
 };
 
 onmessage = (e) => {
@@ -1376,7 +1764,7 @@ onmessage = (e) => {
   if (method === "overview") {
     overview();
   } else if (method === "init") {
-    init(args.graph);
+    init(args);
   } else if (method === "fireQuery") {
     fireQuery(args);
   }

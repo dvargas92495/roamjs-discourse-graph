@@ -1,7 +1,6 @@
 import { Button, Popover, Position, Tooltip } from "@blueprintjs/core";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
-import { v4 } from "uuid";
 import { ContextContent } from "../DiscourseContext";
 import {
   getDiscourseContextResults,
@@ -10,13 +9,13 @@ import {
   matchNode,
 } from "../util";
 import { useInViewport } from "react-in-viewport";
-import { getDataWorker, listeners, refreshUi } from "../dataWorkerClient";
+import { refreshUi } from "../dataWorkerClient";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import differenceInMilliseconds from "date-fns/differenceInMilliseconds";
-import localStorageGet from "roamjs-components/util/localStorageGet";
 import deriveNodeAttribute from "../utils/deriveNodeAttribute";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import nanoid from "nanoid";
 
 type DiscourseData = {
   results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
@@ -135,7 +134,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
 };
 
 const Wrapper = ({ parent, tag }: { parent: HTMLElement; tag: string }) => {
-  const id = useMemo(() => v4(), []);
+  const id = useMemo(() => nanoid(), []);
   const { inViewport } = useInViewport(
     { current: parent },
     {},

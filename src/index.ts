@@ -74,8 +74,22 @@ import deriveNodeAttribute from "./utils/deriveNodeAttribute";
 import { localStorageGet } from "roamjs-components/util/localStorageGet";
 import localStorageSet from "roamjs-components/util/localStorageSet";
 import localStorageRemove from "roamjs-components/util/localStorageRemove";
-import { DatalogClause, PullBlock } from "roamjs-components/types/native";
-import { v4 } from "uuid";
+import type { DatalogClause } from "roamjs-components/types/native";
+import TextPanel from "roamjs-components/components/ConfigPanels/TextPanel";
+import FlagPanel from "roamjs-components/components/ConfigPanels/FlagPanel";
+import CustomPanel from "roamjs-components/components/ConfigPanels/CustomPanel";
+import NumberPanel from "roamjs-components/components/ConfigPanels/NumberPanel";
+import MultiTextPanel from "roamjs-components/components/ConfigPanels/MultiTextPanel";
+import SelectPanel from "roamjs-components/components/ConfigPanels/SelectPanel";
+import BlocksPanel from "roamjs-components/components/ConfigPanels/BlocksPanel";
+import type {
+  CustomField,
+  Field,
+  SelectField,
+  FlagField,
+} from "roamjs-components/components/ConfigPanels/types";
+import nanoid from "nanoid";
+import { render as versioning } from "roamjs-components/components/VersionSwitcher";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -329,23 +343,23 @@ runExtension("discourse-graph", async () => {
               description:
                 "The trigger to create the node menu. Must refresh after editing.",
               defaultValue: "\\",
-              type: "text",
+              Panel: TextPanel,
             },
             {
               title: "hide page metadata",
               description:
                 "Whether or not to display the page author and created date under each title",
-              type: "flag",
+              Panel: FlagPanel,
             },
             {
               title: "preview",
               description:
                 "Whether or not to display page previews when hovering over page refs",
-              type: "flag",
+              Panel: FlagPanel,
               options: {
                 onChange: onPageRefObserverChange(previewPageRefHandler),
               },
-            },
+            } as Field<FlagField>,
           ],
         },
         {
@@ -353,24 +367,24 @@ runExtension("discourse-graph", async () => {
           fields: [
             {
               title: "nodes",
-              type: "custom",
+              Panel: CustomPanel,
               description: "The types of nodes in your discourse graph",
               options: {
                 component: NodeConfigPanel,
               },
-            },
+            } as Field<CustomField>,
             {
               title: "relations",
-              type: "custom",
+              Panel: CustomPanel,
               description: "The types of relations in your discourse graph",
               defaultValue: DEFAULT_RELATION_VALUES,
               options: {
                 component: RelationConfigPanel,
               },
-            },
+            } as Field<CustomField>,
             {
               title: "overlay",
-              type: "flag",
+              Panel: FlagPanel,
               description:
                 "Whether to overlay discourse context information over node references",
               options: {
@@ -378,7 +392,7 @@ runExtension("discourse-graph", async () => {
                   onPageRefObserverChange(overlayPageRefHandler)(val);
                 },
               },
-            },
+            } as Field<FlagField>,
           ],
         },
         {
@@ -386,16 +400,16 @@ runExtension("discourse-graph", async () => {
           fields: [
             {
               title: user,
-              type: "custom",
+              Panel: CustomPanel,
               description:
                 "Subscription User Settings to notify you of latest changes",
               options: {
                 component: SubscriptionConfigPanel,
               },
-            },
+            } as Field<CustomField>,
             {
               title: "multiplayer",
-              type: "flag",
+              Panel: FlagPanel,
               description: "Whether or not to enable Multiplayer on this graph",
               options: {
                 onChange: (f) =>
@@ -403,7 +417,7 @@ runExtension("discourse-graph", async () => {
                     ? window.roamjs.extension.multiplayer.enable()
                     : window.roamjs.extension.multiplayer.disable(),
               },
-            },
+            } as Field<FlagField>,
           ],
         },
         { id: "render references", fields: [], toggleable: true },
@@ -412,53 +426,53 @@ runExtension("discourse-graph", async () => {
           fields: [
             {
               title: "max filename length",
-              type: "number",
+              Panel: NumberPanel,
               description:
                 "Set the maximum name length for markdown file exports",
               defaultValue: 64,
             },
             {
               title: "remove special characters",
-              type: "flag",
+              Panel: FlagPanel,
               description:
                 "Whether or not to remove the special characters in a file name",
             },
             {
               title: "simplified filename",
-              type: "flag",
+              Panel: FlagPanel,
               description:
                 "For discourse nodes, extract out the {content} from the page name to become the file name",
             },
             {
               title: "frontmatter",
-              type: "multitext",
+              Panel: MultiTextPanel,
               description:
                 "Specify all the lines that should go to the Frontmatter of the markdown file",
             },
             {
               title: "resolve block references",
-              type: "flag",
+              Panel: FlagPanel,
               description:
                 "Replaces block references in the markdown content with the block's content",
             },
             {
               title: "resolve block embeds",
-              type: "flag",
+              Panel: FlagPanel,
               description:
                 "Replaces block embeds in the markdown content with the block's content tree",
             },
             {
               title: "link type",
-              type: "select",
+              Panel: SelectPanel,
               description: "How to format links that appear in your export",
               options: {
                 items: ["alias", "wikilinks"],
               },
-            },
+            } as Field<SelectField>,
           ],
         },
       ],
-      versioning: true,
+      versioning,
     },
   });
 
@@ -498,8 +512,8 @@ runExtension("discourse-graph", async () => {
               })
               .filter((s) => !!s);
             return new Promise((resolve) => {
-              const uuid = v4();
-              const listenerKey = `fireQuery_${uuid}`;
+              const id = nanoid();
+              const listenerKey = `fireQuery_${id}`;
               listeners[listenerKey] = (response) => {
                 delete listeners[listenerKey];
                 resolve(
@@ -508,7 +522,7 @@ runExtension("discourse-graph", async () => {
               };
               worker.postMessage({
                 method: "fireQuery",
-                uuid,
+                id,
                 where,
                 pull,
               });
@@ -771,7 +785,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-05-19-17-53/main.js",
+      src: "https://roamjs.com/query-builder/2022-06-12-02-19/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -783,7 +797,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-05-19-17-53/main.js",
+      src: "https://roamjs.com/query-builder/2022-06-12-02-19/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -983,7 +997,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                         title: "Index",
                         description:
                           "Index of all of the pages in your graph of this type",
-                        type: "custom",
+                        Panel: CustomPanel,
                         options: {
                           component: ({ uid }) =>
                             React.createElement(NodeIndex, {
@@ -991,41 +1005,41 @@ We expect that there will be no disruption in functionality. If you see issues a
                               parentUid: uid,
                             }),
                         },
-                      },
+                      } as Field<CustomField>,
                       {
                         title: "Format",
                         description: `The format ${nodeText} pages should have.`,
                         defaultValue: "\\",
-                        type: "text",
+                        Panel: TextPanel,
                       },
                       {
                         title: "Shortcut",
                         description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
                         defaultValue: "\\",
-                        type: "text",
+                        Panel: TextPanel,
                       },
                       {
                         title: "Description",
                         description: `Describing what the ${nodeText} node represents in your graph.`,
-                        type: "text",
+                        Panel: TextPanel,
                       },
                       {
                         title: "Template",
                         description: `The template that auto fills ${nodeText} page when generated.`,
-                        type: "blocks",
+                        Panel: BlocksPanel,
                       },
                       {
                         title: "Attributes",
                         description: `A set of derived properties about the node based on queryable data.`,
-                        type: "custom",
+                        Panel: CustomPanel,
                         options: {
                           component: NodeAttributes,
                         },
-                      },
+                      } as Field<CustomField>,
                       {
                         title: "Overlay",
                         description: `Select which attribute is used for the Discourse Overlay`,
-                        type: "select",
+                        Panel: SelectPanel,
                         options: {
                           items: () =>
                             getSubTree({
@@ -1033,7 +1047,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                               key: "Attributes",
                             }).children.map((c) => c.text),
                         },
-                      },
+                      } as Field<SelectField>,
                     ],
                   },
                 ],

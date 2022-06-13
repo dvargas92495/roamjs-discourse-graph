@@ -17,9 +17,9 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import createBlock from "roamjs-components/writes/createBlock";
 import createPage from "roamjs-components/writes/createPage";
 import { TreeNode } from "roamjs-components/types";
-import { v4 } from "uuid";
 import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
+import nanoid from "nanoid";
 
 type Props = {
   graphs: string[];
@@ -43,7 +43,7 @@ const SendQueryRequest = ({
           .reduce((prev, cur) => (cur.length > prev.length ? cur : prev), "")
       : ""
   );
-  const requestId = useMemo(() => v4(), []);
+  const requestId = useMemo(() => nanoid(), []);
   return (
     <Dialog
       isOpen={true}
