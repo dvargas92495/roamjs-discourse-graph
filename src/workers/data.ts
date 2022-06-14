@@ -192,6 +192,8 @@ type Updates = (
 type UpdateNode = {
   "~:block/uid"?: string;
   "~:block/string"?: string;
+  "~:node/title"?: string;
+  "~:block/heading"?: number;
   "~:edit/time"?: number;
   "~:edit/user"?: UpdateNode;
   "~:create/time"?: number;
@@ -206,7 +208,11 @@ type UpdateNode = {
   "~:block/refs"?: UpdateNode[];
   "~:db.fn/retractEntity"?: UpdateNode;
   "~:version/id"?: string;
+  "~:version/nonce"?: string;
   "~:block/open"?: boolean;
+  "~:user/settings"?: UpdateNode;
+  "~:attrs/lookup"?: UpdateNode;
+  "~:edit/seen-by"?: UpdateNode;
 };
 
 const processUpdates = (updates: UpdateNode[]) => {
@@ -214,12 +220,36 @@ const processUpdates = (updates: UpdateNode[]) => {
     try {
       if (update["~:version/id"]) {
         // ignore - dont care about version updates
+      } else if (update["~:user/settings"]) {
+        // ignore - dont care about user settings
+      } else if (update["~:attrs/lookup"]) {
+        // ignore - dont care about user settings
       } else if (update["~:db/add"]) {
+        const blockUid = update["~:db/add"]["~:block/uid"];
         if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/children"] !== "undefined"
+        ) {
+          const childUid = (update["~:block/children"] as UpdateNode)[
+            "~:block/uid"
+          ];
+          graph.edges.childrenByUid[blockUid] = (
+            graph.edges.childrenByUid[blockUid] || []
+          ).concat([childUid]);
+          delete graph.edges.parentByUid[childUid];
+        } else if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/order"] !== "undefined"
         ) {
-          // could ignore order only updates
+          const parentUid = graph.edges.parentByUid[blockUid];
+          graph.edges.childrenByUid[parentUid] = (graph.edges.childrenByUid[
+            parentUid
+          ] || []).filter((b) => b !== blockUid);
+          graph.edges.childrenByUid[parentUid].splice(
+            update["~:block/order"],
+            0,
+            blockUid
+          );
         } else if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/open"] !== "undefined"
@@ -228,6 +258,20 @@ const processUpdates = (updates: UpdateNode[]) => {
         } else if (Object.keys(update).length === 2 && update["~:block/page"]) {
           graph.edges.blocksPageByUid[update["~:db/add"]["~:block/uid"]] =
             update["~:block/page"]["~:block/uid"];
+        } else if (
+          Object.keys(update).length === 2 &&
+          update["~:version/nonce"]
+        ) {
+          // skip, nothing to do when undos occur
+        } else if (Object.keys(update).length === 2 && update["~:edit/time"]) {
+          graph.edges.editTimeByUid[update["~:db/add"]["~:block/uid"]] =
+            update["~:edit/time"];
+        } else if (
+          Object.keys(update).length === 2 &&
+          update["~:block/string"]
+        ) {
+          graph.edges.blocksByUid[update["~:db/add"]["~:block/uid"]] =
+            update["~:block/string"];
         } else {
           console.warn("unknown db/add update: ", update);
           return true;
@@ -249,17 +293,42 @@ const processUpdates = (updates: UpdateNode[]) => {
           Object.keys(update).length === 2 &&
           typeof update["~:block/refs"] !== "undefined"
         ) {
-          const refUid = (update["~:block/refs"] as UpdateNode)[
-            "~:block/uid"
-          ];
+          const refUid = (update["~:block/refs"] as UpdateNode)["~:block/uid"];
           graph.edges.referencesByUid[parentUid] = graph.edges.referencesByUid[
             parentUid
           ].filter((i) => refUid !== i);
-          graph.edges.linkedReferencesByUid[refUid] = graph.edges.linkedReferencesByUid[
-            refUid
-          ].filter((i) => parentUid !== i);
+          graph.edges.linkedReferencesByUid[refUid] = (
+            graph.edges.linkedReferencesByUid[refUid] || []
+          ).filter((i) => parentUid !== i);
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/parents"] !== "undefined"
+        ) {
+          const ancestor = (update["~:block/parents"] as UpdateNode)[
+            "~:block/uid"
+          ];
+          graph.edges.ancestorsByUid[parentUid] = (
+            graph.edges.ancestorsByUid[parentUid] || []
+          ).filter((uid) => uid !== ancestor);
+          graph.edges.descendantsByUid[ancestor] = (
+            graph.edges.descendantsByUid[parentUid] || []
+          ).filter((uid) => uid !== parentUid);
+        } else if (
+          Object.keys(update).length === 2 &&
+          update["~:version/nonce"]
+        ) {
+          // skip, nothing to do with undos
+        } else if (Object.keys(update).length === 2 && update["~:edit/time"]) {
+          delete graph.edges.editTimeByUid[
+            update["~:db/retract"]["~:block/uid"]
+          ];
+        } else if (
+          Object.keys(update).length === 2 &&
+          update["~:block/string"]
+        ) {
+          delete graph.edges.blocksByUid[update["~:db/retract"]["~:block/uid"]];
         } else {
-          console.warn("unknown db/add update: ", update);
+          console.warn("unknown db/retract update: ", update);
           return true;
         }
       } else if (update["~:db.fn/retractEntity"]) {
@@ -293,68 +362,94 @@ const processUpdates = (updates: UpdateNode[]) => {
         delete graph.edges.pageUidByTitle[title];
         delete graph.edges.pagesByUid[uid];
       } else if (update["~:block/uid"]) {
+        const blockUid = update["~:block/uid"];
         if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/order"] !== "undefined"
         ) {
-          // could ignore order only updates
+          const parentUid = graph.edges.parentByUid[blockUid];
+          graph.edges.childrenByUid[parentUid] = graph.edges.childrenByUid[
+            parentUid
+          ].filter((b) => b !== blockUid);
+          graph.edges.childrenByUid[parentUid].splice(
+            update["~:block/order"],
+            0,
+            blockUid
+          );
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:edit/seen-by"] !== "undefined"
+        ) {
+          // ignore - dont care about edit seen by
         } else if (
           Object.keys(update).length === 2 &&
           update["~:block/children"]
         ) {
-          const parentUid = update["~:block/uid"];
           const blocks = update["~:block/children"] as UpdateNode[];
-          blocks.forEach((block) => {
-            const uid = block["~:block/uid"];
-            graph.edges.editTimeByUid[uid] = block["~:edit/time"];
-            graph.edges.editUserByUid[uid] = block["~:edit/user"]["~:user/uid"];
-            graph.edges.createTimeByUid[uid] = block["~:create/time"];
-            graph.edges.createUserByUid[uid] =
-              block["~:create/user"]["~:user/uid"];
-            graph.edges.blocksByUid[uid] = block["~:block/string"];
-            graph.edges.headingsByUid[uid] = 0;
+          blocks.forEach((child) => {
+            const uid = child["~:block/uid"];
+            if (child["~:edit/time"])
+              graph.edges.editTimeByUid[uid] = child["~:edit/time"];
+            if (child["~:edit/user"])
+              graph.edges.editUserByUid[uid] =
+                child["~:edit/user"]["~:user/uid"];
+            if (child["~:create/time"])
+              graph.edges.createTimeByUid[uid] = child["~:create/time"];
+            if (child["~:create/user"])
+              graph.edges.createUserByUid[uid] =
+                child["~:create/user"]["~:user/uid"];
+            if (typeof child["~:block/string"] !== "undefined")
+              graph.edges.blocksByUid[uid] = child["~:block/string"];
+            graph.edges.headingsByUid[uid] = child["~:block/heading"] || 0;
             // TODO :block/open
-            graph.edges.childrenByUid[parentUid] =
-              graph.edges.childrenByUid[parentUid] || [];
-            graph.edges.childrenByUid[parentUid].splice(
-              block["~:block/order"],
-              0,
-              uid
-            );
+            if (typeof child["~:block/order"] !== "undefined") {
+              graph.edges.childrenByUid[blockUid] =
+                graph.edges.childrenByUid[blockUid] || [];
+              graph.edges.childrenByUid[blockUid].splice(
+                child["~:block/order"],
+                0,
+                uid
+              );
+            }
           });
         } else if (
           Object.keys(update).length === 2 &&
           update["~:block/parents"]
         ) {
-          const uid = update["~:block/uid"];
           const parentUids = (update["~:block/parents"] as UpdateNode[]).map(
             (u) => u["~:block/uid"]
           );
           const parentUid = parentUids[parentUids.length - 1];
-          graph.edges.parentByUid[uid] = parentUid;
-          graph.edges.ancestorsByUid[uid] = parentUids.reverse();
+          graph.edges.parentByUid[blockUid] = parentUid;
+          graph.edges.ancestorsByUid[blockUid] = parentUids.reverse();
         } else if (
           Object.keys(update).length === 4 &&
-          update["~:block/string"]
+          typeof update["~:block/string"] !== "undefined"
         ) {
-          const uid = update["~:block/uid"];
-          graph.edges.blocksByUid[uid] = update["~:block/string"];
-          graph.edges.editTimeByUid[uid] = update["~:edit/time"];
+          graph.edges.blocksByUid[blockUid] = update["~:block/string"];
+          graph.edges.editTimeByUid[blockUid] = update["~:edit/time"];
           const user = update["~:edit/user"];
-          graph.edges.editUserByUid[uid] = user["~:user/uid"];
+          graph.edges.editUserByUid[blockUid] = user["~:user/uid"];
         } else if (Object.keys(update).length === 2 && update["~:block/refs"]) {
-          const uid = update["~:block/uid"];
           const refs = update["~:block/refs"].map((r) => r["~:block/uid"]);
-          graph.edges.referencesByUid[uid] = (
-            graph.edges.referencesByUid[uid] || []
+          graph.edges.referencesByUid[blockUid] = (
+            graph.edges.referencesByUid[blockUid] || []
           ).concat(refs);
           refs.forEach((refId) => {
             if (graph.edges.linkedReferencesByUid[refId]) {
-              graph.edges.linkedReferencesByUid[refId].push(uid);
+              graph.edges.linkedReferencesByUid[refId].push(blockUid);
             } else {
-              graph.edges.linkedReferencesByUid[refId] = [uid];
+              graph.edges.linkedReferencesByUid[refId] = [blockUid];
             }
           });
+        } else if (Object.keys(update).length === 7 && update["~:node/title"]) {
+          graph.edges.pagesByUid[blockUid] = update["~:node/title"];
+          graph.edges.createTimeByUid[blockUid] = update["~:create/time"];
+          graph.edges.createUserByUid[blockUid] =
+            update["~:create/user"]["~:user/uid"];
+          graph.edges.editTimeByUid[blockUid] = update["~:edit/time"];
+          graph.edges.editUserByUid[blockUid] =
+            update["~:edit/user"]["~:user/uid"];
         } else {
           console.warn("unknown block/uid update: ", update);
           return true;
@@ -456,7 +551,6 @@ const init = ({
           })
       )
       .then((results) => {
-        console.log("need to apply", results.length, "updates");
         // Using `some` to do forEach with `break`
         const failedToParse = results.some((result) => {
           // ts why is this not discriminated without the `=== true`??
@@ -476,9 +570,9 @@ const init = ({
             );
             return true;
           }
+          graph.latest = result.source_t;
           return false;
         });
-        if (!failedToParse) console.log("Processed all updates!");
         return save();
       });
   };
