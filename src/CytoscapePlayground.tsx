@@ -709,7 +709,6 @@ const CytoscapePlayground = ({
             />
           </Tooltip>
         ))}
-        <i>{"<="} New Cursor Bar functionality coming soon</i>
       </div>
       <div className={"z-20 bottom-2 absolute w-full text-center"}>
         <div className="flex flex-col gap-2">
