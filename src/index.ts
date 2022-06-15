@@ -90,6 +90,7 @@ import type {
 } from "roamjs-components/components/ConfigPanels/types";
 import nanoid from "nanoid";
 import { render as versioning } from "roamjs-components/components/VersionSwitcher";
+import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -476,7 +477,6 @@ runExtension("discourse-graph", async () => {
     },
   });
 
-  type FireQuery = typeof window.roamjs.extension.queryBuilder.fireQuery;
   let fireQueryRef: FireQuery;
   const toggleExperimentalModeFeatures = (experimentalOverlayMode: boolean) => {
     if (experimentalOverlayMode) {
@@ -511,22 +511,7 @@ runExtension("discourse-graph", async () => {
                 }));
               })
               .filter((s) => !!s);
-            return new Promise((resolve) => {
-              const id = nanoid();
-              const listenerKey = `fireQuery_${id}`;
-              listeners[listenerKey] = (response) => {
-                delete listeners[listenerKey];
-                resolve(
-                  (response as { results: ReturnType<FireQuery> })?.results
-                );
-              };
-              worker.postMessage({
-                method: "fireQuery",
-                id,
-                where,
-                pull,
-              });
-            });
+            return fireWorkerQuery({ where, pull });
           };
         };
         if (window.roamjs.extension.queryBuilder) {

@@ -9,6 +9,9 @@ import ReactDOM from "react-dom";
 import cytoscape from "cytoscape";
 import {
   Button,
+  Classes,
+  Dialog,
+  InputGroup,
   Intent,
   Menu,
   MenuItem,
@@ -43,6 +46,75 @@ import fuzzy from "fuzzy";
 import triplesToBlocks from "./utils/triplesToBlocks";
 import { renderLoading } from "roamjs-components/components/Loading";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
+import createOverlayRender from "roamjs-components/util/createOverlayRender";
+import getSubTree from "roamjs-components/util/getSubTree";
+
+type AliasProps = {
+  node: cytoscape.NodeSingular;
+};
+
+const AliasDialog = ({
+  onClose,
+  node,
+}: {
+  onClose: () => void;
+} & AliasProps) => {
+  const defaultValue = useMemo(() => node.data("alias"), [node]);
+  const [alias, setAlias] = useState(defaultValue);
+  const [loading, setLoading] = useState(false);
+  const onSubmit = () => {
+    setLoading(false);
+    const blockUid = node.data("id");
+    if (alias) {
+      node.data("alias", alias);
+      setInputSetting({ blockUid, value: alias, key: "alias" }).then(onClose);
+    } else {
+      node.data("alias", node.data("label"));
+      deleteBlock(getSubTree({ key: "alias", parentUid: blockUid }).uid).then(
+        onClose
+      );
+    }
+  };
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (
+        e.key === "Enter" &&
+        !e.shiftKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.ctrlKey
+      ) {
+        onSubmit();
+      }
+      e.stopPropagation();
+    },
+    [onSubmit, onClose, alias]
+  );
+  return (
+    <>
+      <Dialog
+        isOpen={true}
+        title={"Alias Playground Node"}
+        onClose={onClose}
+        canOutsideClickClose
+        canEscapeKeyClose
+      >
+        <div className={Classes.DIALOG_BODY} onKeyDown={onKeyDown}>
+          <InputGroup
+            defaultValue={defaultValue}
+            onChange={(e) => setAlias(e.target.value)}
+          />
+        </div>
+        <div className={Classes.DIALOG_FOOTER}>
+          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+            <Button text={"Cancel"} onClick={onClose} />
+            <Button text={"Set"} intent={Intent.PRIMARY} onClick={onSubmit} />
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+};
 
 const NodeIcon = ({
   shortcut,
@@ -131,7 +203,7 @@ const COLORS = [
 const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
 const SELECTION_MODES = [
-  { id: "NAVIGATE", tooltip: "Navigate", icon: "new-link" },
+  { id: "NORMAL", tooltip: "Normal", icon: "new-link" },
   { id: "ALIAS", tooltip: "Alias", icon: "application" },
 ] as const;
 type SelectionMode = typeof SELECTION_MODES[number]["id"];
@@ -335,7 +407,8 @@ const CytoscapePlayground = ({
       }),
     [edgeCallback, cyRef]
   );
-  const [selectionMode, setSelectionMode] = useState<SelectionMode>("NAVIGATE");
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("NORMAL");
+  const selectionModeRef = useRef(selectionMode);
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
@@ -344,7 +417,16 @@ const CytoscapePlayground = ({
           return;
         }
         clearEditingRelation();
-        if (e.originalEvent.ctrlKey) {
+        if (selectionModeRef.current === "ALIAS") {
+          clearSourceRef();
+          clearEditingRef();
+          createOverlayRender<AliasProps>(
+            "playground-alias",
+            AliasDialog
+          )({
+            node: n,
+          });
+        } else if (e.originalEvent.ctrlKey) {
           clearSourceRef();
           clearEditingRef();
           deleteBlock(n.id());
@@ -494,14 +576,16 @@ const CytoscapePlayground = ({
             x = "0",
             y = "0",
             color = TEXT_COLOR,
+            alias,
             ...data
           } = Object.fromEntries(
             children.map(({ text, children = [] }) => [text, children[0]?.text])
           );
-          console.log(text);
+          const label = text || "Click to edit text";
           return {
             data: {
-              label: text || "Click to edit text",
+              alias: alias || label,
+              label,
               color,
               id: uid,
               ...data,
@@ -516,7 +600,7 @@ const CytoscapePlayground = ({
           selector: "node",
           style: {
             "background-color": `#${TEXT_COLOR}`,
-            label: "data(label)",
+            label: "data(alias)",
             shape: "round-rectangle",
             color: "#EEEEEE",
             "text-wrap": "wrap",
@@ -615,14 +699,17 @@ const CytoscapePlayground = ({
         {SELECTION_MODES.map((m) => (
           <Tooltip content={m.tooltip} key={m.id} position={Position.BOTTOM}>
             <Button
-              onClick={() => setSelectionMode(m.id)}
+              onClick={() => {
+                setSelectionMode(m.id);
+                selectionModeRef.current = m.id;
+              }}
               minimal
               active={selectionMode === m.id}
               icon={m.icon}
             />
           </Tooltip>
         ))}
-        <i>{'<='} New Cursor Bar functionality coming soon</i>
+        <i>{"<="} New Cursor Bar functionality coming soon</i>
       </div>
       <div className={"z-20 bottom-2 absolute w-full text-center"}>
         <div className="flex flex-col gap-2">

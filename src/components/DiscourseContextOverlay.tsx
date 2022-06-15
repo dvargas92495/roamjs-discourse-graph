@@ -16,6 +16,8 @@ import deriveNodeAttribute from "../utils/deriveNodeAttribute";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import nanoid from "nanoid";
+import localStorageGet from "roamjs-components/util/localStorageGet";
+import fireWorkerQuery from "../utils/fireWorkerQuery";
 
 type DiscourseData = {
   results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
@@ -38,7 +40,7 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
         (results) => {
           const output = (cache[tag] = {
             results,
-            refs: window.roamAlphaAPI.q(
+            refs: window.roamAlphaAPI.data.fast.q(
               `[:find ?a :where [?b :node/title "${normalizePageTitle(
                 tag
               )}"] [?a :block/refs ?b]]`
@@ -57,13 +59,42 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
   });
 };
 
+const experimentalGetOverlayInfo = (title: string) =>
+  Promise.all([
+    getDiscourseContextResults(title),
+    fireWorkerQuery({
+      where: [
+        {
+          type: "data-pattern",
+          arguments: [
+            { type: "variable", value: "b" },
+            { type: "constant", value: ":node/title" },
+            { type: "constant", value: `"${title}"` },
+          ],
+        },
+        {
+          type: "data-pattern",
+          arguments: [
+            { type: "variable", value: "a" },
+            { type: "constant", value: ":block/refs" },
+            { type: "variable", value: `b` },
+          ],
+        },
+      ],
+      pull: [],
+    }),
+  ]).then(([results, allrefs]) => ({ results, refs: allrefs.length }));
+
 const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<DiscourseData["results"]>([]);
   const [refs, setRefs] = useState(0);
   const getInfo = useCallback(
     () =>
-      getOverlayInfo(tag).then(({ refs, results }) => {
+      (localStorageGet("experimental") === "true"
+        ? experimentalGetOverlayInfo(tag)
+        : getOverlayInfo(tag)
+      ).then(({ refs, results }) => {
         setResults(results);
         setRefs(refs);
         setLoading(false);

@@ -1,17 +1,9 @@
-// TODO LATER LIST
-// - DEFAULT_[NODE|RELATIONS]_VALUES
-// - Config, graph updates update cache
-
-import type {
-  DatalogAndClause,
-  DatalogClause,
-} from "roamjs-components/types/native";
-import type { Result } from "roamjs-components/types/query-builder";
 import { unpack } from "msgpackr/unpack";
 import apiGet from "roamjs-components/util/apiGet";
 import apiPut from "roamjs-components/util/apiPut";
 import { Graph } from "./types";
 import fireQuery from "./methods/fireQuery";
+import idb from "idb";
 
 const resetGraph = (): typeof graph => ({
   latest: 0,
@@ -44,8 +36,8 @@ const resetGraph = (): typeof graph => ({
 
 const graph: Graph = resetGraph();
 
-const accessBlocksDirectly = (graph: string) => {
-  return new Promise<IDBDatabase>((resolve, reject) => {
+const getSnapshotFromIdbManual = (graph: string) =>
+  new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(`v10_SLASH_dbs_SLASH_${graph}`);
     request.onerror = (e) => {
       reject((e.target as IDBRequest).error);
@@ -53,25 +45,27 @@ const accessBlocksDirectly = (graph: string) => {
     request.onsuccess = (event) => {
       resolve((event.target as IDBRequest<IDBDatabase>).result);
     };
-  })
-    .then(
-      (db) =>
-        new Promise<[{ db_msgpack_array: Uint8Array }]>((resolve, reject) => {
-          const request = db
-            .transaction("snapshot")
-            .objectStore("snapshot")
-            .getAll();
-          request.onerror = (e) => {
-            reject((e.target as IDBRequest).error);
-          };
-          request.onsuccess = (event) => {
-            resolve(
-              (event.target as IDBRequest<[{ db_msgpack_array: Uint8Array }]>)
-                .result
-            );
-          };
-        })
-    )
+  }).then(
+    (db) =>
+      new Promise<[{ db_msgpack_array: Uint8Array }]>((resolve, reject) => {
+        const request = db
+          .transaction("snapshot")
+          .objectStore("snapshot")
+          .getAll();
+        request.onerror = (e) => {
+          reject((e.target as IDBRequest).error);
+        };
+        request.onsuccess = (event) => {
+          resolve(
+            (event.target as IDBRequest<[{ db_msgpack_array: Uint8Array }]>)
+              .result
+          );
+        };
+      })
+  );
+
+const accessBlocksDirectly = (graph: string) => {
+  return getSnapshotFromIdbManual(graph)
     .then((result) => {
       const serialized = unpack(result[0].db_msgpack_array) as {
         eavt: [number, number, unknown][];
@@ -213,10 +207,11 @@ type UpdateNode = {
   "~:user/settings"?: UpdateNode;
   "~:attrs/lookup"?: UpdateNode;
   "~:edit/seen-by"?: UpdateNode;
+  "~:ent/emojis"?: UpdateNode;
 };
 
 const processUpdates = (updates: UpdateNode[]) => {
-  return updates.some((update) => {
+  return updates.find((update) => {
     try {
       if (update["~:version/id"]) {
         // ignore - dont care about version updates
@@ -242,9 +237,9 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:block/order"] !== "undefined"
         ) {
           const parentUid = graph.edges.parentByUid[blockUid];
-          graph.edges.childrenByUid[parentUid] = (graph.edges.childrenByUid[
-            parentUid
-          ] || []).filter((b) => b !== blockUid);
+          graph.edges.childrenByUid[parentUid] = (
+            graph.edges.childrenByUid[parentUid] || []
+          ).filter((b) => b !== blockUid);
           graph.edges.childrenByUid[parentUid].splice(
             update["~:block/order"],
             0,
@@ -378,6 +373,11 @@ const processUpdates = (updates: UpdateNode[]) => {
           );
         } else if (
           Object.keys(update).length === 2 &&
+          typeof update["~:ent/emojis"] !== "undefined"
+        ) {
+          // ignore - dont care about emojis
+        } else if (
+          Object.keys(update).length === 2 &&
           typeof update["~:edit/seen-by"] !== "undefined"
         ) {
           // ignore - dont care about edit seen by
@@ -466,7 +466,7 @@ const processUpdates = (updates: UpdateNode[]) => {
 };
 
 const parseTxData = (s: string) => {
-  const fields = Array.from(s.matchAll(/"~[:#][a-z\/-]+"/g)).map((k) =>
+  const fields = Array.from(s.matchAll(/"~[:#][a-zA-Z.\/-]+"/g)).map((k) =>
     k[0].slice(1, -1)
   );
   const parseUpdate = (args: unknown[]): UpdateNode =>
@@ -552,7 +552,7 @@ const init = ({
       )
       .then((results) => {
         // Using `some` to do forEach with `break`
-        const failedToParse = results.some((result) => {
+        const failedToParse = results.find((result) => {
           // ts why is this not discriminated without the `=== true`??
           if (result.deleted_by_snapshot === true) {
             graph.latest = result.source_t;
@@ -573,6 +573,9 @@ const init = ({
           graph.latest = result.source_t;
           return false;
         });
+        if (failedToParse) {
+          // send email to RoamJS about failure
+        }
         return save();
       });
   };
@@ -594,7 +597,7 @@ const init = ({
       graph.updater = global.setTimeout(updateWithLog, 10000) as number;
     });
   } else {
-    // TODO: only on update
+    // TODO: only on refresh data
     const { config, edges, latest } = resetGraph();
     graph.config = config;
     graph.edges = edges;
