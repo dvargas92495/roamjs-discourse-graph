@@ -13,7 +13,7 @@
     "@types/cytoscape": "^3.19.4",
     "@types/react-window": "^1.8.5",
     "@types/react-window-infinite-loader": "^1.0.6",
-    "roamjs-scripts": "^0.18.15"
+    "roamjs-scripts": "^0.18.19"
   },
   "dependencies": {
     "cytoscape": "^3.21.0",
@@ -22,6 +22,6 @@
     "react-in-viewport": "^1.0.0-alpha.20",
     "react-window": "^1.8.7",
     "react-window-infinite-loader": "^1.0.8",
-    "roamjs-components": "^0.64.8"
+    "roamjs-components": "^0.64.11"
   }
 }

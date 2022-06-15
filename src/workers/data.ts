@@ -3,7 +3,7 @@ import apiGet from "roamjs-components/util/apiGet";
 import apiPut from "roamjs-components/util/apiPut";
 import { Graph } from "./types";
 import fireQuery from "./methods/fireQuery";
-import idb from "idb";
+import { openDB } from "idb";
 
 const resetGraph = (): typeof graph => ({
   latest: 0,
@@ -36,41 +36,22 @@ const resetGraph = (): typeof graph => ({
 
 const graph: Graph = resetGraph();
 
-const getSnapshotFromIdbManual = (graph: string) =>
-  new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(`v10_SLASH_dbs_SLASH_${graph}`);
-    request.onerror = (e) => {
-      reject((e.target as IDBRequest).error);
-    };
-    request.onsuccess = (event) => {
-      resolve((event.target as IDBRequest<IDBDatabase>).result);
-    };
-  }).then(
-    (db) =>
-      new Promise<[{ db_msgpack_array: Uint8Array }]>((resolve, reject) => {
-        const request = db
-          .transaction("snapshot")
-          .objectStore("snapshot")
-          .getAll();
-        request.onerror = (e) => {
-          reject((e.target as IDBRequest).error);
-        };
-        request.onsuccess = (event) => {
-          resolve(
-            (event.target as IDBRequest<[{ db_msgpack_array: Uint8Array }]>)
-              .result
-          );
-        };
-      })
-  );
+const getSnapshotFromIdb = (graph: string) =>
+  openDB(`v10_SLASH_dbs_SLASH_${graph}`).then((db) => db.getAll("snapshot"));
 
 const accessBlocksDirectly = (graph: string) => {
-  return getSnapshotFromIdbManual(graph)
+  return getSnapshotFromIdb(graph)
     .then((result) => {
-      const serialized = unpack(result[0].db_msgpack_array) as {
-        eavt: [number, number, unknown][];
-        attrs: string[];
-      };
+      try {
+        return unpack(result[0].db_msgpack_array) as {
+          eavt: [number, number, unknown][];
+          attrs: string[];
+        };
+      } catch (e) {
+        return Promise.reject(`Failed to unpack Roam data: ${e.message}`);
+      }
+    })
+    .then((serialized) => {
       const objs = {} as Record<
         number,
         Record<string, string | number | number[] | bigint>
@@ -280,9 +261,9 @@ const processUpdates = (updates: UpdateNode[]) => {
           const childUid = (update["~:block/children"] as UpdateNode)[
             "~:block/uid"
           ];
-          graph.edges.childrenByUid[parentUid] = graph.edges.childrenByUid[
-            parentUid
-          ].filter((i) => childUid !== i);
+          graph.edges.childrenByUid[parentUid] = (
+            graph.edges.childrenByUid[parentUid] || []
+          ).filter((i) => childUid !== i);
           delete graph.edges.parentByUid[childUid];
         } else if (
           Object.keys(update).length === 2 &&
