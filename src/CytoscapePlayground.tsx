@@ -49,6 +49,9 @@ import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import getSubTree from "roamjs-components/util/getSubTree";
 import navigator from "cytoscape-navigator";
+import Filter, { Filters } from "roamjs-components/components/Filter";
+import DiscourseContextOverlay from "./components/DiscourseContextOverlay";
+import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 
 navigator(cytoscape);
 
@@ -136,6 +139,7 @@ const NodeIcon = ({
   <Button
     minimal
     onClick={onClick}
+    style={{ maxWidth: 30 }}
     icon={
       <span
         style={{
@@ -238,9 +242,11 @@ const CytoscapePlayground = ({
   const cyRef = useRef<cytoscape.Core>(null);
   const sourceRef = useRef<cytoscape.NodeSingular>(null);
   const editingRef = useRef<cytoscape.SingularElementArgument>(null);
+  const allNodes = useMemo(getNodes, []);
+  const allRelations = useMemo(getRelations, []);
   const coloredNodes = useMemo(
     () =>
-      getNodes()
+      allNodes
         .map((n, i) => ({
           color: COLORS[i % COLORS.length],
           ...n,
@@ -256,6 +262,10 @@ const CytoscapePlayground = ({
   );
   const nodeTypeByColor = useMemo(
     () => Object.fromEntries(coloredNodes.map((cn) => [cn.color, cn.type])),
+    [coloredNodes]
+  );
+  const nodeTextByColor = useMemo(
+    () => Object.fromEntries(coloredNodes.map((cn) => [cn.color, cn.text])),
     [coloredNodes]
   );
   const nodeFormatTextByType = useMemo(
@@ -279,6 +289,10 @@ const CytoscapePlayground = ({
         : [],
     [allPages, editingNodeValue]
   );
+  const [filters, setFilters] = useState<Filters>({
+    includes: { nodes: new Set(), edges: new Set() },
+    excludes: { nodes: new Set(), edges: new Set() },
+  });
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const nodeColorRef = useRef(selectedNode.color);
   const clearEditingRef = useCallback(() => {
@@ -309,7 +323,7 @@ const CytoscapePlayground = ({
     cyRef.current.zoomingEnabled(true);
     cyRef.current.panningEnabled(true);
   }, [setSelectedRelation, cyRef]);
-  const allRelations = useMemo(getRelationTriples, []);
+  const allRelationTriples = useMemo(getRelationTriples, []);
   const filteredRelations = useMemo(() => {
     if (selectedRelation.id) {
       const edge = cyRef.current.edges(
@@ -317,7 +331,7 @@ const CytoscapePlayground = ({
       ) as cytoscape.EdgeSingular;
       const sourceColor = edge.source().data("color");
       const targetColor = edge.target().data("color");
-      return allRelations
+      return allRelationTriples
         .filter((k) => {
           if (sourceColor === TEXT_COLOR || targetColor === TEXT_COLOR) {
             return true;
@@ -329,8 +343,8 @@ const CytoscapePlayground = ({
         })
         .filter((k) => k.relation !== selectedRelation.label);
     }
-    return allRelations;
-  }, [allRelations, selectedRelation, cyRef, nodeTypeByColor]);
+    return allRelationTriples;
+  }, [allRelationTriples, selectedRelation, cyRef, nodeTypeByColor]);
   const tree = useMemo(() => getBasicTreeByParentUid(pageUid), [pageUid]);
   const [elementsUid, elementsChildren] = useTreeFieldUid({
     tree,
@@ -467,11 +481,11 @@ const CytoscapePlayground = ({
                 nodeTypeByColor[sourceRef.current.data("color")];
               const targetType = nodeTypeByColor[n.data("color")];
               const text =
-                allRelations.find(
+                allRelationTriples.find(
                   (r) => r.source === sourceType && r.target === targetType
                 )?.relation ||
                 (sourceType === TEXT_TYPE || targetType === TEXT_TYPE
-                  ? allRelations[0].relation
+                  ? allRelationTriples[0].relation
                   : "");
               if (text) {
                 drawEdge({ text, source, target });
@@ -552,7 +566,7 @@ const CytoscapePlayground = ({
       sourceRef,
       cyRef,
       editingRef,
-      allRelations,
+      allRelationTriples,
       shadowInputRef,
       containerRef,
       clearEditingRef,
@@ -703,7 +717,84 @@ const CytoscapePlayground = ({
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
   const [mapOpen, setMapOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [overlaysShown, setOverlaysShown] = useState(false);
+  const getStyle = useCallback(
+    (e: cytoscape.NodeSingular) => {
+      const { x1, y1 } = cyRef.current.extent();
+      const zoom = cyRef.current.zoom();
+      const { x, y } = e.position();
+      return {
+        top: (y - y1 + e.height() / 2) * zoom,
+        left: (x - x1 - e.width() / 2) * zoom,
+      };
+    },
+    [cyRef]
+  );
+  const [nodeOverlays, setNodeOverlays] = useState<
+    Record<string, { top: number; left: number; label: string }>
+  >({});
+  useEffect(() => {
+    if (overlaysShown)
+      setNodeOverlays(
+        Object.fromEntries(
+          cyRef.current
+            .nodes()
+            .filter((t) => t.data("color") !== TEXT_COLOR)
+            .map((n) => [
+              `roamjs-cytoscape-node-overlay-${n.id()}`,
+              {
+                label: n.data("label"),
+                ...getStyle(n as cytoscape.NodeSingular),
+              },
+            ])
+        )
+      );
+    else setNodeOverlays({});
+  }, [overlaysShown, setNodeOverlays, cyRef]);
+
+  useEffect(() => {
+    const isNodeValid = (other: cytoscape.NodeSingular) => {
+      const otherText = nodeTextByColor[other.data("color")];
+      return (
+        (filters.includes.nodes.size === 0 &&
+          filters.includes.edges.size === 0 &&
+          !filters.excludes.nodes.has(otherText)) ||
+        filters.includes.nodes.has(otherText)
+      );
+    };
+
+    const isEdgeValid = (other: cytoscape.EdgeSingular) =>
+      (filters.includes.edges.size === 0 &&
+        filters.includes.nodes.size === 0 &&
+        !filters.excludes.edges.has(other.data("label"))) ||
+      filters.includes.edges.has(other.data("label"));
+
+    cyRef.current.nodes().forEach((other) => {
+      if (
+        isNodeValid(other) ||
+        other.connectedEdges().some(isEdgeValid) ||
+        other.connectedEdges().some((e) =>
+          (e as cytoscape.EdgeSingular)
+            .connectedNodes()
+            .filter((n) => n !== other)
+            .some(isNodeValid)
+        )
+      ) {
+        other.style("display", "element");
+      } else {
+        other.style("display", "none");
+      }
+      other.edges();
+    });
+
+    cyRef.current.edges().forEach((other) => {
+      if (isEdgeValid(other) || other.connectedNodes().some(isNodeValid)) {
+        other.style("display", "element");
+      } else {
+        other.style("display", "none");
+      }
+    });
+  }, [cyRef, nodeTextByColor, filters]);
   return (
     <div
       className={`border border-gray-300 rounded-md bg-white h-full w-full z-10 ${
@@ -792,30 +883,13 @@ const CytoscapePlayground = ({
                 onClick={() => setColorPickerOpen(!colorPickerOpen)}
               />
             </Tooltip>
-            {searchOpen ? (
-              <>
-                <style>{`#roamjs-cytoscape-playground-container .roamjs-cytoscape-playground-search { display: block; }`}</style>
-                <Tooltip
-                  content={"Close Search"}
-                  position={Position.BOTTOM_LEFT}
-                >
-                  <Button
-                    minimal
-                    icon={"search"}
-                    active
-                    onClick={() => setSearchOpen(false)}
-                  />
-                </Tooltip>
-              </>
-            ) : (
-              <Tooltip content={"Open Search"} position={Position.BOTTOM_LEFT}>
-                <Button
-                  minimal
-                  icon={"search"}
-                  onClick={() => setSearchOpen(true)}
-                />
-              </Tooltip>
-            )}
+            <Filter
+              data={{
+                nodes: allNodes.map((n) => n.text),
+                edges: allRelations.flatMap((r) => [r.label, r.complement]),
+              }}
+              onChange={setFilters}
+            />
             {mapOpen ? (
               <>
                 <style>{`#roamjs-cytoscape-playground-container .cytoscape-navigator{ display: block; }`}</style>
@@ -833,6 +907,32 @@ const CytoscapePlayground = ({
                 <Button minimal icon={"map"} onClick={() => setMapOpen(true)} />
               </Tooltip>
             )}
+            {overlaysShown ? (
+              <>
+                <Tooltip
+                  content={"Hide Overlays"}
+                  position={Position.BOTTOM_LEFT}
+                >
+                  <Button
+                    minimal
+                    icon={"widget"}
+                    active
+                    onClick={() => setOverlaysShown(false)}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <Tooltip
+                content={"Show Overlays"}
+                position={Position.BOTTOM_LEFT}
+              >
+                <Button
+                  minimal
+                  icon={"widget"}
+                  onClick={() => setOverlaysShown(true)}
+                />
+              </Tooltip>
+            )}
             <Tooltip
               content={"Draw Existing Edges"}
               position={Position.BOTTOM_LEFT}
@@ -840,7 +940,6 @@ const CytoscapePlayground = ({
               <Button
                 minimal
                 icon={"circle-arrow-down"}
-                style={{ marginRight: 8, padding: "7px 5px" }}
                 onClick={() => {
                   const closeLoading = renderLoading(getCurrentPageUid());
                   setTimeout(async () => {
@@ -1204,6 +1303,11 @@ const CytoscapePlayground = ({
           }}
           onChange={(e) => {
             const newValue = e.target.value;
+            if (
+              editingRef.current.data("label") ===
+              editingRef.current.data("alias")
+            )
+              editingRef.current.data("alias", newValue);
             editingRef.current.data("label", newValue);
             setEditingNodeValue(newValue);
             updateBlock({ uid: editingRef.current.id(), text: newValue });
@@ -1225,6 +1329,11 @@ const CytoscapePlayground = ({
               key={k}
               text={k}
               onClick={() => {
+                if (
+                  editingRef.current.data("label") ===
+                  editingRef.current.data("alias")
+                )
+                  editingRef.current.data("alias", k);
                 editingRef.current.data("label", k);
                 updateBlock({ uid: editingRef.current.id(), text: k });
                 clearEditingRef();
@@ -1241,11 +1350,20 @@ const CytoscapePlayground = ({
         />
       )}
       <div className="cytoscape-navigator border border-gray-300 rounded-tl-md" />
+      {Object.entries(nodeOverlays).map(([k, { label, ...style }]) => (
+        <div
+          className="absolute inline bg-gray-100"
+          style={style}
+          id={k}
+          key={k}
+        >
+          <DiscourseContextOverlay tag={label} id={k} />
+        </div>
+      ))}
     </div>
   );
 };
 
-export const render = ({ p, ...props }: { p: HTMLElement } & Props) =>
-  ReactDOM.render(<CytoscapePlayground {...props} />, p);
+export const render = createQueryBuilderRender(CytoscapePlayground);
 
 export default CytoscapePlayground;

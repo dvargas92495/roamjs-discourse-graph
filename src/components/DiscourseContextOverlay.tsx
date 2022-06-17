@@ -208,3 +208,5 @@ export const render = ({
     );
   }
 };
+
+export default DiscourseContextOverlay;

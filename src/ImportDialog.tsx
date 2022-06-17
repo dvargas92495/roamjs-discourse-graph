@@ -8,7 +8,6 @@ import {
   SpinnerSize,
 } from "@blueprintjs/core";
 import React, { useMemo, useState } from "react";
-import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import createBlock from "roamjs-components/writes/createBlock";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
@@ -58,7 +57,7 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
                     title,
                   })
                     .then(() => {
-                      const parentUid = toRoamDateUid(new Date());
+                      const parentUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
                       return createBlock({
                         node: { text: `[[${title}]]` },
                         parentUid,

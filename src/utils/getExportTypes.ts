@@ -7,7 +7,6 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import getPageViewType from "roamjs-components/queries/getPageViewType";
 import { TreeNode, ViewType } from "roamjs-components/types";
 import { Result } from "roamjs-components/types/query-builder";
-import getGraph from "roamjs-components/util/getGraph";
 import getSettingIntFromTree from "roamjs-components/util/getSettingIntFromTree";
 import getSubTree from "roamjs-components/util/getSubTree";
 import {
@@ -349,7 +348,7 @@ const getExportTypes = ({
           ? frontmatter
           : [
               "title: {text}",
-              `url: https://roamresearch.com/#/app/${getGraph()}/page/{uid}`,
+              `url: https://roamresearch.com/#/app/${window.roamAlphaAPI.graph.name}/page/{uid}`,
               `author: {author}`,
               "date: {date}",
             ];

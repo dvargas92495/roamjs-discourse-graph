@@ -11,7 +11,6 @@ import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
-import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
 import SavedQuery from "./components/SavedQuery";
@@ -79,7 +78,7 @@ const SavedQueriesContainer = ({
     (e: HashChangeEvent) =>
       setResultsReferenced(
         refreshResultsReferenced(
-          e.newURL.match(/\/page\/(.*)$/)?.[1] || toRoamDateUid(new Date())
+          e.newURL.match(/\/page\/(.*)$/)?.[1] || window.roamAlphaAPI.util.dateToPageTitle(new Date())
         )
       ),
     [refreshResultsReferenced, setResultsReferenced]

@@ -17,7 +17,6 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import createBlock from "roamjs-components/writes/createBlock";
 import createPage from "roamjs-components/writes/createPage";
 import { TreeNode } from "roamjs-components/types";
-import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import nanoid from "nanoid";
 
@@ -116,12 +115,15 @@ const SendQueryRequest = ({
                             content: `New Query Response From ${g}!`,
                             intent: Intent.SUCCESS,
                           });
-                          window.roamjs.extension.multiplayer.removeGraphListener({ operation });
+                          window.roamjs.extension.multiplayer.removeGraphListener(
+                            { operation }
+                          );
                           window.roamjs.extension.multiplayer.sendToGraph({
                             graph,
                             operation: `QUERY_RESPONSE_RECEIVED/${requestId}`,
                           });
-                          const todayUid = toRoamDateUid();
+                          const todayUid =
+                            window.roamAlphaAPI.util.dateToPageUid(new Date());
                           createBlock({
                             parentUid: todayUid,
                             node: {

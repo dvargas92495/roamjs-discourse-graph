@@ -5,7 +5,6 @@ import setInputSetting from "roamjs-components/util/setInputSetting";
 import getSubTree from "roamjs-components/util/getSubTree";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getAuthorizationHeader from "roamjs-components/util/getAuthorizationHeader";
-import getGraph from "roamjs-components/util/getGraph";
 import nanoid from "nanoid";
 
 const dataWorkerUrl = (document.currentScript as HTMLScriptElement).src.replace(
@@ -74,7 +73,7 @@ const loadGraph = (configUid: string, update = false) =>
     });
     dataWorker.current.postMessage({
       method: "init",
-      graph: getGraph(),
+      graph: window.roamAlphaAPI.graph.name,
       id: cachePathNodes.length ? cachePathNodes[0]?.text : nanoid(),
       cached: !!cachePathNodes.length,
       authorization: getAuthorizationHeader(),

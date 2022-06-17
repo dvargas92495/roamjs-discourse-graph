@@ -9,7 +9,6 @@ import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageU
 import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import runExtension from "roamjs-components/util/runExtension";
 import toConfig from "roamjs-components/util/toConfigPageName";
-import toRoamDateUid from "roamjs-components/date/toRoamDateUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
 import {
   createConfigObserver,
@@ -698,7 +697,7 @@ We expect that there will be no disruption in functionality. If you see issues a
             graph
           ) => {
             importDiscourseGraph(data);
-            const todayUid = toRoamDateUid(new Date());
+            const todayUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
             const todayOrder = getChildrenLengthByPageUid(todayUid);
             createBlock({
               parentUid: todayUid,
@@ -729,7 +728,7 @@ We expect that there will be no disruption in functionality. If you see issues a
               page: string;
               requestId: string;
             };
-            const todayUid = toRoamDateUid();
+            const todayUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
             const bottom = getChildrenLengthByPageUid(todayUid);
             createBlock({
               parentUid: todayUid,
@@ -770,7 +769,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-06-16-23-27/main.js",
+      src: "https://roamjs.com/query-builder/2022-06-17-18-22/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -782,7 +781,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-06-16-23-27/main.js",
+      src: "https://roamjs.com/query-builder/2022-06-17-18-22/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -939,11 +938,11 @@ We expect that there will be no disruption in functionality. If you see issues a
         );
         if (!children.hasAttribute("data-roamjs-discourse-playground")) {
           children.setAttribute("data-roamjs-discourse-playground", "true");
-          const p = document.createElement("div");
-          children.parentElement.appendChild(p);
-          p.style.height = "500px";
+          const parent = document.createElement("div");
+          children.parentElement.appendChild(parent);
+          parent.style.height = "500px";
           cyRender({
-            p,
+            parent,
             title,
             previewEnabled: isFlagEnabled("preview"),
             globalRefs,
