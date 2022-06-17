@@ -489,23 +489,26 @@ const init = ({
 }: {
   graph: string;
   id: string;
-  authorization: string;
+  authorization?: string;
   cached: boolean;
 }) => {
   clearTimeout(graph.updater);
+  const update = () => {
+    // @ts-ignore
+    graph.updater = global.setTimeout(updateWithLog, 10000) as number;
+  };
   const save = () =>
-    apiPut({
-      path: "file",
-      data: {
-        extension: "discourse-graph",
-        body: JSON.stringify(graph),
-        path: `graph-cache/${id}.json`,
-      },
-      authorization,
-    }).then(() => {
-      // @ts-ignore
-      graph.updater = global.setTimeout(updateWithLog, 10000) as number;
-    });
+    authorization
+      ? apiPut({
+          path: "file",
+          data: {
+            extension: "discourse-graph",
+            body: JSON.stringify(graph),
+            path: `graph-cache/${id}.json`,
+          },
+          authorization,
+        }).then(update)
+      : Promise.resolve().then(update);
   const updateWithLog = () => {
     return new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(`v10_SLASH_dbs_SLASH_${_graph}`);
@@ -560,7 +563,7 @@ const init = ({
         return save();
       });
   };
-  if (cached) {
+  if (cached && authorization) {
     return apiGet<typeof graph>({
       path: `file`,
       data: {
@@ -574,8 +577,7 @@ const init = ({
       graph.edges = edges;
       graph.latest = latest;
       postMessage({ method: "init" });
-      // @ts-ignore
-      graph.updater = global.setTimeout(updateWithLog, 10000) as number;
+      update();
     });
   } else {
     // TODO: only on refresh data

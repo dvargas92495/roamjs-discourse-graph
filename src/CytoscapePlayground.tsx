@@ -48,6 +48,9 @@ import { renderLoading } from "roamjs-components/components/Loading";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import getSubTree from "roamjs-components/util/getSubTree";
+import navigator from "cytoscape-navigator";
+
+navigator(cytoscape);
 
 type AliasProps = {
   node: cytoscape.NodeSingular;
@@ -107,8 +110,13 @@ const AliasDialog = ({
         </div>
         <div className={Classes.DIALOG_FOOTER}>
           <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-            <Button text={"Cancel"} onClick={onClose} />
-            <Button text={"Set"} intent={Intent.PRIMARY} onClick={onSubmit} />
+            <Button text={"Cancel"} onClick={onClose} disabled={loading} />
+            <Button
+              text={"Set"}
+              intent={Intent.PRIMARY}
+              onClick={onSubmit}
+              disabled={loading}
+            />
           </div>
         </div>
       </Dialog>
@@ -125,23 +133,29 @@ const NodeIcon = ({
   color: string;
   onClick?: () => void;
 }) => (
-  <span
-    style={{
-      height: 16,
-      width: 16,
-      borderRadius: "50%",
-      backgroundColor: `#${color}`,
-      color: "#EEEEEE",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      cursor: "pointer",
-      margin: "0 2px",
-    }}
+  <Button
+    minimal
     onClick={onClick}
-  >
-    {shortcut}
-  </span>
+    icon={
+      <span
+        style={{
+          height: 16,
+          width: 16,
+          borderRadius: "50%",
+          backgroundColor: `#${color}`,
+          color: "#EEEEEE",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          cursor: "pointer",
+          margin: "0 2px",
+        }}
+        onClick={onClick}
+      >
+        {shortcut}
+      </span>
+    }
+  />
 );
 
 type Props = {
@@ -204,6 +218,9 @@ const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
 const SELECTION_MODES = [
   { id: "NORMAL", tooltip: "Normal", icon: "new-link" },
+  { id: "CONNECT", tooltip: "Draw Edge", icon: "git-branch" },
+  { id: "EDIT", tooltip: "Edit", icon: "edit" },
+  { id: "DELETE", tooltip: "Delete", icon: "delete" },
   { id: "ALIAS", tooltip: "Alias", icon: "application" },
 ] as const;
 type SelectionMode = typeof SELECTION_MODES[number]["id"];
@@ -320,6 +337,8 @@ const CytoscapePlayground = ({
     parentUid: pageUid,
     field: "elements",
   });
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("NORMAL");
+  const selectionModeRef = useRef(selectionMode);
   const edgeCallback = useCallback(
     (edge: cytoscape.EdgeSingular) => {
       edge.on("click", (e) => {
@@ -327,7 +346,7 @@ const CytoscapePlayground = ({
           return;
         }
         clearSourceRef();
-        if (e.originalEvent.ctrlKey) {
+        if (selectionModeRef.current === "DELETE") {
           clearEditingRef();
           deleteBlock(edge.id());
           cyRef.current.remove(edge);
@@ -351,7 +370,13 @@ const CytoscapePlayground = ({
         }
       });
     },
-    [clearSourceRef, clearEditingRef, setSelectedRelation, cyRef]
+    [
+      clearSourceRef,
+      clearEditingRef,
+      setSelectedRelation,
+      cyRef,
+      selectionModeRef,
+    ]
   );
   const [livePreviewTag, setLivePreviewTag] = useState("");
   const registerMouseEvents = useCallback<
@@ -407,8 +432,6 @@ const CytoscapePlayground = ({
       }),
     [edgeCallback, cyRef]
   );
-  const [selectionMode, setSelectionMode] = useState<SelectionMode>("NORMAL");
-  const selectionModeRef = useRef(selectionMode);
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
@@ -426,7 +449,7 @@ const CytoscapePlayground = ({
           )({
             node: n,
           });
-        } else if (e.originalEvent.ctrlKey) {
+        } else if (selectionModeRef.current === "DELETE") {
           clearSourceRef();
           clearEditingRef();
           deleteBlock(n.id());
@@ -434,50 +457,46 @@ const CytoscapePlayground = ({
             deleteBlock(edge.id());
           });
           cyRef.current.remove(n);
-        } else if (e.originalEvent.shiftKey) {
+        } else if (selectionModeRef.current === "CONNECT") {
           clearEditingRef();
-          const inLabel =
-            Math.abs(e.position.y - n.position().y) < n.height() / 4;
-          if (!inLabel) {
-            if (sourceRef.current) {
-              const source = sourceRef.current.id();
-              const target = n.id();
-              if (source !== target) {
-                const sourceType =
-                  nodeTypeByColor[sourceRef.current.data("color")];
-                const targetType = nodeTypeByColor[n.data("color")];
-                const text =
-                  allRelations.find(
-                    (r) => r.source === sourceType && r.target === targetType
-                  )?.relation ||
-                  (sourceType === TEXT_TYPE || targetType === TEXT_TYPE
-                    ? allRelations[0].relation
-                    : "");
-                if (text) {
-                  drawEdge({ text, source, target });
-                } else {
-                  renderToast({
-                    id: "roamjs-discourse-relation-error",
-                    intent: Intent.DANGER,
-                    content:
-                      "There are no relations defined between these two node types",
-                  });
-                }
+          if (sourceRef.current) {
+            const source = sourceRef.current.id();
+            const target = n.id();
+            if (source !== target) {
+              const sourceType =
+                nodeTypeByColor[sourceRef.current.data("color")];
+              const targetType = nodeTypeByColor[n.data("color")];
+              const text =
+                allRelations.find(
+                  (r) => r.source === sourceType && r.target === targetType
+                )?.relation ||
+                (sourceType === TEXT_TYPE || targetType === TEXT_TYPE
+                  ? allRelations[0].relation
+                  : "");
+              if (text) {
+                drawEdge({ text, source, target });
+              } else {
+                renderToast({
+                  id: "roamjs-discourse-relation-error",
+                  intent: Intent.DANGER,
+                  content:
+                    "There are no relations defined between these two node types",
+                });
               }
-              clearSourceRef();
-            } else {
-              n.style("background-color", "#000000");
-              n.lock();
-              sourceRef.current = n;
             }
+            clearSourceRef();
           } else {
-            const title = n.data("label");
-            const uid = getPageUidByPageTitle(title);
-            (uid ? Promise.resolve(uid) : createPage({ title })).then((uid) =>
-              openBlockInSidebar(uid)
-            );
+            n.style("background-color", "#000000");
+            n.lock();
+            sourceRef.current = n;
           }
-        } else {
+        } else if (selectionModeRef.current === "NORMAL") {
+          const title = n.data("label");
+          const uid = getPageUidByPageTitle(title);
+          (uid ? Promise.resolve(uid) : createPage({ title })).then((uid) =>
+            openBlockInSidebar(uid)
+          );
+        } else if (selectionModeRef.current === "EDIT") {
           clearSourceRef();
           if (editingRef.current) {
             clearEditingRef();
@@ -505,20 +524,17 @@ const CytoscapePlayground = ({
         setInputSetting({ blockUid: uid, value: `${x}`, key: "x" });
         setInputSetting({ blockUid: uid, value: `${y}`, key: "y" });
       });
-      n.on("mousemove", (e) => {
-        const inLabel =
-          Math.abs(e.position.y - n.position().y) < n.height() / 4;
-        if (e.originalEvent.shiftKey && inLabel) {
-          n.style("color", "#106ba3");
-        } else {
-          n.style("color", "#EEEEEE");
-        }
-        if (e.originalEvent.shiftKey) {
-          containerRef.current.style.cursor = inLabel ? "alias" : "pointer";
-        } else if (e.originalEvent.ctrlKey) {
+      n.on("mousemove", () => {
+        if (selectionModeRef.current === "NORMAL") {
+          containerRef.current.style.cursor = "pointer";
+        } else if (selectionModeRef.current === "ALIAS") {
+          containerRef.current.style.cursor = "alias";
+        } else if (selectionModeRef.current === "DELETE") {
           containerRef.current.style.cursor = `url(${trashCursor}), auto`;
-        } else {
+        } else if (selectionModeRef.current === "EDIT") {
           containerRef.current.style.cursor = `url(${editCursor}), auto`;
+        } else if (selectionModeRef.current === "CONNECT") {
+          containerRef.current.style.cursor = "cell";
         }
       });
       n.on("mouseover", () => {
@@ -559,7 +575,7 @@ const CytoscapePlayground = ({
         parentUid: elementsUid,
       }).then((uid) => {
         const node = cyRef.current.add({
-          data: { id: uid, label: text, color },
+          data: { id: uid, label: text, color, alias: text },
           position,
         })[0];
         nodeTapCallback(node);
@@ -665,6 +681,11 @@ const CytoscapePlayground = ({
           ?.color || TEXT_COLOR
       );
     };
+    // @ts-ignore
+    const nav = cyRef.current.navigator({
+      container: `.cytoscape-navigator`,
+    });
+    console.log(nav);
   }, [
     elementsUid,
     cyRef,
@@ -681,72 +702,143 @@ const CytoscapePlayground = ({
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
     <div
       className={`border border-gray-300 rounded-md bg-white h-full w-full z-10 ${
-        maximized ? "absolute inset-0" : ""
+        maximized ? "absolute inset-0" : "relative"
       }`}
+      id={`roamjs-cytoscape-playground-container`}
       ref={containerRef}
     >
       <style>{`.roam-article .rm-block-children {
   display: none;
+}
+
+.cytoscape-navigator{
+	position: absolute;
+	background: #fff;
+	z-index: 99999;
+	width: 200px;
+	height: 200px;
+	bottom: 0;
+	right: 0;
+	overflow: hidden;
+  display: none;
+}
+
+.cytoscape-navigator > img{
+	max-width: 100%;
+	max-height: 100%;
+}
+
+.cytoscape-navigator > canvas{
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 101;
+}
+
+.cytoscape-navigatorView{
+	position: absolute;
+	top: 0;
+	left: 0;
+	cursor: move;
+	background: #B7E1ED;
+	-moz-opacity: 0.50;
+	opacity: 0.50;
+	-ms-filter:"progid:DXImageTransform.Microsoft.Alpha"(Opacity=50);
+	z-index: 102;
+}
+
+.cytoscape-navigatorOverlay{
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 103;
 }`}</style>
       <div
         className={
-          "z-20 absolute flex w-full justify-start shadow-md bg-gray-100 rounded-md gap-4 px-4 py-2"
+          "z-20 absolute flex w-full justify-between shadow-md bg-gray-100 rounded-md px-4 py-2"
         }
       >
-        {SELECTION_MODES.map((m) => (
-          <Tooltip content={m.tooltip} key={m.id} position={Position.BOTTOM}>
-            <Button
-              onClick={() => {
-                setSelectionMode(m.id);
-                selectionModeRef.current = m.id;
-              }}
-              minimal
-              active={selectionMode === m.id}
-              icon={m.icon}
-            />
-          </Tooltip>
-        ))}
-      </div>
-      <div className={"z-20 bottom-2 absolute w-full text-center"}>
-        <div className="flex flex-col gap-2">
-          <span
-            className={`justify-center ${
-              colorPickerOpen ? "inline-flex" : "hidden"
-            }`}
-          >
-            {coloredNodes
-              .filter((f) => f !== selectedNode)
-              .map((n) => (
-                <Tooltip
-                  content={n.text}
-                  key={n.text}
-                  position={Position.BOTTOM}
-                >
-                  <NodeIcon
-                    {...n}
-                    onClick={() => {
-                      nodeColorRef.current = n.color;
-                      setSelectedNode(n);
-                      setColorPickerOpen(false);
-                    }}
-                    key={n.text}
-                  />
-                </Tooltip>
-              ))}
-          </span>
-          <span>
-            <Tooltip content={"Node Picker"} position={Position.TOP}>
+        <div className="flex gap-2">
+          {SELECTION_MODES.map((m) => (
+            <Tooltip
+              content={m.tooltip}
+              key={m.id}
+              position={Position.BOTTOM_RIGHT}
+            >
               <Button
-                icon={<NodeIcon {...selectedNode} />}
-                onClick={() => setColorPickerOpen(!colorPickerOpen)}
-                style={{ marginRight: 8, padding: "7px 5px" }}
+                onClick={() => {
+                  setSelectionMode(m.id);
+                  selectionModeRef.current = m.id;
+                }}
+                minimal
+                active={selectionMode === m.id}
+                icon={m.icon}
               />
             </Tooltip>
-            <Tooltip content={"Draw Existing Edges"} position={Position.TOP}>
+          ))}
+        </div>
+        <div className="flex flex-col gap-2 justify-end relative items-end">
+          <span>
+            <Tooltip content={"Node Picker"} position={Position.BOTTOM_LEFT}>
+              <NodeIcon
+                {...selectedNode}
+                onClick={() => setColorPickerOpen(!colorPickerOpen)}
+              />
+            </Tooltip>
+            {searchOpen ? (
+              <>
+                <style>{`#roamjs-cytoscape-playground-container .roamjs-cytoscape-playground-search { display: block; }`}</style>
+                <Tooltip
+                  content={"Close Search"}
+                  position={Position.BOTTOM_LEFT}
+                >
+                  <Button
+                    minimal
+                    icon={"search"}
+                    active
+                    onClick={() => setSearchOpen(false)}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <Tooltip content={"Open Search"} position={Position.BOTTOM_LEFT}>
+                <Button
+                  minimal
+                  icon={"search"}
+                  onClick={() => setSearchOpen(true)}
+                />
+              </Tooltip>
+            )}
+            {mapOpen ? (
+              <>
+                <style>{`#roamjs-cytoscape-playground-container .cytoscape-navigator{ display: block; }`}</style>
+                <Tooltip content={"Close Map"} position={Position.BOTTOM_LEFT}>
+                  <Button
+                    minimal
+                    icon={"map"}
+                    active
+                    onClick={() => setMapOpen(false)}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <Tooltip content={"Open Map"} position={Position.BOTTOM_LEFT}>
+                <Button minimal icon={"map"} onClick={() => setMapOpen(true)} />
+              </Tooltip>
+            )}
+            <Tooltip
+              content={"Draw Existing Edges"}
+              position={Position.BOTTOM_LEFT}
+            >
               <Button
+                minimal
                 icon={"circle-arrow-down"}
                 style={{ marginRight: 8, padding: "7px 5px" }}
                 onClick={() => {
@@ -816,17 +908,21 @@ const CytoscapePlayground = ({
             {maximized ? (
               <>
                 <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
-                <Tooltip content={"Minimize"} position={Position.TOP}>
-                  <Button icon={"minimize"} onClick={minimize} />
+                <Tooltip content={"Minimize"} position={Position.BOTTOM_LEFT}>
+                  <Button minimal icon={"minimize"} onClick={minimize} />
                 </Tooltip>
               </>
             ) : (
-              <Tooltip content={"Maximize"} position={Position.TOP}>
-                <Button icon={"maximize"} onClick={maximize} />
+              <Tooltip content={"Maximize"} position={Position.BOTTOM_LEFT}>
+                <Button minimal icon={"maximize"} onClick={maximize} />
               </Tooltip>
             )}
-            <Tooltip content={"Generate Roam Blocks"} position={Position.TOP}>
+            <Tooltip
+              content={"Generate Roam Blocks"}
+              position={Position.BOTTOM_LEFT}
+            >
               <Button
+                minimal
                 style={{ marginLeft: 8, maxWidth: 30 }}
                 icon={
                   <img
@@ -978,8 +1074,9 @@ const CytoscapePlayground = ({
                 }}
               />
             </Tooltip>
-            <Tooltip content={"Export"} position={Position.TOP}>
+            <Tooltip content={"Export"} position={Position.BOTTOM_LEFT}>
               <Button
+                minimal
                 style={{ marginLeft: 8 }}
                 icon={"export"}
                 onClick={() => {
@@ -1034,6 +1131,30 @@ const CytoscapePlayground = ({
                 }}
               />
             </Tooltip>
+          </span>
+          <span
+            className={`${colorPickerOpen ? "inline-flex" : "hidden"} absolute`}
+            style={{ top: "150%" }}
+          >
+            {coloredNodes
+              .filter((f) => f !== selectedNode)
+              .map((n) => (
+                <Tooltip
+                  content={n.text}
+                  key={n.text}
+                  position={Position.BOTTOM_LEFT}
+                >
+                  <NodeIcon
+                    {...n}
+                    onClick={() => {
+                      nodeColorRef.current = n.color;
+                      setSelectedNode(n);
+                      setColorPickerOpen(false);
+                    }}
+                    key={n.text}
+                  />
+                </Tooltip>
+              ))}
           </span>
         </div>
       </div>
@@ -1119,6 +1240,7 @@ const CytoscapePlayground = ({
           registerMouseEvents={registerMouseEvents}
         />
       )}
+      <div className="cytoscape-navigator border border-gray-300 rounded-tl-md" />
     </div>
   );
 };

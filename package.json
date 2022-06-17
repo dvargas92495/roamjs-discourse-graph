@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "cytoscape": "^3.21.0",
+    "cytoscape-navigator": "^2.0.1",
     "mathjs": "^10.4.2",
     "msgpackr": "^1.6.1",
     "react-in-viewport": "^1.0.0-alpha.20",
