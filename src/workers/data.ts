@@ -1,5 +1,6 @@
 import { unpack } from "msgpackr/unpack";
 import apiGet from "roamjs-components/util/apiGet";
+import apiPost from "roamjs-components/util/apiPost";
 import apiPut from "roamjs-components/util/apiPut";
 import { Graph } from "./types";
 import fireQuery from "./methods/fireQuery";
@@ -182,6 +183,7 @@ type UpdateNode = {
   "~:db/add"?: UpdateNode;
   "~:block/refs"?: UpdateNode[];
   "~:db.fn/retractEntity"?: UpdateNode;
+  "~:db.fn/retractAttribute"?: UpdateNode;
   "~:version/id"?: string;
   "~:version/nonce"?: string;
   "~:block/open"?: boolean;
@@ -190,6 +192,36 @@ type UpdateNode = {
   "~:edit/seen-by"?: UpdateNode;
   "~:ent/emojis"?: UpdateNode;
 };
+
+const updateChildren = (blocks: UpdateNode[], blockUid: string) =>
+  blocks.forEach((child) => {
+    const uid = child["~:block/uid"];
+    if (child["~:edit/time"])
+      graph.edges.editTimeByUid[uid] = child["~:edit/time"];
+    if (child["~:edit/user"])
+      graph.edges.editUserByUid[uid] = child["~:edit/user"]["~:user/uid"];
+    if (child["~:create/time"])
+      graph.edges.createTimeByUid[uid] = child["~:create/time"];
+    if (child["~:create/user"])
+      graph.edges.createUserByUid[uid] = child["~:create/user"]["~:user/uid"];
+    if (typeof child["~:block/string"] !== "undefined")
+      graph.edges.blocksByUid[uid] = child["~:block/string"];
+    graph.edges.headingsByUid[uid] = child["~:block/heading"] || 0;
+    // TODO :block/open
+    // TODO :block/text/align
+    if (typeof child["~:block/order"] !== "undefined") {
+      graph.edges.childrenByUid[blockUid] =
+        graph.edges.childrenByUid[blockUid] || [];
+      graph.edges.childrenByUid[blockUid].splice(
+        child["~:block/order"],
+        0,
+        uid
+      );
+    }
+    if (Array.isArray(child["~:block/children"])) {
+      updateChildren(child["~:block/children"], uid);
+    }
+  });
 
 const processUpdates = (updates: UpdateNode[]) => {
   return updates.find((update) => {
@@ -317,7 +349,7 @@ const processUpdates = (updates: UpdateNode[]) => {
 
         (graph.edges.referencesByUid[uid] || []).forEach((ref) => {
           graph.edges.linkedReferencesByUid[uid] =
-            graph.edges.linkedReferencesByUid[uid].filter((r) => r !== ref);
+            (graph.edges.linkedReferencesByUid[uid] || []).filter((r) => r !== ref);
         });
         delete graph.edges.referencesByUid[uid];
 
@@ -337,6 +369,14 @@ const processUpdates = (updates: UpdateNode[]) => {
         const title = graph.edges.pagesByUid[uid];
         delete graph.edges.pageUidByTitle[title];
         delete graph.edges.pagesByUid[uid];
+      } else if (update["~:db.fn/retractAttribute"]) {
+        const parentUid = update["~:db.fn/retractAttribute"]["~:block/uid"];
+        if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/heading"] !== "undefined"
+        ) {
+          graph.edges.headingsByUid[parentUid] = 0;
+        }
       } else if (update["~:block/uid"]) {
         const blockUid = update["~:block/uid"];
         if (
@@ -363,36 +403,11 @@ const processUpdates = (updates: UpdateNode[]) => {
         ) {
           // ignore - dont care about edit seen by
         } else if (
-          Object.keys(update).length === 2 &&
+          Object.keys(update).length <= 3 &&
           update["~:block/children"]
         ) {
-          const blocks = update["~:block/children"] as UpdateNode[];
-          blocks.forEach((child) => {
-            const uid = child["~:block/uid"];
-            if (child["~:edit/time"])
-              graph.edges.editTimeByUid[uid] = child["~:edit/time"];
-            if (child["~:edit/user"])
-              graph.edges.editUserByUid[uid] =
-                child["~:edit/user"]["~:user/uid"];
-            if (child["~:create/time"])
-              graph.edges.createTimeByUid[uid] = child["~:create/time"];
-            if (child["~:create/user"])
-              graph.edges.createUserByUid[uid] =
-                child["~:create/user"]["~:user/uid"];
-            if (typeof child["~:block/string"] !== "undefined")
-              graph.edges.blocksByUid[uid] = child["~:block/string"];
-            graph.edges.headingsByUid[uid] = child["~:block/heading"] || 0;
-            // TODO :block/open
-            if (typeof child["~:block/order"] !== "undefined") {
-              graph.edges.childrenByUid[blockUid] =
-                graph.edges.childrenByUid[blockUid] || [];
-              graph.edges.childrenByUid[blockUid].splice(
-                child["~:block/order"],
-                0,
-                uid
-              );
-            }
-          });
+          const blocks = update["~:block/children"];
+          updateChildren(Array.isArray(blocks) ? blocks : [blocks], blockUid);
         } else if (
           Object.keys(update).length === 2 &&
           update["~:block/parents"]
@@ -408,6 +423,14 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:block/string"] !== "undefined"
         ) {
           graph.edges.blocksByUid[blockUid] = update["~:block/string"];
+          graph.edges.editTimeByUid[blockUid] = update["~:edit/time"];
+          const user = update["~:edit/user"];
+          graph.edges.editUserByUid[blockUid] = user["~:user/uid"];
+        } else if (
+          Object.keys(update).length === 4 &&
+          typeof update["~:node/title"] !== "undefined"
+        ) {
+          graph.edges.pagesByUid[blockUid] = update["~:node/title"];
           graph.edges.editTimeByUid[blockUid] = update["~:edit/time"];
           const user = update["~:edit/user"];
           graph.edges.editUserByUid[blockUid] = user["~:user/uid"];
@@ -458,8 +481,8 @@ const parseTxData = (s: string) => {
         )
         .filter((_, i) => i % 2 === 0)
         .map(([k, v]) => [
-          typeof k === "string" && /^\^\d+$/.test(k)
-            ? fields[Number(k.slice(1))]
+          typeof k === "string" && /^\^[\d:;<>=]$/.test(k)
+            ? fields[Number(k.charCodeAt(1) - 48)] // "0".charCodeAt(0)
             : k,
           Array.isArray(v)
             ? Array.isArray(v[0])
@@ -558,9 +581,22 @@ const init = ({
           return false;
         });
         if (failedToParse) {
-          // send email to RoamJS about failure
+          return apiPost({
+            path: "error",
+            anonymous: true,
+            data: {
+              subject: "RoamJS Discourse Graph Frontend Error",
+              stack: new Error().stack,
+              message: `Didnt know how to parse event ${JSON.stringify(
+                failedToParse,
+                null,
+                4
+              )}`,
+            },
+          }).then(() => Promise.resolve());
+        } else {
+          return save();
         }
-        return save();
       });
   };
   if (cached && authorization) {
