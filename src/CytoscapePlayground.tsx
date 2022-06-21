@@ -52,6 +52,7 @@ import navigator from "cytoscape-navigator";
 import Filter, { Filters } from "roamjs-components/components/Filter";
 import DiscourseContextOverlay from "./components/DiscourseContextOverlay";
 import createQueryBuilderRender from "./utils/createQueryBuilderRender";
+import AutocompleteInput from "roamjs-components/components/AutocompleteInput";
 
 navigator(cytoscape);
 
@@ -717,6 +718,13 @@ const CytoscapePlayground = ({
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
   const minimize = useCallback(() => setMaximized(false), [setMaximized]);
   const [mapOpen, setMapOpen] = useState(false);
+  const searchRef = useRef<HTMLSpanElement>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const searchOptions = useMemo(
+    () => (searchOpen ? cyRef.current.nodes().map((n) => n.data("alias")) : []),
+    [searchOpen, cyRef]
+  );
   const [overlaysShown, setOverlaysShown] = useState(false);
   const getStyle = useCallback(
     (e: cytoscape.NodeSingular) => {
@@ -861,7 +869,7 @@ const CytoscapePlayground = ({
             <Tooltip
               content={m.tooltip}
               key={m.id}
-              position={Position.BOTTOM_RIGHT}
+              position={Position.BOTTOM_LEFT}
             >
               <Button
                 onClick={() => {
@@ -877,7 +885,7 @@ const CytoscapePlayground = ({
         </div>
         <div className="flex flex-col gap-2 justify-end relative items-end">
           <span>
-            <Tooltip content={"Node Picker"} position={Position.BOTTOM_LEFT}>
+            <Tooltip content={"Node Picker"} position={Position.BOTTOM_RIGHT}>
               <NodeIcon
                 {...selectedNode}
                 onClick={() => setColorPickerOpen(!colorPickerOpen)}
@@ -890,10 +898,39 @@ const CytoscapePlayground = ({
               }}
               onChange={setFilters}
             />
+            {searchOpen ? (
+              <>
+                <Tooltip
+                  content={"Close Search"}
+                  position={Position.BOTTOM_RIGHT}
+                >
+                  <Button
+                    minimal
+                    icon={"search"}
+                    active
+                    onClick={() => setSearchOpen(false)}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <Tooltip content={"Open Search"} position={Position.BOTTOM_RIGHT}>
+                <Button
+                  minimal
+                  icon={"search"}
+                  onClick={() => {
+                    setSearchOpen(true);
+                    const input = searchRef.current.querySelector("input");
+                    if (input) {
+                      setTimeout(() => input.focus({ preventScroll: true }), 1);
+                    }
+                  }}
+                />
+              </Tooltip>
+            )}
             {mapOpen ? (
               <>
                 <style>{`#roamjs-cytoscape-playground-container .cytoscape-navigator{ display: block; }`}</style>
-                <Tooltip content={"Close Map"} position={Position.BOTTOM_LEFT}>
+                <Tooltip content={"Close Map"} position={Position.BOTTOM_RIGHT}>
                   <Button
                     minimal
                     icon={"map"}
@@ -903,7 +940,7 @@ const CytoscapePlayground = ({
                 </Tooltip>
               </>
             ) : (
-              <Tooltip content={"Open Map"} position={Position.BOTTOM_LEFT}>
+              <Tooltip content={"Open Map"} position={Position.BOTTOM_RIGHT}>
                 <Button minimal icon={"map"} onClick={() => setMapOpen(true)} />
               </Tooltip>
             )}
@@ -911,7 +948,7 @@ const CytoscapePlayground = ({
               <>
                 <Tooltip
                   content={"Hide Overlays"}
-                  position={Position.BOTTOM_LEFT}
+                  position={Position.BOTTOM_RIGHT}
                 >
                   <Button
                     minimal
@@ -924,7 +961,7 @@ const CytoscapePlayground = ({
             ) : (
               <Tooltip
                 content={"Show Overlays"}
-                position={Position.BOTTOM_LEFT}
+                position={Position.BOTTOM_RIGHT}
               >
                 <Button
                   minimal
@@ -935,7 +972,7 @@ const CytoscapePlayground = ({
             )}
             <Tooltip
               content={"Draw Existing Edges"}
-              position={Position.BOTTOM_LEFT}
+              position={Position.BOTTOM_RIGHT}
             >
               <Button
                 minimal
@@ -1007,22 +1044,22 @@ const CytoscapePlayground = ({
             {maximized ? (
               <>
                 <style>{`div.roam-body div.roam-app div.roam-main div.roam-article {\n  position: static;\n}`}</style>
-                <Tooltip content={"Minimize"} position={Position.BOTTOM_LEFT}>
+                <Tooltip content={"Minimize"} position={Position.BOTTOM_RIGHT}>
                   <Button minimal icon={"minimize"} onClick={minimize} />
                 </Tooltip>
               </>
             ) : (
-              <Tooltip content={"Maximize"} position={Position.BOTTOM_LEFT}>
+              <Tooltip content={"Maximize"} position={Position.BOTTOM_RIGHT}>
                 <Button minimal icon={"maximize"} onClick={maximize} />
               </Tooltip>
             )}
             <Tooltip
               content={"Generate Roam Blocks"}
-              position={Position.BOTTOM_LEFT}
+              position={Position.BOTTOM_RIGHT}
             >
               <Button
                 minimal
-                style={{ marginLeft: 8, maxWidth: 30 }}
+                style={{ maxWidth: 30 }}
                 icon={
                   <img
                     src={"https://roamresearch.com/favicon.ico"}
@@ -1071,7 +1108,11 @@ const CytoscapePlayground = ({
                           relation: n.text,
                         };
                       }
-                      return { node: n.text, uid: n.uid, type: getNodeType(n) };
+                      return {
+                        node: n.text,
+                        uid: n.uid,
+                        type: getNodeType(n),
+                      };
                     })
                     .map((e) => {
                       if (!e.relation)
@@ -1173,10 +1214,9 @@ const CytoscapePlayground = ({
                 }}
               />
             </Tooltip>
-            <Tooltip content={"Export"} position={Position.BOTTOM_LEFT}>
+            <Tooltip content={"Export"} position={Position.BOTTOM_RIGHT}>
               <Button
                 minimal
-                style={{ marginLeft: 8 }}
                 icon={"export"}
                 onClick={() => {
                   const elementsTree = getBasicTreeByParentUid(elementsUid);
@@ -1241,7 +1281,7 @@ const CytoscapePlayground = ({
                 <Tooltip
                   content={n.text}
                   key={n.text}
-                  position={Position.BOTTOM_LEFT}
+                  position={Position.BOTTOM_RIGHT}
                 >
                   <NodeIcon
                     {...n}
@@ -1254,6 +1294,23 @@ const CytoscapePlayground = ({
                   />
                 </Tooltip>
               ))}
+          </span>
+          <span
+            className={`${searchOpen ? "inline-flex" : "hidden"} absolute`}
+            style={{ top: "150%" }}
+            ref={searchRef}
+          >
+            <AutocompleteInput
+              onConfirm={() => {
+                const node = cyRef.current
+                  .nodes()
+                  .filter((n) => n.data("alias") === searchValue);
+                if (node) cyRef.current.center(node);
+              }}
+              value={searchValue}
+              setValue={setSearchValue}
+              options={searchOptions}
+            />
           </span>
         </div>
       </div>

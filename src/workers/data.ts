@@ -2,9 +2,10 @@ import { unpack } from "msgpackr/unpack";
 import apiGet from "roamjs-components/util/apiGet";
 import apiPost from "roamjs-components/util/apiPost";
 import apiPut from "roamjs-components/util/apiPut";
-import { Graph } from "./types";
+import type { Graph } from "./types";
 import fireQuery from "./methods/fireQuery";
 import { openDB } from "idb";
+import type { ViewType } from "roamjs-components/types";
 
 const resetGraph = (): typeof graph => ({
   latest: 0,
@@ -191,6 +192,7 @@ type UpdateNode = {
   "~:attrs/lookup"?: UpdateNode;
   "~:edit/seen-by"?: UpdateNode;
   "~:ent/emojis"?: UpdateNode;
+  "~:children/view-type"?: `~:${ViewType}`;
 };
 
 const updateChildren = (blocks: UpdateNode[], blockUid: string) =>
@@ -263,6 +265,11 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:block/open"] !== "undefined"
         ) {
           // TODO
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:children/view-type"] !== "undefined"
+        ) {
+          // TODO
         } else if (Object.keys(update).length === 2 && update["~:block/page"]) {
           graph.edges.blocksPageByUid[update["~:db/add"]["~:block/uid"]] =
             update["~:block/page"]["~:block/uid"];
@@ -285,7 +292,7 @@ const processUpdates = (updates: UpdateNode[]) => {
           return true;
         }
       } else if (update["~:db/retract"]) {
-        const parentUid = update["~:db/retract"]["~:block/uid"];
+        const retractUid = update["~:db/retract"]["~:block/uid"];
         if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/children"] !== "undefined"
@@ -293,8 +300,8 @@ const processUpdates = (updates: UpdateNode[]) => {
           const childUid = (update["~:block/children"] as UpdateNode)[
             "~:block/uid"
           ];
-          graph.edges.childrenByUid[parentUid] = (
-            graph.edges.childrenByUid[parentUid] || []
+          graph.edges.childrenByUid[retractUid] = (
+            graph.edges.childrenByUid[retractUid] || []
           ).filter((i) => childUid !== i);
           delete graph.edges.parentByUid[childUid];
         } else if (
@@ -302,12 +309,12 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:block/refs"] !== "undefined"
         ) {
           const refUid = (update["~:block/refs"] as UpdateNode)["~:block/uid"];
-          graph.edges.referencesByUid[parentUid] = graph.edges.referencesByUid[
-            parentUid
+          graph.edges.referencesByUid[retractUid] = graph.edges.referencesByUid[
+            retractUid
           ].filter((i) => refUid !== i);
           graph.edges.linkedReferencesByUid[refUid] = (
             graph.edges.linkedReferencesByUid[refUid] || []
-          ).filter((i) => parentUid !== i);
+          ).filter((i) => retractUid !== i);
         } else if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/parents"] !== "undefined"
@@ -315,12 +322,12 @@ const processUpdates = (updates: UpdateNode[]) => {
           const ancestor = (update["~:block/parents"] as UpdateNode)[
             "~:block/uid"
           ];
-          graph.edges.ancestorsByUid[parentUid] = (
-            graph.edges.ancestorsByUid[parentUid] || []
+          graph.edges.ancestorsByUid[retractUid] = (
+            graph.edges.ancestorsByUid[retractUid] || []
           ).filter((uid) => uid !== ancestor);
           graph.edges.descendantsByUid[ancestor] = (
-            graph.edges.descendantsByUid[parentUid] || []
-          ).filter((uid) => uid !== parentUid);
+            graph.edges.descendantsByUid[retractUid] || []
+          ).filter((uid) => uid !== retractUid);
         } else if (
           Object.keys(update).length === 2 &&
           update["~:version/nonce"]
@@ -332,9 +339,63 @@ const processUpdates = (updates: UpdateNode[]) => {
           ];
         } else if (
           Object.keys(update).length === 2 &&
-          update["~:block/string"]
+          typeof update["~:block/string"] !== "undefined"
         ) {
           delete graph.edges.blocksByUid[update["~:db/retract"]["~:block/uid"]];
+        } else if (Object.keys(update).length === 2 && update["~:block/page"]) {
+          const pageUid = update["~:block/page"]["~:block/uid"];
+          delete graph.edges.blocksPageByUid[retractUid];
+          graph.edges.ancestorsByUid[retractUid] = (
+            graph.edges.ancestorsByUid[retractUid] || []
+          ).filter((a) => a !== pageUid);
+          graph.edges.descendantsByUid[pageUid] = (
+            graph.edges.ancestorsByUid[pageUid] || []
+          ).filter((a) => a !== retractUid);
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/order"] !== "undefined"
+        ) {
+          const parentUid = graph.edges.parentByUid[retractUid];
+          graph.edges.childrenByUid[parentUid] = (
+            graph.edges.childrenByUid[parentUid] || []
+          ).splice(update["~:block/order"], 1);
+          graph.edges.ancestorsByUid[retractUid] = (
+            graph.edges.ancestorsByUid[retractUid] || []
+          ).filter((a) => a !== parentUid);
+          graph.edges.descendantsByUid[parentUid] = (
+            graph.edges.ancestorsByUid[parentUid] || []
+          ).filter((a) => a !== retractUid);
+          delete graph.edges.parentByUid[retractUid];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/open"] !== "undefined"
+        ) {
+          // ignore, dont care about open
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:edit/time"] !== "undefined"
+        ) {
+          delete graph.edges.editTimeByUid[retractUid];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:create/time"] !== "undefined"
+        ) {
+          delete graph.edges.createTimeByUid[retractUid];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:edit/user"] !== "undefined"
+        ) {
+          delete graph.edges.editUserByUid[retractUid];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:create/user"] !== "undefined"
+        ) {
+          delete graph.edges.createUserByUid[retractUid];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/uid"] !== "undefined"
+        ) {
+          delete graph.edges.blocksByUid[retractUid];
         } else {
           console.warn("unknown db/retract update: ", update);
           return true;
@@ -348,8 +409,9 @@ const processUpdates = (updates: UpdateNode[]) => {
         delete graph.edges.editUserByUid[uid];
 
         (graph.edges.referencesByUid[uid] || []).forEach((ref) => {
-          graph.edges.linkedReferencesByUid[uid] =
-            (graph.edges.linkedReferencesByUid[uid] || []).filter((r) => r !== ref);
+          graph.edges.linkedReferencesByUid[uid] = (
+            graph.edges.linkedReferencesByUid[uid] || []
+          ).filter((r) => r !== ref);
         });
         delete graph.edges.referencesByUid[uid];
 

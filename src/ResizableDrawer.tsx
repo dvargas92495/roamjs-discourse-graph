@@ -42,6 +42,9 @@ const ResizableDrawer = ({
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
   }, [onMouseMove, onMouseUp]);
+  useEffect(() => {
+    drawerRef.current.scroll(-1000, 0);
+  }, [drawerRef]);
   return (
     <Drawer
       isOpen={true}
