@@ -11,6 +11,7 @@ import {
   Button,
   Classes,
   Dialog,
+  Icon,
   InputGroup,
   Intent,
   Menu,
@@ -53,12 +54,16 @@ import Filter, { Filters } from "roamjs-components/components/Filter";
 import DiscourseContextOverlay from "./components/DiscourseContextOverlay";
 import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 import AutocompleteInput from "roamjs-components/components/AutocompleteInput";
+import isControl from "roamjs-components/util/isControl";
 
 navigator(cytoscape);
 
 type AliasProps = {
   node: cytoscape.NodeSingular;
 };
+
+const maxZoom = 5;
+const minZoom = 0.25;
 
 const AliasDialog = ({
   onClose,
@@ -222,11 +227,11 @@ const COLORS = [
 const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
 const SELECTION_MODES = [
-  { id: "NORMAL", tooltip: "Normal", icon: "new-link" },
-  { id: "CONNECT", tooltip: "Draw Edge", icon: "git-branch" },
-  { id: "EDIT", tooltip: "Edit", icon: "edit" },
-  { id: "DELETE", tooltip: "Delete", icon: "delete" },
-  { id: "ALIAS", tooltip: "Alias", icon: "application" },
+  { id: "NORMAL", tooltip: "Normal", icon: "new-link", shortcut: "n" },
+  { id: "CONNECT", tooltip: "Draw Edge", icon: "git-branch", shortcut: "c" },
+  { id: "EDIT", tooltip: "Edit", icon: "edit", shortcut: "e" },
+  { id: "DELETE", tooltip: "Delete", icon: "delete", shortcut: "d" },
+  { id: "ALIAS", tooltip: "Alias", icon: "application", shortcut: "a" },
 ] as const;
 type SelectionMode = typeof SELECTION_MODES[number]["id"];
 
@@ -447,6 +452,33 @@ const CytoscapePlayground = ({
       }),
     [edgeCallback, cyRef]
   );
+  const [overlaysShown, setOverlaysShown] = useState(false);
+  const overlaysShownRef = useRef(false);
+  const [nodeOverlays, setNodeOverlays] = useState<
+    Record<string, { top: number; left: number; label: string }>
+  >({});
+  const refreshNodeOverlays = useCallback(() => {
+    setNodeOverlays(
+      Object.fromEntries(
+        cyRef.current
+          .nodes()
+          .filter((t) => t.data("color") !== TEXT_COLOR)
+          .filter((t) => t.style("display") === "element")
+          .map((n) => [
+            `roamjs-cytoscape-node-overlay-${n.id()}`,
+            {
+              label: n.data("label"),
+              ...getStyle(n as cytoscape.NodeSingular),
+            },
+          ])
+      )
+    );
+  }, [setNodeOverlays, cyRef]);
+  useEffect(() => {
+    overlaysShownRef.current = overlaysShown;
+    if (overlaysShown) refreshNodeOverlays();
+    else setNodeOverlays({});
+  }, [overlaysShown, refreshNodeOverlays, setNodeOverlays, overlaysShownRef]);
   const nodeTapCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
@@ -561,6 +593,9 @@ const CytoscapePlayground = ({
         n.style("color", "#EEEEEE");
         containerRef.current.style.cursor = "unset";
       });
+      n.on("drag", () => {
+        if (overlaysShownRef.current) refreshNodeOverlays();
+      });
     },
     [
       elementsUid,
@@ -570,10 +605,12 @@ const CytoscapePlayground = ({
       allRelationTriples,
       shadowInputRef,
       containerRef,
+      overlaysShownRef,
       clearEditingRef,
       clearSourceRef,
       clearEditingRelation,
       drawEdge,
+      refreshNodeOverlays,
     ]
   );
   const createNode = useCallback(
@@ -662,8 +699,8 @@ const CytoscapePlayground = ({
       layout: {
         name: "preset",
       },
-      maxZoom: 5,
-      minZoom: 0.25,
+      maxZoom,
+      minZoom,
     });
     cyRef.current.on("click", (e) => {
       if (
@@ -697,10 +734,17 @@ const CytoscapePlayground = ({
       );
     };
     // @ts-ignore
-    const nav = cyRef.current.navigator({
+    cyRef.current.navigator({
       container: `.cytoscape-navigator`,
     });
-    console.log(nav);
+
+    cyRef.current.on("zoom", () => {
+      if (overlaysShownRef.current) refreshNodeOverlays();
+    });
+
+    cyRef.current.on("pan", () => {
+      if (overlaysShownRef.current) refreshNodeOverlays();
+    });
   }, [
     elementsUid,
     cyRef,
@@ -713,6 +757,8 @@ const CytoscapePlayground = ({
     createNode,
     nodeTypeByColor,
     nodeColorRef,
+    refreshNodeOverlays,
+    overlaysShownRef,
   ]);
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
@@ -725,7 +771,6 @@ const CytoscapePlayground = ({
     () => (searchOpen ? cyRef.current.nodes().map((n) => n.data("alias")) : []),
     [searchOpen, cyRef]
   );
-  const [overlaysShown, setOverlaysShown] = useState(false);
   const getStyle = useCallback(
     (e: cytoscape.NodeSingular) => {
       const { x1, y1 } = cyRef.current.extent();
@@ -734,31 +779,11 @@ const CytoscapePlayground = ({
       return {
         top: (y - y1 + e.height() / 2) * zoom,
         left: (x - x1 - e.width() / 2) * zoom,
+        transform: `scale(${zoom})`,
       };
     },
     [cyRef]
   );
-  const [nodeOverlays, setNodeOverlays] = useState<
-    Record<string, { top: number; left: number; label: string }>
-  >({});
-  useEffect(() => {
-    if (overlaysShown)
-      setNodeOverlays(
-        Object.fromEntries(
-          cyRef.current
-            .nodes()
-            .filter((t) => t.data("color") !== TEXT_COLOR)
-            .map((n) => [
-              `roamjs-cytoscape-node-overlay-${n.id()}`,
-              {
-                label: n.data("label"),
-                ...getStyle(n as cytoscape.NodeSingular),
-              },
-            ])
-        )
-      );
-    else setNodeOverlays({});
-  }, [overlaysShown, setNodeOverlays, cyRef]);
 
   useEffect(() => {
     const isNodeValid = (other: cytoscape.NodeSingular) => {
@@ -803,13 +828,41 @@ const CytoscapePlayground = ({
       }
     });
   }, [cyRef, nodeTextByColor, filters]);
+  const [showModifiers, setShowModifiers] = useState(false);
+  useEffect(() => {
+    const keyDown = (e: KeyboardEvent) => {
+      if (isControl(e)) {
+        setShowModifiers(true);
+        const mode = SELECTION_MODES.find(
+          (m) =>
+            m.shortcut === e.key || `Key${m.shortcut.toUpperCase()}` === e.code
+        );
+        if (mode) {
+          setSelectionMode(mode.id);
+          selectionModeRef.current = mode.id;
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }
+    };
+    const keyUp = (e: KeyboardEvent) => {
+      setShowModifiers(isControl(e));
+    };
+    document.body.addEventListener("keydown", keyDown);
+    document.body.addEventListener("keyup", keyUp);
+    return () => {
+      document.body.addEventListener("keydown", keyDown);
+      document.body.addEventListener("keyup", keyUp);
+    };
+  }, [setShowModifiers, setSelectionMode, selectionModeRef]);
   return (
     <div
-      className={`border border-gray-300 rounded-md bg-white h-full w-full z-10 ${
+      className={`border border-gray-300 rounded-md bg-white h-full w-full z-10 overflow-hidden ${
         maximized ? "absolute inset-0" : "relative"
       }`}
       id={`roamjs-cytoscape-playground-container`}
       ref={containerRef}
+      tabIndex={-1}
     >
       <style>{`.roam-article .rm-block-children {
   display: none;
@@ -878,7 +931,18 @@ const CytoscapePlayground = ({
                 }}
                 minimal
                 active={selectionMode === m.id}
-                icon={m.icon}
+                icon={
+                  <span className={"relative"}>
+                    <Icon icon={m.icon} />
+                    <span
+                      className={`absolute -bottom-2 -right-2 ${
+                        showModifiers ? "inline-flex" : "hidden"
+                      } bg-gray-300 w-4 h-4 font-small justify-center items-center rounded-full`}
+                    >
+                      {m.shortcut}
+                    </span>
+                  </span>
+                }
               />
             </Tooltip>
           ))}
@@ -1409,7 +1473,7 @@ const CytoscapePlayground = ({
       <div className="cytoscape-navigator border border-gray-300 rounded-tl-md" />
       {Object.entries(nodeOverlays).map(([k, { label, ...style }]) => (
         <div
-          className="absolute inline bg-gray-100"
+          className="absolute inline bg-gray-100 origin-top-left"
           style={style}
           id={k}
           key={k}
