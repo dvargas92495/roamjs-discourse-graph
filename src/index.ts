@@ -769,7 +769,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-06-19-19-37/main.js",
+      src: "https://roamjs.com/query-builder/2022-06-27-00-00/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -781,7 +781,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-06-19-19-37/main.js",
+      src: "https://roamjs.com/query-builder/2022-06-27-00-00/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({

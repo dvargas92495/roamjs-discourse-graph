@@ -504,6 +504,7 @@ const CytoscapePlayground = ({
             deleteBlock(edge.id());
           });
           cyRef.current.remove(n);
+          if (overlaysShownRef.current) refreshNodeOverlays();
         } else if (selectionModeRef.current === "CONNECT") {
           clearEditingRef();
           if (sourceRef.current) {
@@ -1363,6 +1364,14 @@ const CytoscapePlayground = ({
             className={`${searchOpen ? "inline-flex" : "hidden"} absolute`}
             style={{ top: "150%" }}
             ref={searchRef}
+            onClick={() => {
+              const input = searchRef.current.querySelector("input");
+              if (input) {
+                setTimeout(() => input.focus({ preventScroll: true }), 1);
+              }
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+            onKeyUp={(e) => e.stopPropagation()}
           >
             <AutocompleteInput
               onConfirm={() => {
