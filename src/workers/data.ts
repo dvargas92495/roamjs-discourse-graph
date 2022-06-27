@@ -333,10 +333,6 @@ const processUpdates = (updates: UpdateNode[]) => {
           update["~:version/nonce"]
         ) {
           // skip, nothing to do with undos
-        } else if (Object.keys(update).length === 2 && update["~:edit/time"]) {
-          delete graph.edges.editTimeByUid[
-            update["~:db/retract"]["~:block/uid"]
-          ];
         } else if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/string"] !== "undefined"
@@ -396,6 +392,11 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:block/uid"] !== "undefined"
         ) {
           delete graph.edges.blocksByUid[retractUid];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:node/title"] !== "undefined"
+        ) {
+          delete graph.edges.pagesByUid[retractUid];
         } else {
           console.warn("unknown db/retract update: ", update);
           return true;
