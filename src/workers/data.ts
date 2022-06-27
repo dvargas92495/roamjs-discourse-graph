@@ -397,6 +397,7 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:node/title"] !== "undefined"
         ) {
           delete graph.edges.pagesByUid[retractUid];
+          delete graph.edges.pageUidByTitle[update["~:node/title"]];
         } else {
           console.warn("unknown db/retract update: ", update);
           return true;
