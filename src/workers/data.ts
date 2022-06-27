@@ -309,9 +309,9 @@ const processUpdates = (updates: UpdateNode[]) => {
           typeof update["~:block/refs"] !== "undefined"
         ) {
           const refUid = (update["~:block/refs"] as UpdateNode)["~:block/uid"];
-          graph.edges.referencesByUid[retractUid] = graph.edges.referencesByUid[
-            retractUid
-          ].filter((i) => refUid !== i);
+          graph.edges.referencesByUid[retractUid] = (
+            graph.edges.referencesByUid[retractUid] || []
+          ).filter((i) => refUid !== i);
           graph.edges.linkedReferencesByUid[refUid] = (
             graph.edges.linkedReferencesByUid[refUid] || []
           ).filter((i) => retractUid !== i);
