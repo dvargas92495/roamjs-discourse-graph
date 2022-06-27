@@ -162,6 +162,8 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
         flip: { enabled: false },
         preventOverflow: { enabled: false },
       }}
+      autoFocus={false}
+      enforceFocus={false}
       content={
         <Menu ulRef={menuRef} data-active-index={activeIndex}>
           {NODE_LABELS.map((item, i) => {

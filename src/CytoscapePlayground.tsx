@@ -1364,6 +1364,7 @@ const CytoscapePlayground = ({
             className={`${searchOpen ? "inline-flex" : "hidden"} absolute`}
             style={{ top: "150%" }}
             ref={searchRef}
+            // TODO - why is the search input not clickable?!
             onClick={() => {
               const input = searchRef.current.querySelector("input");
               if (input) {
