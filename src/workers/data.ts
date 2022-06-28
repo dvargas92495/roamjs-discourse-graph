@@ -262,6 +262,11 @@ const processUpdates = (updates: UpdateNode[]) => {
           );
         } else if (
           Object.keys(update).length === 2 &&
+          typeof update["~:block/heading"] !== "undefined"
+        ) {
+          graph.edges.headingsByUid[blockUid] = update["~:block/heading"];
+        } else if (
+          Object.keys(update).length === 2 &&
           typeof update["~:block/open"] !== "undefined"
         ) {
           // TODO
