@@ -241,6 +241,31 @@ const CytoscapePlayground = ({
   globalRefs,
   ...exportRenderProps
 }: Props) => {
+  const watches = useRef(
+    new Set<{
+      pullPattern: string;
+      entityId: string;
+      onWatch: Parameters<typeof window.roamAlphaAPI.data.addPullWatch>[2];
+    }>()
+  );
+  const addUidWatch = useCallback(
+    (uid: string, callback: (s: string) => void) => {
+      const onWatch: Parameters<
+        typeof window.roamAlphaAPI.data.addPullWatch
+      >[2] = (_, a) => {
+        callback(a[":block/string"]);
+      };
+      const pullPattern = `[:block/string]`;
+      const entityId = `[:block/uid "${uid}"]`;
+      window.roamAlphaAPI.data.addPullWatch(pullPattern, entityId, onWatch);
+      watches.current.add({
+        pullPattern,
+        entityId,
+        onWatch,
+      });
+    },
+    [watches]
+  );
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
   const allPages = useMemo(getAllPageNames, []);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -313,10 +338,7 @@ const CytoscapePlayground = ({
   }, [editingRef, setEditingNodeValue]);
   const clearSourceRef = useCallback(() => {
     if (sourceRef.current) {
-      sourceRef.current.style(
-        "background-color",
-        `#${sourceRef.current.data("color")}`
-      );
+      sourceRef.current.style("border-width", 0);
       sourceRef.current.unlock();
       sourceRef.current = null;
     }
@@ -403,35 +425,39 @@ const CytoscapePlayground = ({
     LivePreviewProps["registerMouseEvents"]
   >(
     ({ open, close, span }) => {
-      const root = span.closest<HTMLSpanElement>(".bp3-popover-wrapper");
-      root.style.position = "absolute";
-      cyRef.current.on("mousemove", (e) => {
-        if (
-          e.target === cyRef.current &&
-          cyRef.current.scratch("roamjs_preview_tag")
-        ) {
-          cyRef.current.scratch("roamjs_preview_tag", "");
-        }
-        const tag = cyRef.current.scratch("roamjs_preview_tag");
-        const isOpen = cyRef.current.scratch("roamjs_preview");
-
-        if (isOpen && !tag) {
-          cyRef.current.scratch("roamjs_preview", false);
-          close();
-        } else if (tag) {
-          const { x1, y1 } = cyRef.current.extent();
-          const zoom = cyRef.current.zoom();
-          root.style.top = `${(e.position.y - y1) * zoom}px`;
-          root.style.left = `${(e.position.x - x1) * zoom}px`;
-          setLivePreviewTag(tag);
-          if (!isOpen) {
-            cyRef.current.scratch("roamjs_preview", true);
-            open(e.originalEvent.ctrlKey);
+      const register = () => {
+        const root = span.closest<HTMLSpanElement>(".bp3-popover-wrapper");
+        root.style.position = "absolute";
+        cyRef.current.on("mousemove", (e) => {
+          if (
+            e.target === cyRef.current &&
+            cyRef.current.scratch("roamjs_preview_tag")
+          ) {
+            cyRef.current.scratch("roamjs_preview_tag", "");
           }
-        }
-      });
+          const tag = cyRef.current.scratch("roamjs_preview_tag");
+          const isOpen = cyRef.current.scratch("roamjs_preview");
+
+          if (isOpen && !tag) {
+            cyRef.current.scratch("roamjs_preview", false);
+            close();
+          } else if (tag) {
+            const { x1, y1 } = cyRef.current.extent();
+            const zoom = cyRef.current.zoom();
+            root.style.top = `${(e.position.y - y1) * zoom}px`;
+            root.style.left = `${(e.position.x - x1) * zoom}px`;
+            setLivePreviewTag(tag);
+            if (!isOpen) {
+              cyRef.current.scratch("roamjs_preview", true);
+              open(e.originalEvent.ctrlKey);
+            }
+          }
+        });
+      };
+      if (cyRef.current) register();
+      else containerRef.current.addEventListener("cytoscape:loaded", register);
     },
-    [cyRef]
+    [cyRef, containerRef]
   );
   const drawEdge = useCallback(
     ({ text, ...rest }: { text: string; source: string; target: string }) =>
@@ -479,7 +505,7 @@ const CytoscapePlayground = ({
     if (overlaysShown) refreshNodeOverlays();
     else setNodeOverlays({});
   }, [overlaysShown, refreshNodeOverlays, setNodeOverlays, overlaysShownRef]);
-  const nodeTapCallback = useCallback(
+  const nodeInitCallback = useCallback(
     (n: cytoscape.NodeSingular) => {
       n.style("background-color", `#${n.data("color")}`);
       n.on("click", (e) => {
@@ -534,7 +560,7 @@ const CytoscapePlayground = ({
             }
             clearSourceRef();
           } else {
-            n.style("background-color", "#000000");
+            n.style("border-width", 4);
             n.lock();
             sourceRef.current = n;
           }
@@ -569,8 +595,7 @@ const CytoscapePlayground = ({
       n.on("dragfree", () => {
         const uid = n.data("id");
         const { x, y } = n.position();
-        setInputSetting({ blockUid: uid, value: `${x}`, key: "x" });
-        setInputSetting({ blockUid: uid, value: `${y}`, key: "y" });
+        setInputSetting({ blockUid: uid, value: `${x},${y}`, key: "position" });
       });
       n.on("mousemove", () => {
         if (selectionModeRef.current === "NORMAL") {
@@ -597,6 +622,20 @@ const CytoscapePlayground = ({
       n.on("drag", () => {
         if (overlaysShownRef.current) refreshNodeOverlays();
       });
+      const tree = getBasicTreeByParentUid(n.id());
+      const positionTree = getSubTree({ tree, key: "position" });
+      const colorTree = getSubTree({ tree, key: "color" });
+      const aliasTree = getSubTree({ tree, key: "alias" });
+      addUidWatch(positionTree.children[0]?.uid, (text) => {
+        const [x, y] = text.split(",").map((c) => Number(c.trim()));
+        n.position({ x, y });
+      });
+      addUidWatch(colorTree.children[0]?.uid, (color) =>
+        n.style("background-color", color)
+      );
+      addUidWatch(aliasTree.children[0]?.uid, (alias) =>
+        n.data("alias", alias)
+      );
     },
     [
       elementsUid,
@@ -612,6 +651,7 @@ const CytoscapePlayground = ({
       clearEditingRelation,
       drawEdge,
       refreshNodeOverlays,
+      addUidWatch,
     ]
   );
   const createNode = useCallback(
@@ -620,9 +660,12 @@ const CytoscapePlayground = ({
         node: {
           text,
           children: [
-            { text: "x", children: [{ text: position.x.toString() }] },
-            { text: "y", children: [{ text: position.y.toString() }] },
+            {
+              text: "position",
+              children: [{ text: `${position.x},${position.y}` }],
+            },
             { text: "color", children: [{ text: color }] },
+            { text: "alias", children: [{ text: text }] },
           ],
         },
         parentUid: elementsUid,
@@ -631,121 +674,144 @@ const CytoscapePlayground = ({
           data: { id: uid, label: text, color, alias: text },
           position,
         })[0];
-        nodeTapCallback(node);
+        nodeInitCallback(node);
       });
     },
-    [nodeTapCallback, cyRef, elementsUid, nodeColorRef]
+    [nodeInitCallback, cyRef, elementsUid, nodeColorRef]
   );
   useEffect(() => {
-    cyRef.current = cytoscape({
-      container: containerRef.current,
-      elements: [
-        ...elementsChildren.map(({ text, uid, children = [] }) => {
-          const {
-            x = "0",
-            y = "0",
-            color = TEXT_COLOR,
-            alias,
-            ...data
-          } = Object.fromEntries(
-            children.map(({ text, children = [] }) => [text, children[0]?.text])
-          );
-          const label = text || "Click to edit text";
-          return {
-            data: {
-              alias: alias || label,
-              label,
-              color,
-              id: uid,
-              ...data,
-            },
-            position: { x: Number(x), y: Number(y) },
-          };
-        }),
-      ],
-
-      style: [
-        {
-          selector: "node",
-          style: {
-            "background-color": `#${TEXT_COLOR}`,
-            label: "data(alias)",
-            shape: "round-rectangle",
-            color: "#EEEEEE",
-            "text-wrap": "wrap",
-            "text-halign": "center",
-            "text-valign": "center",
-            "text-max-width": "320",
-            width: "label",
-            "padding-left": "16",
-            "padding-right": "16",
-            "padding-bottom": "8",
-            "padding-top": "8",
-            height: "label",
-          },
-        },
-        {
-          selector: "edge",
-          style: {
-            width: 10,
-            "line-color": "#ccc",
-            "target-arrow-color": "#ccc",
-            "target-arrow-shape": "triangle",
-            "curve-style": "bezier",
-            label: "data(label)",
-          },
-        },
-      ],
-
-      layout: {
-        name: "preset",
-      },
-      maxZoom,
-      minZoom,
-    });
-    cyRef.current.on("click", (e) => {
-      if (
-        e.target !== cyRef.current ||
-        (e.originalEvent.target as HTMLElement).tagName !== "CANVAS"
-      ) {
-        return;
-      }
-      if (!editingRef.current && !sourceRef.current) {
-        const nodeType = nodeTypeByColor[nodeColorRef.current];
-        createNode(
-          nodeFormatTextByType[nodeType] || "Click to edit text",
-          e.position,
-          nodeColorRef.current
+    Promise.all(
+      elementsChildren.map(async ({ text, uid, children = [] }) => {
+        const {
+          position,
+          x: legacyX = "0",
+          y: legacyY = "0",
+          color = TEXT_COLOR,
+          alias,
+          ...data
+        } = Object.fromEntries(
+          children.map(({ text, children = [] }) => [text, children[0]?.text])
         );
-      } else {
-        clearEditingRef();
-        clearSourceRef();
-        clearEditingRelation();
-      }
+        const label = text || "Click to edit text";
+        const pos =
+          position ||
+          (await Promise.resolve(`${legacyX},${legacyY}`).then((value) =>
+            setInputSetting({ blockUid: uid, key: "position", value }).then(
+              () => value
+            )
+          ));
+        const [x, y] = pos.split(",").map((c) => Number(c.trim()));
+        return {
+          data: {
+            alias: alias || label,
+            label,
+            color,
+            id: uid,
+            ...data,
+          },
+          position: { x, y },
+        };
+      })
+    ).then((elements) => {
+      cyRef.current = cytoscape({
+        container: containerRef.current,
+        elements,
+
+        style: [
+          {
+            selector: "node",
+            style: {
+              "background-color": `#${TEXT_COLOR}`,
+              label: "data(alias)",
+              shape: "round-rectangle",
+              color: "#EEEEEE",
+              "text-wrap": "wrap",
+              "text-halign": "center",
+              "text-valign": "center",
+              "text-max-width": "320",
+              width: "label",
+              "padding-left": "16",
+              "padding-right": "16",
+              "padding-bottom": "8",
+              "padding-top": "8",
+              height: "label",
+            },
+          },
+          {
+            selector: "edge",
+            style: {
+              width: 10,
+              "line-color": "#ccc",
+              "target-arrow-color": "#ccc",
+              "target-arrow-shape": "triangle",
+              "curve-style": "bezier",
+              label: "data(label)",
+            },
+          },
+        ],
+
+        layout: {
+          name: "preset",
+        },
+        maxZoom,
+        minZoom,
+      });
+      cyRef.current.on("click", (e) => {
+        if (
+          e.target !== cyRef.current ||
+          (e.originalEvent.target as HTMLElement).tagName !== "CANVAS"
+        ) {
+          return;
+        }
+        if (!editingRef.current && !sourceRef.current) {
+          const nodeType = nodeTypeByColor[nodeColorRef.current];
+          createNode(
+            nodeFormatTextByType[nodeType] || "Click to edit text",
+            e.position,
+            nodeColorRef.current
+          );
+        } else {
+          clearEditingRef();
+          clearSourceRef();
+          clearEditingRelation();
+        }
+      });
+      cyRef.current.nodes().forEach(nodeInitCallback);
+      cyRef.current.edges().forEach(edgeCallback);
+      globalRefs.clearOnClick = (s: string) => {
+        const { x1, x2, y1, y2 } = cyRef.current.extent();
+        createNode(
+          s,
+          { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
+          coloredNodes.find((c) => matchNode({ format: c.format, title: s }))
+            ?.color || TEXT_COLOR
+        );
+      };
+      // @ts-ignore
+      cyRef.current.navigator({
+        container: `.cytoscape-navigator`,
+      });
+
+      cyRef.current.on("zoom", () => {
+        if (overlaysShownRef.current) refreshNodeOverlays();
+      });
+
+      cyRef.current.on("pan", () => {
+        if (overlaysShownRef.current) refreshNodeOverlays();
+      });
+
+      containerRef.current.dispatchEvent(new Event("cytoscape:loaded"));
     });
-    cyRef.current.nodes().forEach(nodeTapCallback);
-    cyRef.current.edges().forEach(edgeCallback);
-    globalRefs.clearOnClick = (s: string) => {
-      const { x1, x2, y1, y2 } = cyRef.current.extent();
-      createNode(
-        s,
-        { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
-        coloredNodes.find((c) => matchNode({ format: c.format, title: s }))
-          ?.color || TEXT_COLOR
+
+    return () => {
+      watches.current.forEach((args) =>
+        window.roamAlphaAPI.data.removePullWatch(
+          args.pullPattern,
+          args.entityId,
+          args.onWatch
+        )
       );
     };
-    // @ts-ignore
-    cyRef.current.navigator({
-      container: `.cytoscape-navigator`,
-    });
-
-    cyRef.current.on("zoom", () => {
-      if (overlaysShownRef.current) refreshNodeOverlays();
-    });
-
-    cyRef.current.on("pan", () => {
-      if (overlaysShownRef.current) refreshNodeOverlays();
-    });
   }, [
     elementsUid,
     cyRef,
@@ -754,12 +820,13 @@ const CytoscapePlayground = ({
     clearEditingRelation,
     clearEditingRef,
     edgeCallback,
-    nodeTapCallback,
+    nodeInitCallback,
     createNode,
     nodeTypeByColor,
     nodeColorRef,
     refreshNodeOverlays,
     overlaysShownRef,
+    watches,
   ]);
   const [maximized, setMaximized] = useState(false);
   const maximize = useCallback(() => setMaximized(true), [setMaximized]);
@@ -787,47 +854,49 @@ const CytoscapePlayground = ({
   );
 
   useEffect(() => {
-    const isNodeValid = (other: cytoscape.NodeSingular) => {
-      const otherText = nodeTextByColor[other.data("color")];
-      return (
-        (filters.includes.nodes.size === 0 &&
-          filters.includes.edges.size === 0 &&
-          !filters.excludes.nodes.has(otherText)) ||
-        filters.includes.nodes.has(otherText)
-      );
-    };
+    if (cyRef.current) {
+      const isNodeValid = (other: cytoscape.NodeSingular) => {
+        const otherText = nodeTextByColor[other.data("color")];
+        return (
+          (filters.includes.nodes.size === 0 &&
+            filters.includes.edges.size === 0 &&
+            !filters.excludes.nodes.has(otherText)) ||
+          filters.includes.nodes.has(otherText)
+        );
+      };
 
-    const isEdgeValid = (other: cytoscape.EdgeSingular) =>
-      (filters.includes.edges.size === 0 &&
-        filters.includes.nodes.size === 0 &&
-        !filters.excludes.edges.has(other.data("label"))) ||
-      filters.includes.edges.has(other.data("label"));
+      const isEdgeValid = (other: cytoscape.EdgeSingular) =>
+        (filters.includes.edges.size === 0 &&
+          filters.includes.nodes.size === 0 &&
+          !filters.excludes.edges.has(other.data("label"))) ||
+        filters.includes.edges.has(other.data("label"));
 
-    cyRef.current.nodes().forEach((other) => {
-      if (
-        isNodeValid(other) ||
-        other.connectedEdges().some(isEdgeValid) ||
-        other.connectedEdges().some((e) =>
-          (e as cytoscape.EdgeSingular)
-            .connectedNodes()
-            .filter((n) => n !== other)
-            .some(isNodeValid)
-        )
-      ) {
-        other.style("display", "element");
-      } else {
-        other.style("display", "none");
-      }
-      other.edges();
-    });
+      cyRef.current.nodes().forEach((other) => {
+        if (
+          isNodeValid(other) ||
+          other.connectedEdges().some(isEdgeValid) ||
+          other.connectedEdges().some((e) =>
+            (e as cytoscape.EdgeSingular)
+              .connectedNodes()
+              .filter((n) => n !== other)
+              .some(isNodeValid)
+          )
+        ) {
+          other.style("display", "element");
+        } else {
+          other.style("display", "none");
+        }
+        other.edges();
+      });
 
-    cyRef.current.edges().forEach((other) => {
-      if (isEdgeValid(other) || other.connectedNodes().some(isNodeValid)) {
-        other.style("display", "element");
-      } else {
-        other.style("display", "none");
-      }
-    });
+      cyRef.current.edges().forEach((other) => {
+        if (isEdgeValid(other) || other.connectedNodes().some(isNodeValid)) {
+          other.style("display", "element");
+        } else {
+          other.style("display", "none");
+        }
+      });
+    }
   }, [cyRef, nodeTextByColor, filters]);
   const [showModifiers, setShowModifiers] = useState(false);
   useEffect(() => {
