@@ -473,7 +473,7 @@ export const getUserIdentifier = () => {
 export const getPixelValue = (
   el: HTMLElement,
   field: "width" | "paddingLeft"
-) => Number((getComputedStyle(el)[field] || "0px").replace(/px$/, ""));
+) => el ? Number((getComputedStyle(el)[field] || "0px").replace(/px$/, "")) : 0;
 
 export const getPageMetadata = (title: string) => {
   const results = window.roamAlphaAPI.q(
