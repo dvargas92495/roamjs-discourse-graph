@@ -226,7 +226,8 @@ const updateChildren = (blocks: UpdateNode[], blockUid: string) =>
   });
 
 const processUpdates = (updates: UpdateNode[]) => {
-  return updates.find((update) => {
+  let message = "";
+  const failedUpdate = updates.find((update) => {
     try {
       if (update["~:version/id"]) {
         // ignore - dont care about version updates
@@ -288,12 +289,12 @@ const processUpdates = (updates: UpdateNode[]) => {
             update["~:edit/time"];
         } else if (
           Object.keys(update).length === 2 &&
-          update["~:block/string"]
+          typeof update["~:block/string"] !== "undefined"
         ) {
           graph.edges.blocksByUid[update["~:db/add"]["~:block/uid"]] =
             update["~:block/string"];
         } else {
-          console.warn("unknown db/add update: ", update);
+          message = "unknown db/add update";
           return true;
         }
       } else if (update["~:db/retract"]) {
@@ -404,7 +405,7 @@ const processUpdates = (updates: UpdateNode[]) => {
           delete graph.edges.pagesByUid[retractUid];
           delete graph.edges.pageUidByTitle[update["~:node/title"]];
         } else {
-          console.warn("unknown db/retract update: ", update);
+          message = "unknown db/retract update";
           return true;
         }
       } else if (update["~:db.fn/retractEntity"]) {
@@ -524,18 +525,19 @@ const processUpdates = (updates: UpdateNode[]) => {
           graph.edges.editUserByUid[blockUid] =
             update["~:edit/user"]["~:user/uid"];
         } else {
-          console.warn("unknown block/uid update: ", update);
+          message = "unknown block/uid update";
           return true;
         }
       } else {
-        console.warn("unknown update: ", update);
+        message = "unknown update";
         return true;
       }
     } catch (e) {
-      console.warn("failed to parse update", update, "with error", e);
+      message = `failed to parse update with error: ${e}`;
       return true;
     }
   });
+  return { message, failedUpdate };
 };
 
 const parseTxData = (s: string) => {
@@ -628,22 +630,24 @@ const init = ({
       )
       .then((results) => {
         // Using `some` to do forEach with `break`
-        const failedToParse = results.find((result) => {
+        let failedUpdateNode: {
+          failedUpdate: UpdateNode;
+          message: string;
+          txName: string;
+          eventName: string;
+        } = undefined;
+        const failedToParse = results.some((result) => {
           // ts why is this not discriminated without the `=== true`??
           if (result.deleted_by_snapshot === true) {
             graph.latest = result.source_t;
             return;
           }
           const txName = result.tx_meta["tx-name"];
+          const eventName = result.tx_meta["event-name"];
           const updates = parseTxData(result.tx);
-          const failed = processUpdates(updates);
-          if (failed) {
-            console.warn(
-              "didnt know how to parse event",
-              txName,
-              "data",
-              JSON.parse(result.tx)
-            );
+          const processResult = processUpdates(updates);
+          if (processResult.failedUpdate) {
+            failedUpdateNode = { ...processResult, txName, eventName };
             return true;
           }
           graph.latest = result.source_t;
@@ -656,8 +660,14 @@ const init = ({
             data: {
               subject: "RoamJS Discourse Graph Frontend Error",
               stack: new Error().stack,
-              message: `Didnt know how to parse event ${JSON.stringify(
-                failedToParse,
+              message: `Didnt know how to parse tx ${
+                failedUpdateNode.txName
+              } triggered by event ${failedUpdateNode.eventName}.
+
+Reason: ${failedUpdateNode.message}
+
+Node That Failed to Update: ${JSON.stringify(
+                failedUpdateNode.failedUpdate,
                 null,
                 4
               )}`,
