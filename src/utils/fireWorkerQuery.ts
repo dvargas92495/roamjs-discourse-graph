@@ -7,6 +7,7 @@ export type FireQuery = typeof window.roamjs.extension.queryBuilder.fireQuery;
 const fireWorkerQuery = ({
   where,
   pull,
+  worker,
 }: {
   where: DatalogClause[];
   pull: {
@@ -14,8 +15,9 @@ const fireWorkerQuery = ({
     field: string;
     _var: string;
   }[];
+  worker?: Worker;
 }) =>
-  getDataWorker().then(
+  (worker ? Promise.resolve(worker) : getDataWorker()).then(
     (worker) =>
       new Promise<ReturnType<FireQuery>>((resolve) => {
         const id = nanoid();

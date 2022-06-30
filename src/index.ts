@@ -87,9 +87,9 @@ import type {
   SelectField,
   FlagField,
 } from "roamjs-components/components/ConfigPanels/types";
-import nanoid from "nanoid";
 import { render as versioning } from "roamjs-components/components/VersionSwitcher";
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
+import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -477,8 +477,9 @@ runExtension("discourse-graph", async () => {
   });
 
   let fireQueryRef: FireQuery;
-  const toggleExperimentalModeFeatures = (experimentalOverlayMode: boolean) => {
-    if (experimentalOverlayMode) {
+  registerExperimentalMode({
+    feature: "Cached Graph",
+    onEnable: () => {
       initializeDataWorker(pageUid).then((worker) => {
         const swapFireQuery = () => {
           fireQueryRef = window.roamjs.extension.queryBuilder.fireQuery;
@@ -510,7 +511,7 @@ runExtension("discourse-graph", async () => {
                 }));
               })
               .filter((s) => !!s);
-            return fireWorkerQuery({ where, pull });
+            return fireWorkerQuery({ where, pull, worker });
           };
         };
         if (window.roamjs.extension.queryBuilder) {
@@ -523,47 +524,25 @@ runExtension("discourse-graph", async () => {
           );
         }
       });
-      window.roamAlphaAPI.ui.commandPalette.addCommand({
-        label: "Disable RoamJS Experimental Mode",
-        callback: () => {
-          localStorageRemove("experimental");
-          toggleExperimentalModeFeatures(false);
-          renderToast({
-            id: "experimental",
-            content: `Disabled RoamJS Experimental Mode`,
-          });
-        },
-      });
-      window.roamAlphaAPI.ui.commandPalette.removeCommand({
-        label: "Enable RoamJS Experimental Mode",
-      });
-    } else {
+    },
+    onDisable: () => {
       if (fireQueryRef)
         window.roamjs.extension.queryBuilder.fireQuery = fireQueryRef;
       shutdownDataWorker();
-      window.roamAlphaAPI.ui.commandPalette.addCommand({
-        label: "Enable RoamJS Experimental Mode",
-        callback: () => {
-          renderAlert({
-            content:
-              "WARNING! Experimental features are not meant for public use for most users. Enabling has a higher likelihood of unintended consequences affecting your graph.\n\nAre you sure you want to enable the experimental features of RoamJS extensions?",
-            onConfirm: () => {
-              localStorageSet("experimental", "true");
-              toggleExperimentalModeFeatures(true);
-              renderToast({
-                id: "experimental",
-                content: `Enabled RoamJS Experimental Mode`,
-              });
-            },
-          });
-        },
-      });
-      window.roamAlphaAPI.ui.commandPalette.removeCommand({
-        label: "Disable RoamJS Experimental Mode",
-      });
-    }
-  };
-  toggleExperimentalModeFeatures(localStorageGet("experimental") === "true");
+    },
+  });
+  let qbVersion: string;
+  registerExperimentalMode({
+    feature: "QB Update",
+    onEnable: (isInitial) => {
+      qbVersion = "2022-06-30-22-39";
+      if (!isInitial) window.location.reload();
+    },
+    onDisable: (isInitial) => {
+      qbVersion = "2022-06-28-15-25";
+      if (!isInitial) window.location.reload();
+    },
+  });
 
   const configTree = getBasicTreeByParentUid(pageUid);
   const grammarTree = getSubTree({ tree: configTree, key: "grammar" }).children;
@@ -769,7 +748,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: "https://roamjs.com/query-builder/2022-06-28-15-25/main.js",
+      src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -781,7 +760,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: "https://roamjs.com/query-builder/2022-06-28-15-25/main.js",
+      src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
