@@ -277,7 +277,7 @@ const processUpdates = (updates: UpdateNode[]) => {
         ) {
           // TODO
         } else if (Object.keys(update).length === 2 && update["~:block/page"]) {
-          graph.edges.blocksPageByUid[update["~:db/add"]["~:block/uid"]] =
+          graph.edges.blocksPageByUid[blockUid] =
             update["~:block/page"]["~:block/uid"];
         } else if (
           Object.keys(update).length === 2 &&
@@ -285,13 +285,31 @@ const processUpdates = (updates: UpdateNode[]) => {
         ) {
           // skip, nothing to do when undos occur
         } else if (Object.keys(update).length === 2 && update["~:edit/time"]) {
-          graph.edges.editTimeByUid[update["~:db/add"]["~:block/uid"]] =
+          graph.edges.editTimeByUid[blockUid] =
             update["~:edit/time"];
+        } else if (Object.keys(update).length === 2 && update["~:create/time"]) {
+          graph.edges.createTimeByUid[blockUid] =
+            update["~:create/time"];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:edit/user"] !== "undefined"
+        ) {
+          graph.edges.editUserByUid[blockUid] = update["~:edit/user"]["~:user/uid"];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:create/user"] !== "undefined"
+        ) {
+          graph.edges.createUserByUid[blockUid] = update["~:create/user"]["~:user/uid"];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:edit/seen-by"] !== "undefined"
+        ) {
+          // ignore - dont care about edit seen by
         } else if (
           Object.keys(update).length === 2 &&
           typeof update["~:block/string"] !== "undefined"
         ) {
-          graph.edges.blocksByUid[update["~:db/add"]["~:block/uid"]] =
+          graph.edges.blocksByUid[blockUid] =
             update["~:block/string"];
         } else {
           message = "unknown db/add update";
@@ -404,6 +422,11 @@ const processUpdates = (updates: UpdateNode[]) => {
         ) {
           delete graph.edges.pagesByUid[retractUid];
           delete graph.edges.pageUidByTitle[update["~:node/title"]];
+        }  else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:edit/seen-by"] !== "undefined"
+        ) {
+          // ignore - dont care about edit seen by
         } else {
           message = "unknown db/retract update";
           return true;
