@@ -55,11 +55,17 @@ import DiscourseContextOverlay from "./components/DiscourseContextOverlay";
 import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 import AutocompleteInput from "roamjs-components/components/AutocompleteInput";
 import isControl from "roamjs-components/util/isControl";
+import PageInput from "roamjs-components/components/PageInput";
 
 navigator(cytoscape);
 
-type AliasProps = {
+type NodeDialogProps = {
   node: cytoscape.NodeSingular;
+};
+
+type EdgeDialogProps = {
+  edge: cytoscape.EdgeSingular;
+  nodeTypeByColor: Record<string, string>;
 };
 
 const maxZoom = 5;
@@ -70,7 +76,7 @@ const AliasDialog = ({
   node,
 }: {
   onClose: () => void;
-} & AliasProps) => {
+} & NodeDialogProps) => {
   const defaultValue = useMemo(() => node.data("alias"), [node]);
   const [alias, setAlias] = useState(defaultValue);
   const [loading, setLoading] = useState(false);
@@ -115,6 +121,119 @@ const AliasDialog = ({
           <InputGroup
             defaultValue={defaultValue}
             onChange={(e) => setAlias(e.target.value)}
+          />
+        </div>
+        <div className={Classes.DIALOG_FOOTER}>
+          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+            <Button text={"Cancel"} onClick={onClose} disabled={loading} />
+            <Button
+              text={"Set"}
+              intent={Intent.PRIMARY}
+              onClick={onSubmit}
+              disabled={loading}
+            />
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+};
+
+const editLabel = async (node: cytoscape.NodeSingular, value: string) => {
+  const blockUid = node.id();
+  if (node.data("label") === node.data("alias")) {
+    node.data("alias", value);
+    setInputSetting({ blockUid, key: "alias", value });
+  }
+  node.data("label", value);
+};
+
+const LabelDialog = ({
+  onClose,
+  node,
+}: {
+  onClose: () => void;
+} & NodeDialogProps) => {
+  const [label, setLabel] = useState(node.data("label"));
+  const [loading, setLoading] = useState(false);
+  const onSubmit = () => {
+    setLoading(false);
+    editLabel(node, label);
+    updateBlock({ uid: node.id(), text: label }).then(onClose);
+  };
+  return (
+    <>
+      <Dialog
+        isOpen={true}
+        title={"Edit Playground Node Label"}
+        onClose={onClose}
+        canOutsideClickClose
+        canEscapeKeyClose
+      >
+        <div className={Classes.DIALOG_BODY}>
+          <PageInput value={label} setValue={setLabel} onConfirm={onSubmit} />
+        </div>
+        <div className={Classes.DIALOG_FOOTER}>
+          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+            <Button text={"Cancel"} onClick={onClose} disabled={loading} />
+            <Button
+              text={"Set"}
+              intent={Intent.PRIMARY}
+              onClick={onSubmit}
+              disabled={loading}
+            />
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+};
+
+const EdgeDialog = ({
+  onClose,
+  edge,
+  nodeTypeByColor,
+}: {
+  onClose: () => void;
+} & EdgeDialogProps) => {
+  const allRelationTriples = useMemo(getRelationTriples, []);
+  const filteredRelations = useMemo(() => {
+    const sourceColor = edge.source().data("color");
+    const targetColor = edge.target().data("color");
+    return allRelationTriples
+      .filter((k) => {
+        if (sourceColor === TEXT_COLOR || targetColor === TEXT_COLOR) {
+          return true;
+        }
+        return (
+          k.source === nodeTypeByColor[sourceColor] &&
+          k.target === nodeTypeByColor[targetColor]
+        );
+      })
+      .map((r) => r.relation);
+  }, [allRelationTriples, edge, nodeTypeByColor]);
+  const [label, setLabel] = useState(edge.data("label"));
+  const [loading, setLoading] = useState(false);
+  const onSubmit = () => {
+    setLoading(false);
+    edge.data("label", label);
+    updateBlock({ uid: edge.id(), text: label }).then(onClose);
+  };
+  return (
+    <>
+      <Dialog
+        isOpen={true}
+        title={"Edit Playground Node Label"}
+        onClose={onClose}
+        canOutsideClickClose
+        canEscapeKeyClose
+      >
+        <div className={Classes.DIALOG_BODY}>
+          <AutocompleteInput
+            value={label}
+            setValue={setLabel}
+            onConfirm={onSubmit}
+            options={filteredRelations}
           />
         </div>
         <div className={Classes.DIALOG_FOOTER}>
@@ -194,14 +313,6 @@ const useTreeFieldUid = ({
     return [newUid, children] as const;
   }, [tree, field, parentUid]);
 
-const DEFAULT_SELECTED_RELATION = {
-  display: "none",
-  top: 0,
-  left: 0,
-  label: "",
-  id: "",
-};
-
 const COLORS = [
   "8b0000",
   "9b870c",
@@ -235,6 +346,56 @@ const SELECTION_MODES = [
 ] as const;
 type SelectionMode = typeof SELECTION_MODES[number]["id"];
 
+const getCyElementFromRoamNode = async ({
+  text,
+  uid,
+  children = [],
+}: RoamBasicNode) => {
+  const {
+    position,
+    x: legacyX = "0",
+    y: legacyY = "0",
+    color = TEXT_COLOR,
+    alias,
+    source,
+    target,
+    ...data
+  } = Object.fromEntries(
+    children.map(({ text, children = [] }) => [text, children[0]?.text])
+  );
+  const isEdge = !!(source && target);
+  const label = text || "Click to edit text";
+  const pos = isEdge
+    ? ""
+    : position ||
+      (await Promise.resolve(`${legacyX},${legacyY}`).then((value) =>
+        setInputSetting({ blockUid: uid, key: "position", value }).then(
+          () => value
+        )
+      ));
+  const [x, y] = pos.split(",").map((c) => Number(c.trim()));
+  return isEdge
+    ? {
+        data: {
+          id: uid,
+          source,
+          target,
+          label,
+          ...data,
+        },
+      }
+    : {
+        data: {
+          alias: alias || label,
+          label,
+          color,
+          id: uid,
+          ...data,
+        },
+        position: { x, y },
+      };
+};
+
 const CytoscapePlayground = ({
   title,
   previewEnabled,
@@ -248,31 +409,38 @@ const CytoscapePlayground = ({
       onWatch: Parameters<typeof window.roamAlphaAPI.data.addPullWatch>[2];
     }>()
   );
-  const addUidWatch = useCallback(
-    (uid: string, callback: (s: string) => void) => {
-      const onWatch: Parameters<
-        typeof window.roamAlphaAPI.data.addPullWatch
-      >[2] = (_, a) => {
-        callback(a[":block/string"]);
-      };
-      const pullPattern = `[:block/string]`;
-      const entityId = `[:block/uid "${uid}"]`;
+  const registerPullWatch = useCallback<
+    typeof window.roamAlphaAPI.data.addPullWatch
+  >(
+    (pullPattern, entityId, onWatch) => {
       window.roamAlphaAPI.data.addPullWatch(pullPattern, entityId, onWatch);
       watches.current.add({
         pullPattern,
         entityId,
         onWatch,
       });
+      return true;
     },
     [watches]
   );
+  const addUidWatch = useCallback(
+    (uid: string, callback: (s: string) => void) => {
+      const onWatch: Parameters<
+        typeof window.roamAlphaAPI.data.addPullWatch
+      >[2] = (_, a) => {
+        callback(a?.[":block/string"]);
+      };
+      const pullPattern = `[:block/string]`;
+      const entityId = `[:block/uid "${uid}"]`;
+      registerPullWatch(pullPattern, entityId, onWatch);
+    },
+    [registerPullWatch]
+  );
   const pageUid = useMemo(() => getPageUidByPageTitle(title), [title]);
-  const allPages = useMemo(getAllPageNames, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const shadowInputRef = useRef<HTMLInputElement>(null);
   const cyRef = useRef<cytoscape.Core>(null);
   const sourceRef = useRef<cytoscape.NodeSingular>(null);
-  const editingRef = useRef<cytoscape.SingularElementArgument>(null);
   const allNodes = useMemo(getNodes, []);
   const allRelations = useMemo(getRelations, []);
   const coloredNodes = useMemo(
@@ -309,33 +477,12 @@ const CytoscapePlayground = ({
   const [selectedNode, setSelectedNode] = useState(
     coloredNodes[coloredNodes.length - 1]
   );
-  const [editingNodeValue, setEditingNodeValue] = useState("");
-  const filteredPages = useMemo(
-    () =>
-      editingNodeValue
-        ? fuzzy
-            .filter(editingNodeValue, allPages)
-            .slice(0, 5)
-            .map((p) => p.original)
-        : [],
-    [allPages, editingNodeValue]
-  );
   const [filters, setFilters] = useState<Filters>({
     includes: { nodes: new Set(), edges: new Set() },
     excludes: { nodes: new Set(), edges: new Set() },
   });
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const nodeColorRef = useRef(selectedNode.color);
-  const clearEditingRef = useCallback(() => {
-    if (editingRef.current) {
-      editingRef.current.style("border-width", 0);
-      if (editingRef.current.isNode()) {
-        editingRef.current.unlock();
-      }
-      editingRef.current = null;
-      setEditingNodeValue("");
-    }
-  }, [editingRef, setEditingNodeValue]);
   const clearSourceRef = useCallback(() => {
     if (sourceRef.current) {
       sourceRef.current.style("border-width", 0);
@@ -343,36 +490,7 @@ const CytoscapePlayground = ({
       sourceRef.current = null;
     }
   }, [sourceRef]);
-  const [selectedRelation, setSelectedRelation] = useState(
-    DEFAULT_SELECTED_RELATION
-  );
-  const clearEditingRelation = useCallback(() => {
-    setSelectedRelation(DEFAULT_SELECTED_RELATION);
-    cyRef.current.zoomingEnabled(true);
-    cyRef.current.panningEnabled(true);
-  }, [setSelectedRelation, cyRef]);
   const allRelationTriples = useMemo(getRelationTriples, []);
-  const filteredRelations = useMemo(() => {
-    if (selectedRelation.id) {
-      const edge = cyRef.current.edges(
-        `#${selectedRelation.id}`
-      ) as cytoscape.EdgeSingular;
-      const sourceColor = edge.source().data("color");
-      const targetColor = edge.target().data("color");
-      return allRelationTriples
-        .filter((k) => {
-          if (sourceColor === TEXT_COLOR || targetColor === TEXT_COLOR) {
-            return true;
-          }
-          return (
-            k.source === nodeTypeByColor[sourceColor] &&
-            k.target === nodeTypeByColor[targetColor]
-          );
-        })
-        .filter((k) => k.relation !== selectedRelation.label);
-    }
-    return allRelationTriples;
-  }, [allRelationTriples, selectedRelation, cyRef, nodeTypeByColor]);
   const tree = useMemo(() => getBasicTreeByParentUid(pageUid), [pageUid]);
   const [elementsUid, elementsChildren] = useTreeFieldUid({
     tree,
@@ -389,36 +507,23 @@ const CytoscapePlayground = ({
         }
         clearSourceRef();
         if (selectionModeRef.current === "DELETE") {
-          clearEditingRef();
           deleteBlock(edge.id());
           cyRef.current.remove(edge);
-        } else if (editingRef.current === edge) {
-          clearEditingRef();
-          clearEditingRelation();
         } else {
-          clearEditingRef();
-          const { x1, y1 } = cyRef.current.extent();
-          const zoom = cyRef.current.zoom();
-          editingRef.current = edge;
-          setSelectedRelation({
-            display: "block",
-            top: (e.position.y - y1) * zoom,
-            left: (e.position.x - x1) * zoom,
-            label: edge.data("label"),
-            id: edge.id(),
+          createOverlayRender<EdgeDialogProps>(
+            "playground-edge",
+            EdgeDialog
+          )({
+            edge,
+            nodeTypeByColor,
           });
-          cyRef.current.zoomingEnabled(false);
-          cyRef.current.panningEnabled(false);
         }
       });
+      addUidWatch(edge.id(), (text) =>
+        typeof text === "undefined" ? edge.remove() : edge.data("label", text)
+      );
     },
-    [
-      clearSourceRef,
-      clearEditingRef,
-      setSelectedRelation,
-      cyRef,
-      selectionModeRef,
-    ]
+    [clearSourceRef, nodeTypeByColor, cyRef, selectionModeRef]
   );
   const [livePreviewTag, setLivePreviewTag] = useState("");
   const registerMouseEvents = useCallback<
@@ -512,11 +617,9 @@ const CytoscapePlayground = ({
         if ((e.originalEvent.target as HTMLElement).tagName !== "CANVAS") {
           return;
         }
-        clearEditingRelation();
         if (selectionModeRef.current === "ALIAS") {
           clearSourceRef();
-          clearEditingRef();
-          createOverlayRender<AliasProps>(
+          createOverlayRender<NodeDialogProps>(
             "playground-alias",
             AliasDialog
           )({
@@ -524,7 +627,6 @@ const CytoscapePlayground = ({
           });
         } else if (selectionModeRef.current === "DELETE") {
           clearSourceRef();
-          clearEditingRef();
           deleteBlock(n.id());
           n.connectedEdges().forEach((edge) => {
             deleteBlock(edge.id());
@@ -532,7 +634,6 @@ const CytoscapePlayground = ({
           cyRef.current.remove(n);
           if (overlaysShownRef.current) refreshNodeOverlays();
         } else if (selectionModeRef.current === "CONNECT") {
-          clearEditingRef();
           if (sourceRef.current) {
             const source = sourceRef.current.id();
             const target = n.id();
@@ -572,23 +673,13 @@ const CytoscapePlayground = ({
           );
         } else if (selectionModeRef.current === "EDIT") {
           clearSourceRef();
-          if (editingRef.current) {
-            clearEditingRef();
-          } else if (!["source", "destination"].includes(n.id())) {
-            editingRef.current = n;
-            editingRef.current.lock();
-            shadowInputRef.current.value = n.data("label");
-            shadowInputRef.current.focus({ preventScroll: true });
-            const { x1, y1 } = cyRef.current.extent();
-            const zoom = cyRef.current.zoom();
-            shadowInputRef.current.style.top = `${
-              (e.position.y - y1) * zoom
-            }px`;
-            shadowInputRef.current.style.left = `${
-              (e.position.x - x1) * zoom
-            }px`;
-            setEditingNodeValue(n.data("label"));
-            n.style("border-width", 4);
+          if (!["source", "destination"].includes(n.id())) {
+            createOverlayRender<NodeDialogProps>(
+              "playground-alias",
+              LabelDialog
+            )({
+              node: n,
+            });
           }
         }
       });
@@ -626,29 +717,32 @@ const CytoscapePlayground = ({
       const positionTree = getSubTree({ tree, key: "position" });
       const colorTree = getSubTree({ tree, key: "color" });
       const aliasTree = getSubTree({ tree, key: "alias" });
+      addUidWatch(n.id(), (text) =>
+        typeof text === "undefined" ? n.remove() : editLabel(n, text)
+      );
       addUidWatch(positionTree.children[0]?.uid, (text) => {
+        if (typeof text === "undefined") return;
         const [x, y] = text.split(",").map((c) => Number(c.trim()));
         n.position({ x, y });
       });
-      addUidWatch(colorTree.children[0]?.uid, (color) =>
-        n.style("background-color", color)
-      );
-      addUidWatch(aliasTree.children[0]?.uid, (alias) =>
-        n.data("alias", alias)
-      );
+      addUidWatch(colorTree.children[0]?.uid, (color) => {
+        if (typeof color === "undefined") return;
+        n.style("background-color", color);
+      });
+      addUidWatch(aliasTree.children[0]?.uid, (alias) => {
+        if (typeof alias === "undefined") return;
+        n.data("alias", alias);
+      });
     },
     [
       elementsUid,
       sourceRef,
       cyRef,
-      editingRef,
       allRelationTriples,
       shadowInputRef,
       containerRef,
       overlaysShownRef,
-      clearEditingRef,
       clearSourceRef,
-      clearEditingRelation,
       drawEdge,
       refreshNodeOverlays,
       addUidWatch,
@@ -679,129 +773,123 @@ const CytoscapePlayground = ({
     },
     [nodeInitCallback, cyRef, elementsUid, nodeColorRef]
   );
+
   useEffect(() => {
-    Promise.all(
-      elementsChildren.map(async ({ text, uid, children = [] }) => {
-        const {
-          position,
-          x: legacyX = "0",
-          y: legacyY = "0",
-          color = TEXT_COLOR,
-          alias,
-          ...data
-        } = Object.fromEntries(
-          children.map(({ text, children = [] }) => [text, children[0]?.text])
-        );
-        const label = text || "Click to edit text";
-        const pos =
-          position ||
-          (await Promise.resolve(`${legacyX},${legacyY}`).then((value) =>
-            setInputSetting({ blockUid: uid, key: "position", value }).then(
-              () => value
-            )
-          ));
-        const [x, y] = pos.split(",").map((c) => Number(c.trim()));
-        return {
-          data: {
-            alias: alias || label,
-            label,
-            color,
-            id: uid,
-            ...data,
-          },
-          position: { x, y },
-        };
-      })
-    ).then((elements) => {
-      cyRef.current = cytoscape({
-        container: containerRef.current,
-        elements,
+    Promise.all(elementsChildren.map(getCyElementFromRoamNode)).then(
+      (elements) => {
+        cyRef.current = cytoscape({
+          container: containerRef.current,
+          elements,
 
-        style: [
-          {
-            selector: "node",
-            style: {
-              "background-color": `#${TEXT_COLOR}`,
-              label: "data(alias)",
-              shape: "round-rectangle",
-              color: "#EEEEEE",
-              "text-wrap": "wrap",
-              "text-halign": "center",
-              "text-valign": "center",
-              "text-max-width": "320",
-              width: "label",
-              "padding-left": "16",
-              "padding-right": "16",
-              "padding-bottom": "8",
-              "padding-top": "8",
-              height: "label",
+          style: [
+            {
+              selector: "node",
+              style: {
+                "background-color": `#${TEXT_COLOR}`,
+                label: "data(alias)",
+                shape: "round-rectangle",
+                color: "#EEEEEE",
+                "text-wrap": "wrap",
+                "text-halign": "center",
+                "text-valign": "center",
+                "text-max-width": "320",
+                width: "label",
+                "padding-left": "16",
+                "padding-right": "16",
+                "padding-bottom": "8",
+                "padding-top": "8",
+                height: "label",
+              },
             },
-          },
-          {
-            selector: "edge",
-            style: {
-              width: 10,
-              "line-color": "#ccc",
-              "target-arrow-color": "#ccc",
-              "target-arrow-shape": "triangle",
-              "curve-style": "bezier",
-              label: "data(label)",
+            {
+              selector: "edge",
+              style: {
+                width: 10,
+                "line-color": "#ccc",
+                "target-arrow-color": "#ccc",
+                "target-arrow-shape": "triangle",
+                "curve-style": "bezier",
+                label: "data(label)",
+              },
             },
-          },
-        ],
+          ],
 
-        layout: {
-          name: "preset",
-        },
-        maxZoom,
-        minZoom,
-      });
-      cyRef.current.on("click", (e) => {
-        if (
-          e.target !== cyRef.current ||
-          (e.originalEvent.target as HTMLElement).tagName !== "CANVAS"
-        ) {
-          return;
-        }
-        if (!editingRef.current && !sourceRef.current) {
-          const nodeType = nodeTypeByColor[nodeColorRef.current];
+          layout: {
+            name: "preset",
+          },
+          maxZoom,
+          minZoom,
+        });
+        cyRef.current.on("click", (e) => {
+          if (
+            e.target !== cyRef.current ||
+            (e.originalEvent.target as HTMLElement).tagName !== "CANVAS"
+          ) {
+            return;
+          }
+          if (!sourceRef.current) {
+            const nodeType = nodeTypeByColor[nodeColorRef.current];
+            createNode(
+              nodeFormatTextByType[nodeType] || "Click to edit text",
+              e.position,
+              nodeColorRef.current
+            );
+          } else {
+            clearSourceRef();
+          }
+        });
+        cyRef.current.nodes().forEach(nodeInitCallback);
+        cyRef.current.edges().forEach(edgeCallback);
+        globalRefs.clearOnClick = (s: string) => {
+          const { x1, x2, y1, y2 } = cyRef.current.extent();
           createNode(
-            nodeFormatTextByType[nodeType] || "Click to edit text",
-            e.position,
-            nodeColorRef.current
+            s,
+            { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
+            coloredNodes.find((c) => matchNode({ format: c.format, title: s }))
+              ?.color || TEXT_COLOR
           );
-        } else {
-          clearEditingRef();
-          clearSourceRef();
-          clearEditingRelation();
-        }
-      });
-      cyRef.current.nodes().forEach(nodeInitCallback);
-      cyRef.current.edges().forEach(edgeCallback);
-      globalRefs.clearOnClick = (s: string) => {
-        const { x1, x2, y1, y2 } = cyRef.current.extent();
-        createNode(
-          s,
-          { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
-          coloredNodes.find((c) => matchNode({ format: c.format, title: s }))
-            ?.color || TEXT_COLOR
+        };
+        // @ts-ignore
+        cyRef.current.navigator({
+          container: `.cytoscape-navigator`,
+        });
+
+        cyRef.current.on("zoom", () => {
+          if (overlaysShownRef.current) refreshNodeOverlays();
+        });
+
+        cyRef.current.on("pan", () => {
+          if (overlaysShownRef.current) refreshNodeOverlays();
+        });
+
+        containerRef.current.dispatchEvent(new Event("cytoscape:loaded"));
+        registerPullWatch(
+          "[:block/children]",
+          `[:block/uid "${elementsUid}"]`,
+          (b, a) => {
+            const before = new Set(
+              b[":block/children"].map((c) => c[":db/id"])
+            );
+            const after = a[":block/children"].map((c) => c[":db/id"]);
+            const newNodes = after
+              .filter((c) => !before.has(c))
+              .map((n) =>
+                window.roamAlphaAPI.pull("[:block/uid :block/string]", n)
+              )
+              .filter(
+                (n) => !!n && !cyRef.current.hasElementWithId(n?.[":block/uid"])
+              );
+            newNodes.forEach((n) => {
+              getCyElementFromRoamNode({
+                uid: n[":block/uid"],
+                text: n[":block/string"],
+                children: getBasicTreeByParentUid(n[":block/uid"]),
+              }).then((element) => cyRef.current.add(element));
+            });
+          }
         );
-      };
-      // @ts-ignore
-      cyRef.current.navigator({
-        container: `.cytoscape-navigator`,
-      });
-
-      cyRef.current.on("zoom", () => {
-        if (overlaysShownRef.current) refreshNodeOverlays();
-      });
-
-      cyRef.current.on("pan", () => {
-        if (overlaysShownRef.current) refreshNodeOverlays();
-      });
-
-      containerRef.current.dispatchEvent(new Event("cytoscape:loaded"));
-    });
+      }
+    );
 
     return () => {
       watches.current.forEach((args) =>
@@ -817,14 +905,13 @@ const CytoscapePlayground = ({
     cyRef,
     containerRef,
     clearSourceRef,
-    clearEditingRelation,
-    clearEditingRef,
     edgeCallback,
     nodeInitCallback,
     createNode,
     nodeTypeByColor,
     nodeColorRef,
     refreshNodeOverlays,
+    registerPullWatch,
     overlaysShownRef,
     watches,
   ]);
@@ -1457,92 +1544,6 @@ const CytoscapePlayground = ({
           </span>
         </div>
       </div>
-      <Menu
-        style={{
-          position: "absolute",
-          ...selectedRelation,
-          zIndex: 1,
-          background: "#eeeeee",
-        }}
-      >
-        {filteredRelations.length ? (
-          Array.from(new Set(filteredRelations.map((k) => k.relation)))
-            .sort()
-            .map((k) => (
-              <MenuItem
-                key={k}
-                text={k}
-                onClick={() => {
-                  const edge = cyRef.current.edges(
-                    `#${selectedRelation.id}`
-                  ) as cytoscape.EdgeSingular;
-                  updateBlock({ uid: edge.id(), text: k });
-                  edge.data("label", k);
-                  clearEditingRelation();
-                  clearEditingRef();
-                }}
-              />
-            ))
-        ) : (
-          <MenuItem
-            text={"No other relation could connect these nodes"}
-            disabled
-          />
-        )}
-      </Menu>
-      <div style={{ width: 0, overflow: "hidden" }}>
-        <input
-          ref={shadowInputRef}
-          style={{ opacity: 0, position: "absolute" }}
-          value={editingNodeValue}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              clearEditingRef();
-              shadowInputRef.current.blur();
-            }
-          }}
-          onChange={(e) => {
-            const newValue = e.target.value;
-            if (
-              editingRef.current.data("label") ===
-              editingRef.current.data("alias")
-            )
-              editingRef.current.data("alias", newValue);
-            editingRef.current.data("label", newValue);
-            setEditingNodeValue(newValue);
-            updateBlock({ uid: editingRef.current.id(), text: newValue });
-          }}
-        />
-      </div>
-      {!!filteredPages.length && (
-        <Menu
-          style={{
-            position: "absolute",
-            top: shadowInputRef.current.style.top,
-            left: shadowInputRef.current.style.left,
-            zIndex: 1,
-            background: "#eeeeee",
-          }}
-        >
-          {filteredPages.map((k) => (
-            <MenuItem
-              key={k}
-              text={k}
-              onClick={() => {
-                if (
-                  editingRef.current.data("label") ===
-                  editingRef.current.data("alias")
-                )
-                  editingRef.current.data("alias", k);
-                editingRef.current.data("label", k);
-                updateBlock({ uid: editingRef.current.id(), text: k });
-                clearEditingRef();
-                shadowInputRef.current.blur();
-              }}
-            />
-          ))}
-        </Menu>
-      )}
       {previewEnabled && (
         <LivePreview
           tag={livePreviewTag}
