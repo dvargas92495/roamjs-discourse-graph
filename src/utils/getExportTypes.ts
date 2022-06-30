@@ -206,7 +206,7 @@ const getExportTypes = ({
     );
   };
   const getRelationData = (rels?: ReturnType<typeof getRelations>) =>
-    Promise.resolve(relations) ||
+    relations ? Promise.resolve(relations):
     Promise.all(
       (rels || getRelations())
         .filter(
