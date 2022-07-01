@@ -535,7 +535,7 @@ runExtension("discourse-graph", async () => {
   registerExperimentalMode({
     feature: "QB Update",
     onEnable: (isInitial) => {
-      qbVersion = "2022-06-30-22-39";
+      qbVersion = "2022-07-01-15-10";
       if (!isInitial) window.location.reload();
     },
     onDisable: (isInitial) => {
