@@ -311,6 +311,11 @@ const processUpdates = (updates: UpdateNode[]) => {
         ) {
           graph.edges.blocksByUid[blockUid] =
             update["~:block/string"];
+        } else if (
+          Object.keys(update).length === 2 &&
+          typeof update["~:block/uid"] !== "undefined"
+        ) {
+          // nothing to do here...
         } else {
           message = "unknown db/add update";
           return true;
@@ -685,7 +690,7 @@ const init = ({
               stack: new Error().stack,
               message: `Didnt know how to parse tx ${
                 failedUpdateNode.txName
-              } triggered by event ${failedUpdateNode.eventName}.
+              } triggered by event ${failedUpdateNode.eventName} from graph ${_graph}.
 
 Reason: ${failedUpdateNode.message}
 
