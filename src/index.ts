@@ -144,10 +144,6 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
   width: 40%;
 }
 
-.bp3-tabs .bp3-tab-list {
-  max-width: 128px;
-}
-
 .roamjs-discourse-notification-drawer .roamjs-discourse-notification-uid:hover {
   text-decoration: underline;
 }
@@ -535,7 +531,7 @@ runExtension("discourse-graph", async () => {
   registerExperimentalMode({
     feature: "QB Update",
     onEnable: (isInitial) => {
-      qbVersion = "2022-07-01-15-10";
+      qbVersion = "2022-07-02-14-43";
       if (!isInitial) window.location.reload();
     },
     onDisable: (isInitial) => {
@@ -753,8 +749,8 @@ We expect that there will be no disruption in functionality. If you see issues a
     });
     addScriptAsDependency({
       id: "roamjs-multiplayer-main",
-      // src: "http://localhost:3200/main.js",
-      src: "https://roamjs.com/multiplayer/2022-06-28-03-07/main.js",
+      src: "http://localhost:3200/main.js",
+      ///src: "https://roamjs.com/multiplayer/2022-07-02-18-54/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   } else {
@@ -765,7 +761,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     });
     addScriptAsDependency({
       id: "roamjs-multiplayer",
-      src: "https://roamjs.com/multiplayer/2022-06-28-03-07/main.js",
+      src: "https://roamjs.com/multiplayer/2022-07-02-18-54/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   }
