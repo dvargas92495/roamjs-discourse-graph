@@ -245,14 +245,24 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
   margin: 0 16px;
 }
 
-/* width */
 .roamjs-discourse-results-view ul::-webkit-scrollbar {
   width: 6px;
 }
 
-/* Handle */
 .roamjs-discourse-results-view ul::-webkit-scrollbar-thumb {
   background: #888;
+}
+
+.roamjs-discourse-playground-dialog .bp3-popover-wrapper,
+.roamjs-discourse-playground-dialog .roamjs-autocomplete-input-target,
+.roamjs-discourse-playground-dialog textarea,
+.roamjs-discourse-playground-dialog input {
+  display: inline-block;
+  width: 100%;
+}
+
+.roamjs-discourse-playground-dialog textarea {
+  min-height: 96px;
 }`);
 
 const CONFIG = toConfig("discourse-graph");
@@ -750,7 +760,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-multiplayer-main",
       src: "http://localhost:3200/main.js",
-      ///src: "https://roamjs.com/multiplayer/2022-07-02-18-54/main.js",
+      ///src: "https://roamjs.com/multiplayer/2022-07-03-20-27/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   } else {
@@ -761,7 +771,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     });
     addScriptAsDependency({
       id: "roamjs-multiplayer",
-      src: "https://roamjs.com/multiplayer/2022-07-02-18-54/main.js",
+      src: "https://roamjs.com/multiplayer/2022-07-03-20-27/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   }

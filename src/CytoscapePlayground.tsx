@@ -116,6 +116,8 @@ const AliasDialog = ({
         onClose={onClose}
         canOutsideClickClose
         canEscapeKeyClose
+        autoFocus={false}
+        className={"roamjs-discourse-playground-dialog"}
       >
         <div className={Classes.DIALOG_BODY} onKeyDown={onKeyDown}>
           <InputGroup
@@ -169,9 +171,16 @@ const LabelDialog = ({
         onClose={onClose}
         canOutsideClickClose
         canEscapeKeyClose
+        autoFocus={false}
+        className={"roamjs-discourse-playground-dialog"}
       >
         <div className={Classes.DIALOG_BODY}>
-          <PageInput value={label} setValue={setLabel} onConfirm={onSubmit} />
+          <PageInput
+            value={label}
+            setValue={setLabel}
+            onConfirm={onSubmit}
+            multiline
+          />
         </div>
         <div className={Classes.DIALOG_FOOTER}>
           <div className={Classes.DIALOG_FOOTER_ACTIONS}>
@@ -884,7 +893,14 @@ const CytoscapePlayground = ({
                 uid: n[":block/uid"],
                 text: n[":block/string"],
                 children: getBasicTreeByParentUid(n[":block/uid"]),
-              }).then((element) => cyRef.current.add(element));
+              }).then((element) => {
+                const cyNode = cyRef.current.add(element);
+                if (element.position) {
+                  nodeInitCallback(cyNode);
+                } else {
+                  edgeCallback(cyNode);
+                }
+              });
             });
           }
         );
