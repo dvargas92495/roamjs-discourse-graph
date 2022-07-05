@@ -19,7 +19,7 @@ const deriveNodeAttribute = ({
   attribute: string;
   title: string;
   results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
-}) => {
+}): string | number => {
   const nodeType = getNodes().find((n) =>
     matchNode({ format: n.format, title })
   )?.type;
@@ -47,6 +47,12 @@ const deriveNodeAttribute = ({
         name: args[0],
         uid: getPageUidByPageTitle(title),
       });
+    } else if (op === "discourse") {
+      return deriveNodeAttribute({
+        title,
+        results,
+        attribute: args[0]
+      }).toString();
     } else {
       console.warn(`Unknown op: ${op}`);
       return "0";
