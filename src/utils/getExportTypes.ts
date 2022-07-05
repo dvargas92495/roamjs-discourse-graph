@@ -206,38 +206,43 @@ const getExportTypes = ({
     );
   };
   const getRelationData = (rels?: ReturnType<typeof getRelations>) =>
-    relations ? Promise.resolve(relations):
-    Promise.all(
-      (rels || getRelations())
-        .filter(
-          (s) =>
-            s.triples.some((t) => t[2] === "source") &&
-            s.triples.some((t) => t[2] === "destination")
-        )
-        .flatMap((s) => {
-          return window.roamjs.extension.queryBuilder
-            .fireQuery({
-              returnNode: s.source,
-              conditions: [
-                {
-                  relation: s.label,
-                  source: nodeLabelByType[s.source],
-                  target: nodeLabelByType[s.destination],
-                  uid: s.id,
-                  type: "clause",
-                },
-              ],
-              selections: [],
+    relations
+      ? Promise.resolve(relations)
+      : Promise.all(
+          (rels || getRelations())
+            .filter(
+              (s) =>
+                s.triples.some((t) => t[2] === "source") &&
+                s.triples.some((t) => t[2] === "destination")
+            )
+            .flatMap((s) => {
+              const sourceLabel = nodeLabelByType[s.source];
+              const targetLabel = nodeLabelByType[s.destination];
+              return !sourceLabel || !targetLabel
+                ? []
+                : window.roamjs.extension.queryBuilder
+                    .fireQuery({
+                      returnNode: sourceLabel,
+                      conditions: [
+                        {
+                          relation: s.label,
+                          source: sourceLabel,
+                          target: targetLabel,
+                          uid: s.id,
+                          type: "clause",
+                        },
+                      ],
+                      selections: [],
+                    })
+                    .then((results) =>
+                      results.map((result) => ({
+                        source: s.source,
+                        target: result.uid,
+                        label: s.label,
+                      }))
+                    );
             })
-            .then((results) =>
-              results.map((result) => ({
-                source: s.source,
-                target: result.uid,
-                label: s.label,
-              }))
-            );
-        })
-    ).then((r) => r.flat());
+        ).then((r) => r.flat());
   const getJsonData = () => {
     const allRelations = getRelations();
     const grammar = allRelations.map(({ label, destination, source }) => ({
