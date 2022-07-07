@@ -85,7 +85,7 @@ const NodeAttributes = ({ uid }: { uid: string }) => {
         ))}
       </div>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <Label style={{ width: 120 }}>
+        <Label style={{ width: 120, marginBottom: 0 }}>
           Attribute Label
           <InputGroup
             value={newAttribute}

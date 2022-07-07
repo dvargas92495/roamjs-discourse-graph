@@ -64,7 +64,7 @@ export const isFlagEnabled = (
     );
 };
 
-export const ANY_REGEX = /Has Any Relation To/i;
+export const ANY_RELATION_REGEX = /Has Any Relation To/i;
 
 export const DEFAULT_NODE_VALUES = [
   {
@@ -473,7 +473,8 @@ export const getUserIdentifier = () => {
 export const getPixelValue = (
   el: HTMLElement,
   field: "width" | "paddingLeft"
-) => el ? Number((getComputedStyle(el)[field] || "0px").replace(/px$/, "")) : 0;
+) =>
+  el ? Number((getComputedStyle(el)[field] || "0px").replace(/px$/, "")) : 0;
 
 export const getPageMetadata = (title: string) => {
   const results = window.roamAlphaAPI.q(
@@ -504,15 +505,19 @@ export type Result = {
 
 const resultCache: Record<
   string,
-  ReturnType<typeof window.roamjs.extension.queryBuilder.fireQuery>
+  Awaited<ReturnType<typeof window.roamjs.extension.queryBuilder.fireQuery>>
 > = {};
+const CACHE_TIMEOUT = 1000 * 60 * 5;
 
-export const getDiscourseContextResults = async (
-  title: string,
+export const getDiscourseContextResults = async ({
+  title,
   nodes = getNodes(),
   relations = getRelations(),
-  useCache = false
-) => {
+}: {
+  title: string;
+  nodes?: ReturnType<typeof getNodes>;
+  relations?: ReturnType<typeof getRelations>;
+}) => {
   const nodeType = nodes.find(({ format }) =>
     matchNode({ format, title })
   )?.type;
@@ -522,79 +527,66 @@ export const getDiscourseContextResults = async (
   nodeTextByType["*"] = "Any";
   const rawResults = await Promise.all(
     relations
-      .filter((r) => r.source === nodeType || r.source === "*")
-      .map((r) => {
-        const cacheKey = `${title}~${r.label}~${r.destination}`;
+      .flatMap((r) => {
+        const queries = [];
+        if (r.source === nodeType || r.source === "*") {
+          queries.push({
+            r,
+            complement: false,
+          });
+        }
+        if (r.destination === nodeType || r.destination === "*") {
+          queries.push({
+            r,
+            complement: true,
+          });
+        }
+        return queries;
+      })
+      .map(({ r, complement }) => {
+        const target = complement ? r.source : r.destination;
+        const label = complement ? r.complement : r.label;
+        const returnNode = nodeTextByType[target];
+        const cacheKey = `${title}~${label}~${target}`;
         const conditionUid = window.roamAlphaAPI.util.generateUID();
-        const resultsPromise =
-          useCache && resultCache[cacheKey]
-            ? Promise.resolve(resultCache[cacheKey])
-            : (resultCache[cacheKey] =
-                window.roamjs.extension.queryBuilder.fireQuery({
-                  returnNode: nodeTextByType[r.destination],
-                  conditions: [
-                    {
-                      source: nodeTextByType[r.destination],
-                      relation: r.complement,
-                      target: title,
-                      uid: conditionUid,
-                      type: "clause",
-                    },
-                  ],
-                  selections: [
-                    {
-                      uid: window.roamAlphaAPI.util.generateUID(),
-                      label: "context",
-                      text: `node:${conditionUid}-Context`,
-                    },
-                  ],
-                }));
+        const resultsPromise = resultCache[cacheKey]
+          ? Promise.resolve(resultCache[cacheKey])
+          : window.roamjs.extension.queryBuilder
+              .fireQuery({
+                returnNode,
+                conditions: [
+                  {
+                    source: returnNode,
+                    // NOTE! This MUST be the OPPOSITE of `label`
+                    relation: complement ? r.label : r.complement,
+                    target: title,
+                    uid: conditionUid,
+                    type: "clause",
+                  },
+                ],
+                selections: [
+                  {
+                    uid: window.roamAlphaAPI.util.generateUID(),
+                    label: "context",
+                    text: `node:${conditionUid}-Context`,
+                  },
+                ],
+              })
+              .then((results) => {
+                resultCache[cacheKey] = results;
+                setTimeout(() => {
+                  delete resultCache[cacheKey];
+                }, CACHE_TIMEOUT);
+                return results;
+              });
         return resultsPromise.then((results) => ({
-          label: r.label,
-          target: r.destination,
-          complement: false,
+          label,
+          complement,
+          target,
           id: r.id,
           results,
         }));
       })
-      .concat(
-        relations
-          .filter((r) => r.destination === nodeType || r.destination === "*")
-          .map((r) => {
-            const cacheKey = `${title}~${r.complement}~${r.source}`;
-            const conditionUid = window.roamAlphaAPI.util.generateUID();
-            const resultsPromise =
-              useCache && resultCache[cacheKey]
-                ? Promise.resolve(resultCache[cacheKey])
-                : (resultCache[cacheKey] =
-                    window.roamjs.extension.queryBuilder.fireQuery({
-                      returnNode: nodeTextByType[r.source],
-                      conditions: [
-                        {
-                          source: nodeTextByType[r.source],
-                          relation: r.label,
-                          target: title,
-                          uid: conditionUid,
-                          type: "clause",
-                        },
-                      ],
-                      selections: [
-                        {
-                          uid: window.roamAlphaAPI.util.generateUID(),
-                          label: "context",
-                          text: `node:${conditionUid}-Context`,
-                        },
-                      ],
-                    }));
-            return resultsPromise.then((results) => ({
-              label: r.complement,
-              complement: true,
-              target: r.source,
-              id: r.id,
-              results,
-            }));
-          })
-      )
   ).catch((e) => {
     console.error(e);
     return [] as const;

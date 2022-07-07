@@ -6,7 +6,7 @@ import {
   nodeFormatToDatalog,
   getRelations,
   matchNode,
-  ANY_REGEX,
+  ANY_RELATION_REGEX,
 } from "../util";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
@@ -65,7 +65,7 @@ const registerDatalogTranslators = () => {
         ],
       },
       ...(target === "*"
-        ? ([
+        ? [
             {
               type: "or-join-clause" as const,
               variables: [{ type: "variable" as const, value: freeVar }],
@@ -77,7 +77,7 @@ const registerDatalogTranslators = () => {
                 }),
               })),
             },
-          ])
+          ]
         : nodeFormatToDatalog({
             freeVar,
             nodeFormat: formatByType[target],
@@ -198,7 +198,7 @@ const registerDatalogTranslators = () => {
   const relationLabels = new Set(
     discourseRelations.flatMap((d) => [d.label, d.complement])
   );
-  relationLabels.add(ANY_REGEX.source);
+  relationLabels.add(ANY_RELATION_REGEX.source);
   relationLabels.forEach((label) => {
     registerDatalogTranslator({
       key: label,
@@ -207,14 +207,14 @@ const registerDatalogTranslators = () => {
         const conditionTarget = targetType || target;
         const filteredRelations = discourseRelations
           .map((r) =>
-            (r.label === label || ANY_REGEX.test(label)) &&
+            (r.label === label || ANY_RELATION_REGEX.test(label)) &&
             doesRelationMatchCondition(r, { source, target })
               ? { ...r, forward: true }
               : doesRelationMatchCondition(
                   { source: r.destination, destination: r.source },
                   { source, target }
                 ) &&
-                (r.complement === label || ANY_REGEX.test(label))
+                (r.complement === label || ANY_RELATION_REGEX.test(label))
               ? { ...r, forward: false }
               : undefined
           )

@@ -3,30 +3,53 @@ import getSubTree from "roamjs-components/util/getSubTree";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import {
-  ANY_REGEX,
+  ANY_RELATION_REGEX,
   getDiscourseContextResults,
   getNodes,
+  getRelations,
   matchNode,
 } from "../util";
 import getAttributeValueByBlockAndName from "roamjs-components/queries/getAttributeValueByBlockAndName";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 
-const deriveNodeAttribute = ({
+const getRelatedResults = ({
+  title,
+  nodes,
+  relations,
+  relationLabel,
+  target,
+}: Parameters<typeof getDiscourseContextResults>[0] & {
+  relationLabel: string;
+  target: string;
+}) =>
+  getDiscourseContextResults({
+    title,
+    nodes,
+    relations: ANY_RELATION_REGEX.test(relationLabel)
+      ? relations
+      : relations.filter(
+          (r) => relationLabel === r.label || relationLabel === r.complement
+        ),
+  }).then((results) =>
+    results
+      .flatMap((r) => Object.values(r.results))
+      .filter((r) => /any/i.test(target) || r.target === target)
+  );
+
+const deriveNodeAttribute = async ({
   attribute,
   title,
-  results,
 }: {
   attribute: string;
   title: string;
-  results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
-}): string | number => {
-  const nodeType = getNodes().find((n) =>
+}): Promise<string | number> => {
+  const nodes = getNodes();
+  const relations = getRelations();
+  const nodeType = nodes.find((n) =>
     matchNode({ format: n.format, title })
   )?.type;
-  if (!nodeType)
-    return results.flatMap((r) => Object.entries(r.results)).length;
   const attributeNode = getSubTree({
-    tree: getBasicTreeByParentUid(nodeType),
+    tree: getBasicTreeByParentUid(nodeType || ""),
     key: "Attributes",
   });
   const scoreFormula = getSettingValueFromTree({
@@ -34,30 +57,73 @@ const deriveNodeAttribute = ({
     key: attribute,
     defaultValue: "{count:Has Any Relation To:any}",
   });
-  const postProcess = scoreFormula.replace(/{([^}]+)}/g, (_, interpolation:string) => {
-    const [op, ...args] = interpolation.split(":");
-    if (op === "count") {
-      return results
-        .filter((r) => ANY_REGEX.test(args[0]) || args[0] === r.label)
-        .flatMap((r) => Object.values(r.results))
-        .filter((r) => /any/i.test(args[1]) || r.target === args[1])
-        .length.toString();
-    } else if (op === "attribute") {
-      return getAttributeValueByBlockAndName({
-        name: args[0],
-        uid: getPageUidByPageTitle(title),
-      });
-    } else if (op === "discourse") {
-      return deriveNodeAttribute({
-        title,
-        results,
-        attribute: args[0]
-      }).toString();
-    } else {
-      console.warn(`Unknown op: ${op}`);
-      return "0";
-    }
-  });
+  let postProcess = scoreFormula;
+  const matches = scoreFormula.matchAll(/{([^}]+)}/g);
+  for (const match of matches) {
+    const [op, ...args] = match[1].split(":");
+    const value =
+      op === "count"
+        ? await getRelatedResults({
+            title,
+            nodes,
+            relations,
+            relationLabel: args[0],
+            target: args[1],
+          }).then((results) => results.length)
+        : op === "attribute"
+        ? getAttributeValueByBlockAndName({
+            name: args[0],
+            uid: getPageUidByPageTitle(title),
+          })
+        : op === "discourse"
+        ? await deriveNodeAttribute({
+            title,
+            attribute: args[0],
+          })
+        : op === "sum"
+        ? await getRelatedResults({
+            title,
+            nodes,
+            relations,
+            relationLabel: args[0],
+            target: args[1],
+          })
+            .then((results) =>
+              Promise.all(
+                results.map((r) =>
+                  deriveNodeAttribute({ attribute: args[2], title: r.text })
+                )
+              )
+            )
+            .then((values) =>
+              values.map((v) => Number(v) || 0).reduce((p, c) => p + c, 0)
+            )
+        : op === "average"
+        ? await getRelatedResults({
+            title,
+            nodes,
+            relations,
+            relationLabel: args[0],
+            target: args[1],
+          })
+            .then((results) =>
+              Promise.all(
+                results.map((r) =>
+                  deriveNodeAttribute({ attribute: args[2], title: r.text })
+                )
+              )
+            )
+            .then(
+              (values) =>
+                values.map((v) => Number(v) || 0).reduce((p, c) => p + c, 0) /
+                values.length
+            )
+        : "0";
+    postProcess = `${postProcess.slice(
+      0,
+      match.index
+    )}${value}${postProcess.slice(match.index + match[0].length)}`;
+  }
   try {
     return evaluate(postProcess);
   } catch {

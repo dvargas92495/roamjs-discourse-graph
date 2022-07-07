@@ -36,7 +36,7 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
     const triggerNow = overlayQueue.length === 0;
     overlayQueue.push(() => {
       const start = new Date();
-      return getDiscourseContextResults(tag, nodes, relations, true).then(
+      return getDiscourseContextResults({ title: tag, nodes, relations }).then(
         (results) => {
           const output = (cache[tag] = {
             results,
@@ -61,7 +61,7 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
 
 const experimentalGetOverlayInfo = (title: string) =>
   Promise.all([
-    getDiscourseContextResults(title),
+    getDiscourseContextResults({title}),
     fireWorkerQuery({
       where: [
         {
@@ -89,31 +89,33 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<DiscourseData["results"]>([]);
   const [refs, setRefs] = useState(0);
+  const [score, setScore] = useState<number | string>(0);
   const getInfo = useCallback(
     () =>
       (localStorageGet("experimental") === "true"
         ? experimentalGetOverlayInfo(tag)
         : getOverlayInfo(tag)
-      ).then(({ refs, results }) => {
-        setResults(results);
-        setRefs(refs);
-        setLoading(false);
-      }),
-    [tag, setResults, setLoading, setRefs]
+      )
+        .then(({ refs, results }) => {
+          const nodeType = getNodes().find((n) =>
+            matchNode({ format: n.format, title: tag })
+          )?.type;
+          const attribute = getSettingValueFromTree({
+            tree: getBasicTreeByParentUid(nodeType),
+            key: "Overlay",
+            defaultValue: "Overlay",
+          });
+          return deriveNodeAttribute({ title: tag, attribute }).then(
+            (score) => {
+              setResults(results);
+              setRefs(refs);
+              setScore(score);
+            }
+          );
+        })
+        .finally(() => setLoading(false)),
+    [tag, setResults, setLoading, setRefs, setScore]
   );
-  const score = useMemo(() => {
-    const nodeType = getNodes().find((n) =>
-      matchNode({ format: n.format, title: tag })
-    )?.type;
-    if (!nodeType)
-      return results.flatMap((r) => Object.entries(r.results)).length;
-    const attribute = getSettingValueFromTree({
-      tree: getBasicTreeByParentUid(nodeType),
-      key: "Overlay",
-      defaultValue: "Overlay",
-    });
-    return deriveNodeAttribute({ title: tag, attribute, results });
-  }, [results, tag]);
   const refresh = useCallback(() => {
     setLoading(true);
     getInfo();

@@ -376,88 +376,90 @@ const getExportTypes = ({
               type,
             };
             const treeNode = getFullTreeByParentUid(uid);
-            return getDiscourseContextResults(text).then((discourseResults) => {
-              const referenceResults = isFlagEnabled("render references")
-                ? window.roamAlphaAPI
-                    .q(
-                      `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
-                        text
-                      )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+            return getDiscourseContextResults({ title: text }).then(
+              (discourseResults) => {
+                const referenceResults = isFlagEnabled("render references")
+                  ? window.roamAlphaAPI
+                      .q(
+                        `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
+                          text
+                        )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+                      )
+                      .filter(([, { children = [] }]) => !!children.length)
+                  : [];
+                const content = `---\n${yamlLines
+                  .map((s) =>
+                    s.replace(/{([^}]+)}/g, (_, capt: string) =>
+                      result[capt].toString()
                     )
-                    .filter(([, { children = [] }]) => !!children.length)
-                : [];
-              const content = `---\n${yamlLines
-                .map((s) =>
-                  s.replace(/{([^}]+)}/g, (_, capt: string) =>
-                    result[capt].toString()
                   )
-                )
-                .join("\n")}\n---\n\n${treeNode.children
-                .map((c) =>
-                  toMarkdown({
-                    c,
-                    v,
-                    i: 0,
-                    opts: {
-                      refs: optsRefs,
-                      embeds: optsEmbeds,
-                      simplifiedFilename,
-                      allNodes,
-                      maxFilenameLength,
-                      removeSpecialCharacters,
-                    },
-                  })
-                )
-                .join("\n")}\n${
-                discourseResults.length
-                  ? `\n###### Discourse Context\n\n${discourseResults
-                      .flatMap((r) =>
-                        Object.values(r.results).map(
-                          (t) =>
-                            `- **${r.label}::** ${toLink(
+                  .join("\n")}\n---\n\n${treeNode.children
+                  .map((c) =>
+                    toMarkdown({
+                      c,
+                      v,
+                      i: 0,
+                      opts: {
+                        refs: optsRefs,
+                        embeds: optsEmbeds,
+                        simplifiedFilename,
+                        allNodes,
+                        maxFilenameLength,
+                        removeSpecialCharacters,
+                      },
+                    })
+                  )
+                  .join("\n")}\n${
+                  discourseResults.length
+                    ? `\n###### Discourse Context\n\n${discourseResults
+                        .flatMap((r) =>
+                          Object.values(r.results).map(
+                            (t) =>
+                              `- **${r.label}::** ${toLink(
+                                getFilename({
+                                  title: t.text,
+                                  maxFilenameLength,
+                                  simplifiedFilename,
+                                  allNodes,
+                                  removeSpecialCharacters,
+                                })
+                              )}`
+                          )
+                        )
+                        .join("\n")}\n`
+                    : ""
+                }${
+                  referenceResults.length
+                    ? `\n###### References\n\n${referenceResults
+                        .map(
+                          (r) =>
+                            `${toLink(
                               getFilename({
-                                title: t.text,
+                                title: r[0].title,
                                 maxFilenameLength,
                                 simplifiedFilename,
                                 allNodes,
                                 removeSpecialCharacters,
                               })
-                            )}`
+                            )}\n\n${toMarkdown({
+                              c: r[1],
+                              opts: {
+                                refs: optsRefs,
+                                embeds: optsEmbeds,
+                                simplifiedFilename,
+                                allNodes,
+                                maxFilenameLength,
+                                removeSpecialCharacters,
+                              },
+                            })}`
                         )
-                      )
-                      .join("\n")}\n`
-                  : ""
-              }${
-                referenceResults.length
-                  ? `\n###### References\n\n${referenceResults
-                      .map(
-                        (r) =>
-                          `${toLink(
-                            getFilename({
-                              title: r[0].title,
-                              maxFilenameLength,
-                              simplifiedFilename,
-                              allNodes,
-                              removeSpecialCharacters,
-                            })
-                          )}\n\n${toMarkdown({
-                            c: r[1],
-                            opts: {
-                              refs: optsRefs,
-                              embeds: optsEmbeds,
-                              simplifiedFilename,
-                              allNodes,
-                              maxFilenameLength,
-                              removeSpecialCharacters,
-                            },
-                          })}`
-                      )
-                      .join("\n")}\n`
-                  : ""
-              }`;
-              const uids = new Set(collectUids(treeNode));
-              return { title: text, content, uids };
-            });
+                        .join("\n")}\n`
+                    : ""
+                }`;
+                const uids = new Set(collectUids(treeNode));
+                return { title: text, content, uids };
+              }
+            );
           })
         );
         return pages.map(({ title, content }) => ({

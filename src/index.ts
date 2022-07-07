@@ -538,7 +538,7 @@ runExtension("discourse-graph", async () => {
   registerExperimentalMode({
     feature: "QB Update",
     onEnable: (isInitial) => {
-      qbVersion = "2022-07-02-14-43";
+      qbVersion = "2022-07-06-23-00";
       if (!isInitial) window.location.reload();
     },
     onDisable: (isInitial) => {
@@ -633,14 +633,7 @@ We expect that there will be no disruption in functionality. If you see issues a
         mapper: (r, key) => {
           const attribute = key.substring("discourse:".length);
           const title = r[":node/title"] || "";
-          return getDiscourseContextResults(
-            title,
-            getNodes(),
-            getRelations(),
-            true
-          ).then((results) =>
-            deriveNodeAttribute({ title, attribute, results })
-          );
+          return deriveNodeAttribute({ title, attribute });
         },
       });
 
@@ -750,8 +743,8 @@ We expect that there will be no disruption in functionality. If you see issues a
   if (process.env.NODE_ENV === "development") {
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
-      //src: "http://localhost:3100/main.js",
-      src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
+      src: "http://localhost:3100/main.js",
+      // src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({

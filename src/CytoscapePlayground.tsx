@@ -1238,12 +1238,11 @@ const CytoscapePlayground = ({
                         })
                         .filter((e) => !!e.type)
                         .map((e) =>
-                          getDiscourseContextResults(
-                            e.node,
-                            nodeData,
-                            relationData,
-                            true
-                          ).then((results) => ({
+                          getDiscourseContextResults({
+                            title: e.node,
+                            nodes: nodeData,
+                            relations: relationData,
+                          }).then((results) => ({
                             id: e.uid,
                             uid: getPageUidByPageTitle(e.node),
                             results,

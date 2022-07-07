@@ -94,7 +94,7 @@ export const ContextContent = ({ title, results }: Props) => {
   const [queryResults, setQueryResults] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    (results ? Promise.resolve(results) : getDiscourseContextResults(title))
+    (results ? Promise.resolve(results) : getDiscourseContextResults({ title }))
       .then((q) =>
         setQueryResults(q.filter((r) => !!Object.keys(r.results).length))
       )

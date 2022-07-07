@@ -67,23 +67,25 @@ const LoadingDiscourseData = ({
 
     Promise.all(
       allPages.map((title, index) =>
-        getDiscourseContextResults(title, nodes, relations).then((results) => {
-          cyNodes.add(title);
-          results.forEach((res) =>
-            Object.values(res.results)
-              .filter((r) => !r.complement && title !== r.text)
-              .forEach((r) => {
-                cyNodes.add(r.text);
-                edges.push({
-                  source: title,
-                  label: res.label,
-                  target: r.text,
-                  id: r.id,
-                });
-              })
-          );
-          setNumPages(index + 1);
-        })
+        getDiscourseContextResults({ title, nodes, relations }).then(
+          (results) => {
+            cyNodes.add(title);
+            results.forEach((res) =>
+              Object.values(res.results)
+                .filter((r) => !r.complement && title !== r.text)
+                .forEach((r) => {
+                  cyNodes.add(r.text);
+                  edges.push({
+                    source: title,
+                    label: res.label,
+                    target: r.text,
+                    id: r.id,
+                  });
+                })
+            );
+            setNumPages(index + 1);
+          }
+        )
       )
     ).then(() => {
       onClose();
