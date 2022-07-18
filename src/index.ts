@@ -22,6 +22,7 @@ import { render as renderAlert } from "roamjs-components/components/SimpleAlert"
 import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
+import { render as legacyQueryRender } from "./LegacyQueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
 import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
@@ -538,7 +539,7 @@ runExtension("discourse-graph", async () => {
   registerExperimentalMode({
     feature: "QB Update",
     onEnable: (isInitial) => {
-      qbVersion = "2022-07-07-18-48";
+      qbVersion = "2022-07-18-22-18";
       if (!isInitial) window.location.reload();
     },
     onDisable: (isInitial) => {
@@ -743,14 +744,14 @@ We expect that there will be no disruption in functionality. If you see issues a
   if (process.env.NODE_ENV === "development") {
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
-      src: "http://localhost:3100/main.js",
-      // src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
+      //src: "http://localhost:3100/main.js",
+      src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
       id: "roamjs-multiplayer-main",
       src: "http://localhost:3200/main.js",
-      ///src: "https://roamjs.com/multiplayer/2022-07-03-20-27/main.js",
+      ///src: "https://roamjs.com/multiplayer/2022-07-18-16-32/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   } else {
@@ -761,7 +762,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     });
     addScriptAsDependency({
       id: "roamjs-multiplayer",
-      src: "https://roamjs.com/multiplayer/2022-07-03-20-27/main.js",
+      src: "https://roamjs.com/multiplayer/2022-07-18-16-32/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   }
@@ -1076,10 +1077,14 @@ We expect that there will be no disruption in functionality. If you see issues a
   window.roamAlphaAPI.ui.commandPalette.addCommand({
     label: "Open Query Drawer",
     callback: () =>
-      queryRender({
-        blockUid: getQueriesUid(),
-        clearOnClick,
-      }),
+      getQueriesUid().then((blockUid) =>
+        qbVersion === "2022-07-18-22-18"
+          ? queryRender({
+              blockUid,
+              clearOnClick,
+            })
+          : legacyQueryRender({ blockUid, clearOnClick })
+      ),
   });
 
   createHTMLObserver({

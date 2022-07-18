@@ -15,6 +15,7 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
 import treeRef from "./utils/configTreeRef";
+import refreshConfigTree from "./utils/refreshConfigTree";
 
 export type PanelProps = {
   uid: string;
@@ -27,26 +28,20 @@ export const getSubscribedBlocks = () =>
   treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
     ?.children || [];
 
-export const getQueryUid = () =>
-  treeRef.tree.find((t) => toFlexRegex("query").test(t.text))?.uid ||
-  createBlock({
-    node: { text: "query" },
-    parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
-    order: 3,
-  });
-
 export const getQueriesUid = () => {
   const uid = treeRef.tree.find((t) =>
     toFlexRegex("queries").test(t.text)
   )?.uid;
-  if (uid) return uid;
-  const newUid = window.roamAlphaAPI.util.generateUID();
-  createBlock({
-    node: { text: "queries", uid: newUid },
+  if (uid) return Promise.resolve(uid);
+
+  return createBlock({
+    node: { text: "queries" },
     parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
     order: 3,
+  }).then((uid) => {
+    refreshConfigTree();
+    return uid;
   });
-  return newUid;
 };
 
 export const isFlagEnabled = (

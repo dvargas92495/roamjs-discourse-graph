@@ -13,10 +13,10 @@ import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
-import SavedQuery from "./components/SavedQuery";
+import SavedQuery from "./components/LegacySavedQuery";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
-import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
-import getSubTree from "roamjs-components/util/getSubTree";
+import { Selection } from "roamjs-components/types/query-builder";
+import getQBClauses from "./utils/getQBClauses";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
@@ -38,7 +38,7 @@ const SavedQueriesContainer = ({
     s: { uid: string; text: string; results?: QueryBuilderResults }[]
   ) => void;
   clearOnClick: (s: string) => void;
-  setQuery: (s: string) => void;
+  setQuery: (s: string[]) => void;
 }) => {
   const refreshResultsReferenced = useCallback(
     (pageUid = getCurrentPageUid()) => {
@@ -78,8 +78,7 @@ const SavedQueriesContainer = ({
     (e: HashChangeEvent) =>
       setResultsReferenced(
         refreshResultsReferenced(
-          e.newURL.match(/\/page\/(.*)$/)?.[1] ||
-            window.roamAlphaAPI.util.dateToPageTitle(new Date())
+          e.newURL.match(/\/page\/(.*)$/)?.[1] || window.roamAlphaAPI.util.dateToPageTitle(new Date())
         )
       ),
     [refreshResultsReferenced, setResultsReferenced]
@@ -136,49 +135,61 @@ const QueryDrawerContent = ({
     }`
   );
 
-  const [query, setQuery] = useState(savedQueryLabel);
-  const { QueryEditor, fireQuery, parseQuery } =
-    window.roamjs.extension.queryBuilder;
+  const [query, setQuery] = useState<string[]>([]);
+  const { QueryEditor, fireQuery } = window.roamjs.extension.queryBuilder;
   return (
     <>
       <QueryEditor
-        key={query}
         parentUid={blockUid}
-        onQuery={() => {
-          return Promise.all([
-            createBlock({
-              node: {
-                text: savedQueryLabel,
-              },
-              parentUid: blockUid,
-            }),
-            fireQuery(
-              parseQuery(blockUid)
-            ),
-          ]).then(([newSavedUid, results]) =>
-            Promise.all(
-              getSubTree({ key: "scratch", parentUid: blockUid }).children.map(
-                (c, order) =>
-                  window.roamAlphaAPI.moveBlock({
-                    location: {
-                      "parent-uid": newSavedUid,
-                      order,
+        defaultQuery={query}
+        // @ts-ignore
+        onQuery={(
+          // @ts-ignore
+          { returnNode, conditions, selections }
+        ) => {
+          const cons = getQBClauses(conditions);
+          return fireQuery({ returnNode, conditions, selections }).then(
+            (results) =>
+              createBlock({
+                node: {
+                  text: savedQueryLabel,
+                  children: [
+                    {
+                      text: "query",
+                      children: [
+                        { text: `Find ${returnNode} Where` },
+                        ...cons.map((c) => ({
+                          text: `${c.source} ${c.relation} ${c.target}`,
+                        })),
+                        ...selections.map((s: Selection) => ({
+                          text: `Select ${s.text} AS ${s.label}`,
+                        })),
+                      ],
                     },
-                    block: { uid: c.uid },
-                  })
+                  ],
+                },
+                parentUid: blockUid,
+              }).then((newSavedUid) =>
+                Promise.all(
+                  cons
+                    .map((c) => deleteBlock(c.uid))
+                    .concat(
+                      selections.map((s: Selection) => deleteBlock(s.uid))
+                    )
+                ).then(() => {
+                  setSavedQueries([
+                    { uid: newSavedUid, text: savedQueryLabel, results },
+                    ...savedQueries,
+                  ]);
+                  setSavedQueryLabel(
+                    // temporary
+                    savedQueryLabel
+                      .split(" ")
+                      .map((s) => (s === "Query" ? s : `${Number(s) + 1}`))
+                      .join(" ")
+                  );
+                })
               )
-            ).then(() => {
-              setSavedQueries([
-                { uid: newSavedUid, text: savedQueryLabel, results },
-                ...savedQueries,
-              ]);
-              const nextQueryLabel = savedQueryLabel
-                .split(" ")
-                .map((s) => (s === "Query" ? s : `${Number(s) + 1}`))
-                .join(" ");
-              setSavedQueryLabel(nextQueryLabel);
-              setQuery(nextQueryLabel);
-            })
           );
         }}
       />
