@@ -58,6 +58,7 @@ const deriveNodeAttribute = async ({
     defaultValue: "{count:Has Any Relation To:any}",
   });
   let postProcess = scoreFormula;
+  let totalOffset = 0;
   const matches = scoreFormula.matchAll(/{([^}]+)}/g);
   for (const match of matches) {
     const [op, ...args] = match[1].split(":");
@@ -119,10 +120,12 @@ const deriveNodeAttribute = async ({
                 values.length
             )
         : "0";
-    postProcess = `${postProcess.slice(
+    const postOp = `${postProcess.slice(
       0,
-      match.index
-    )}${value}${postProcess.slice(match.index + match[0].length)}`;
+      match.index + totalOffset
+    )}${value}${postProcess.slice(match.index + match[0].length + totalOffset)}`;
+    totalOffset = totalOffset + postOp.length - postProcess.length;
+    postProcess = postOp;
   }
   try {
     return evaluate(postProcess);
