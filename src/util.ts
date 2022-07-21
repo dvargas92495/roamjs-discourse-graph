@@ -3,7 +3,7 @@ import type {
   RoamBasicNode,
   TextNode,
   DatalogClause,
-} from "roamjs-components/types";
+} from "roamjs-components/types/native";
 import createBlock from "roamjs-components/writes/createBlock";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
 import getCurrentUserUid from "roamjs-components/queries/getCurrentUserUid";

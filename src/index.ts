@@ -22,7 +22,6 @@ import { render as renderAlert } from "roamjs-components/components/SimpleAlert"
 import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as queryRender } from "./QueryDrawer";
-import { render as legacyQueryRender } from "./LegacyQueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as discourseOverlayRender } from "./components/DiscourseContextOverlay";
 import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
@@ -88,6 +87,7 @@ import type {
 import { render as versioning } from "roamjs-components/components/VersionSwitcher";
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
+import NodeSpecification from "./components/NodeSpecification";
 
 addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
@@ -535,18 +535,6 @@ runExtension("discourse-graph", async () => {
       shutdownDataWorker();
     },
   });
-  let qbVersion: string;
-  registerExperimentalMode({
-    feature: "QB Update",
-    onEnable: (isInitial) => {
-      qbVersion = "2022-07-18-22-18";
-      if (!isInitial) window.location.reload();
-    },
-    onDisable: (isInitial) => {
-      qbVersion = "2022-06-28-15-25";
-      if (!isInitial) window.location.reload();
-    },
-  });
 
   const configTree = getBasicTreeByParentUid(pageUid);
   const grammarTree = getSubTree({ tree: configTree, key: "grammar" }).children;
@@ -745,7 +733,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
+      src: `https://roamjs.com/query-builder/2022-07-18-22-18/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -757,7 +745,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: `https://roamjs.com/query-builder/${qbVersion}/main.js`,
+      src: `https://roamjs.com/query-builder/2022-07-18-22-18/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -948,70 +936,75 @@ We expect that there will be no disruption in functionality. If you see issues a
             configPageRender({
               h: h1,
               title,
-              config: {
-                tabs: [
-                  {
-                    id: "home",
-                    fields: [
-                      {
-                        title: "Index",
-                        description:
-                          "Index of all of the pages in your graph of this type",
-                        Panel: CustomPanel,
-                        options: {
-                          component: ({ uid }) =>
-                            React.createElement(NodeIndex, {
-                              node,
-                              parentUid: uid,
-                            }),
-                        },
-                      } as Field<CustomField>,
-                      {
-                        title: "Format",
-                        description: `The format ${nodeText} pages should have.`,
-                        defaultValue: "\\",
-                        Panel: TextPanel,
-                      },
-                      {
-                        title: "Shortcut",
-                        description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
-                        defaultValue: "\\",
-                        Panel: TextPanel,
-                      },
-                      {
-                        title: "Description",
-                        description: `Describing what the ${nodeText} node represents in your graph.`,
-                        Panel: TextPanel,
-                      },
-                      {
-                        title: "Template",
-                        description: `The template that auto fills ${nodeText} page when generated.`,
-                        Panel: BlocksPanel,
-                      },
-                      {
-                        title: "Attributes",
-                        description: `A set of derived properties about the node based on queryable data.`,
-                        Panel: CustomPanel,
-                        options: {
-                          component: NodeAttributes,
-                        },
-                      } as Field<CustomField>,
-                      {
-                        title: "Overlay",
-                        description: `Select which attribute is used for the Discourse Overlay`,
-                        Panel: SelectPanel,
-                        options: {
-                          items: () =>
-                            getSubTree({
-                              parentUid: getCurrentPageUid(),
-                              key: "Attributes",
-                            }).children.map((c) => c.text),
-                        },
-                      } as Field<SelectField>,
-                    ],
+              config: [
+                {
+                  title: "Index",
+                  description:
+                    "Index of all of the pages in your graph of this type",
+                  Panel: CustomPanel,
+                  options: {
+                    component: ({ uid }) =>
+                      React.createElement(NodeIndex, {
+                        node,
+                        parentUid: uid,
+                      }),
                   },
-                ],
-              },
+                } as Field<CustomField>,
+                {
+                  title: "Format",
+                  description: `The format ${nodeText} pages should have.`,
+                  defaultValue: "\\",
+                  Panel: TextPanel,
+                },
+                // {
+                //   title: "Specification",
+                //   description: `The conditions specified to identify a ${nodeText} node.`,
+                //   Panel: CustomPanel,
+                //   options: {
+                //     component: ({ uid }) =>
+                //       React.createElement(NodeSpecification, {
+                //         node,
+                //         parentUid: uid,
+                //       }),
+                //   },
+                // } as Field<CustomField>,
+                {
+                  title: "Shortcut",
+                  description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
+                  defaultValue: "\\",
+                  Panel: TextPanel,
+                },
+                {
+                  title: "Description",
+                  description: `Describing what the ${nodeText} node represents in your graph.`,
+                  Panel: TextPanel,
+                },
+                {
+                  title: "Template",
+                  description: `The template that auto fills ${nodeText} page when generated.`,
+                  Panel: BlocksPanel,
+                },
+                {
+                  title: "Attributes",
+                  description: `A set of derived properties about the node based on queryable data.`,
+                  Panel: CustomPanel,
+                  options: {
+                    component: NodeAttributes,
+                  },
+                } as Field<CustomField>,
+                {
+                  title: "Overlay",
+                  description: `Select which attribute is used for the Discourse Overlay`,
+                  Panel: SelectPanel,
+                  options: {
+                    items: () =>
+                      getSubTree({
+                        parentUid: getCurrentPageUid(),
+                        key: "Attributes",
+                      }).children.map((c) => c.text),
+                  },
+                } as Field<SelectField>,
+              ],
             });
 
           if (window.roamjs.extension.queryBuilder) {
@@ -1078,12 +1071,10 @@ We expect that there will be no disruption in functionality. If you see issues a
     label: "Open Query Drawer",
     callback: () =>
       getQueriesUid().then((blockUid) =>
-        qbVersion === "2022-07-18-22-18"
-          ? queryRender({
-              blockUid,
-              clearOnClick,
-            })
-          : legacyQueryRender({ blockUid, clearOnClick })
+        queryRender({
+          blockUid,
+          clearOnClick,
+        })
       ),
   });
 
