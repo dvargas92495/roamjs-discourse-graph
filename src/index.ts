@@ -955,7 +955,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                   description: `The format ${nodeText} pages should have.`,
                   defaultValue: "\\",
                   Panel: TextPanel,
-                // },
+                },
                 // {
                 //   title: "Specification",
                 //   description: `The conditions specified to identify a ${nodeText} node.`,
