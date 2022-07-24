@@ -733,7 +733,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: `https://roamjs.com/query-builder/2022-07-21-15-08/main.js`,
+      src: `https://roamjs.com/query-builder/2022-07-24-03-48/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -745,7 +745,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: `https://roamjs.com/query-builder/2022-07-21-15-08/main.js`,
+      src: `https://roamjs.com/query-builder/2022-07-24-03-48/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -955,7 +955,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                   description: `The format ${nodeText} pages should have.`,
                   defaultValue: "\\",
                   Panel: TextPanel,
-                },
+                // },
                 // {
                 //   title: "Specification",
                 //   description: `The conditions specified to identify a ${nodeText} node.`,
