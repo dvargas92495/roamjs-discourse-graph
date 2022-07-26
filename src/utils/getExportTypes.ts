@@ -95,6 +95,12 @@ const collectUids = (t: TreeNode): string[] => [
 const MATCHES_NONE = /$.+^/;
 const EMBED_REGEX = /{{(?:\[\[)embed(?:\]\]):\s*\(\(([\w\d-]{9,10})\)\)\s*}}/;
 
+const toLink = (s: string, linkType: string) => {
+  if (linkType === "wikilinks") return `[[${s.replace(/\.md$/, "")}]]`;
+  if (linkType === "alias") return `[${s}](${s})`;
+  return s;
+};
+
 const toMarkdown = ({
   c,
   i = 0,
@@ -111,6 +117,7 @@ const toMarkdown = ({
     maxFilenameLength: number;
     allNodes: ReturnType<typeof getNodes>;
     removeSpecialCharacters: boolean;
+    linkType: string;
   };
 }): string => {
   const processedText = c.text
@@ -123,7 +130,7 @@ const toMarkdown = ({
       return toMarkdown({ c: reference, i, v, opts });
     })
     .trim();
-  const finalProcessedText = opts.simplifiedFilename
+  const finalProcessedText = opts.simplifiedFilename || opts.removeSpecialCharacters
     ? XRegExp.matchRecursive(processedText, "#?\\[\\[", "\\]\\]", "i", {
         valueNames: ["between", "left", "match", "right"],
         unbalanced: "skip",
@@ -137,7 +144,7 @@ const toMarkdown = ({
               simplifiedFilename: opts.simplifiedFilename,
               removeSpecialCharacters: opts.removeSpecialCharacters,
             });
-            return `[${name}](${name})`;
+            return toLink(name, opts.linkType);
           } else if (s.name === "left" || s.name === "right") {
             return "";
           } else {
@@ -324,11 +331,6 @@ const getExportTypes = ({
           key: "link type",
           defaultValue: "alias",
         });
-        const toLink = (s: string) => {
-          if (linkType === "wikilinks") return `[[${s.replace(/\.md$/, "")}]]`;
-          if (linkType === "alias") return `[${s}](${s})`;
-          return s;
-        };
         const removeSpecialCharacters = !!getSubTree({
           tree: exportTree.children,
           key: "remove special characters",
@@ -406,6 +408,7 @@ const getExportTypes = ({
                         allNodes,
                         maxFilenameLength,
                         removeSpecialCharacters,
+                        linkType,
                       },
                     })
                   )
@@ -422,7 +425,8 @@ const getExportTypes = ({
                                   simplifiedFilename,
                                   allNodes,
                                   removeSpecialCharacters,
-                                })
+                                }),
+                                linkType
                               )}`
                           )
                         )
@@ -440,7 +444,8 @@ const getExportTypes = ({
                                 simplifiedFilename,
                                 allNodes,
                                 removeSpecialCharacters,
-                              })
+                              }),
+                              linkType
                             )}\n\n${toMarkdown({
                               c: r[1],
                               opts: {
@@ -450,6 +455,7 @@ const getExportTypes = ({
                                 allNodes,
                                 maxFilenameLength,
                                 removeSpecialCharacters,
+                                linkType,
                               },
                             })}`
                         )
