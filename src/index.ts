@@ -739,7 +739,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-multiplayer-main",
       src: "http://localhost:3200/main.js",
-      ///src: "https://roamjs.com/multiplayer/2022-07-20-22-05/main.js",
+      ///src: "https://roamjs.com/multiplayer/2022-07-26-18-04/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   } else {
@@ -750,7 +750,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     });
     addScriptAsDependency({
       id: "roamjs-multiplayer",
-      src: "https://roamjs.com/multiplayer/2022-07-20-22-05/main.js",
+      src: "https://roamjs.com/multiplayer/2022-07-26-18-04/main.js",
       dataAttributes: { source: "discourse-graph" },
     });
   }
