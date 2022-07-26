@@ -39,12 +39,10 @@ import { render as renderBlockFeed } from "./components/BlockFeed";
 import {
   DEFAULT_NODE_VALUES,
   DEFAULT_RELATION_VALUES,
-  getDiscourseContextResults,
   getNodeReferenceChildren,
   getNodes,
   getPageMetadata,
   getQueriesUid,
-  getRelations,
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
@@ -733,7 +731,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     addScriptAsDependency({
       id: "roamjs-query-builder-main",
       //src: "http://localhost:3100/main.js",
-      src: `https://roamjs.com/query-builder/2022-07-24-03-48/main.js`,
+      src: `https://roamjs.com/query-builder/2022-07-26-18-34/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
@@ -745,7 +743,7 @@ We expect that there will be no disruption in functionality. If you see issues a
   } else {
     addScriptAsDependency({
       id: "roamjs-query-builder",
-      src: `https://roamjs.com/query-builder/2022-07-24-03-48/main.js`,
+      src: `https://roamjs.com/query-builder/2022-07-26-18-34/main.js`,
       dataAttributes: { source: "discourse-graph" },
     });
     addScriptAsDependency({
