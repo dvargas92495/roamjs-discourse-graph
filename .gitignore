@@ -3,3 +3,7 @@ build
 dist
 out
 .env.local
+data.js
+extension.js
+types.js
+*.png

@@ -328,15 +328,16 @@ export const matchNode = ({
   );
 };
 
-export const isNodeTitle = (title: string) =>
-  getNodes().some((n) =>
-    new RegExp(
-      `^${n.format
-        .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
-        .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`,
-      "s"
-    ).test(title)
+export const getNodeFormatExpression = (format: string) =>
+  new RegExp(
+    `^${format
+      .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
+      .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`,
+    "s"
   );
+
+export const isNodeTitle = (title: string) =>
+  getNodes().some((n) => getNodeFormatExpression(n.format).test(title));
 
 export const getNodeReferenceChildren = (title: string) => {
   const container = document.createElement("div");

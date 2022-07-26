@@ -7,10 +7,12 @@ import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getAuthorizationHeader from "roamjs-components/util/getAuthorizationHeader";
 import nanoid from "nanoid";
 
-const dataWorkerUrl = (document.currentScript as HTMLScriptElement).src.replace(
-  /\/main\.js$/,
-  "/data.js"
-);
+const dataWorkerUrl = `${
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:8000/"
+    : "https://roamjs.com/discourse-graph/"
+}/data.js`;
+
 const dataWorker: { current: Worker; init: boolean } = {
   current: undefined,
   init: false,

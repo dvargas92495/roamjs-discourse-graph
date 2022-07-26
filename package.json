@@ -4,16 +4,14 @@
   "description": "A suite of tools for maintaining a discourse graph from Roam!",
   "main": "./build/main.js",
   "scripts": {
-    "build": "roamjs-scripts build",
-    "dev": "roamjs-scripts dev",
-    "start": "npm run dev"
+    "start": "roamjs-scripts dev --depot"
   },
   "license": "MIT",
   "devDependencies": {
     "@types/cytoscape": "^3.19.4",
     "@types/react-window": "^1.8.5",
     "@types/react-window-infinite-loader": "^1.0.6",
-    "roamjs-scripts": "^0.18.19"
+    "roamjs-scripts": "^0.21.3"
   },
   "dependencies": {
     "cytoscape": "^3.21.0",
