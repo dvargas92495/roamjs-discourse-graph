@@ -4,6 +4,7 @@ import type {
   TextNode,
   DatalogClause,
   DatalogAndClause,
+  DatalogVariable,
 } from "roamjs-components/types/native";
 import createBlock from "roamjs-components/writes/createBlock";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
@@ -364,48 +365,61 @@ export const replaceVariables = (
     | { from: string; to: string }
     | { from: true; to: (v: string) => string }
   )[] = [],
-  clauses: (DatalogClause | DatalogAndClause)[]
-): void =>
-  clauses.forEach((c) => {
+  clauses: DatalogClause[]
+): DatalogClause[] => {
+  const replaceVariable = (a: DatalogVariable) => {
+    const rep = replacements.find(
+      (rep) => a.value === rep.from || rep.from === true
+    );
+    if (!rep) {
+      return { ...a };
+    } else if (a.value === rep.from) {
+      a.value = rep.to;
+      return {
+        ...a,
+        value: rep.to,
+      };
+    } else if (rep.from === true) {
+      return {
+        ...a,
+        value: rep.to(a.value),
+      };
+    }
+  };
+  return clauses.map((c) => {
     switch (c.type) {
       case "data-pattern":
       case "fn-expr":
       case "pred-expr":
       case "rule-expr":
-        [...c.arguments]
-          .filter((a) => a.type === "variable")
-          .forEach((a) => {
-            replacements.forEach((rep) => {
-              if (a.value === rep.from) {
-                a.value = rep.to;
-              } else if (rep.from === true) {
-                a.value = rep.to(a.value);
-              }
-            });
-          });
-        break;
+        return {
+          ...c,
+          arguments: c.arguments.map((a) => {
+            if (a.type !== "variable") {
+              return { ...a };
+            }
+            return replaceVariable(a);
+          }),
+        };
       case "not-join-clause":
       case "or-join-clause":
-        c.variables
-          .filter((a) => a.type === "variable")
-          .forEach((a) => {
-            replacements.forEach((rep) => {
-              if (a.value === rep.from) {
-                a.value = rep.to;
-              } else if (rep.from === true) {
-                a.value = rep.to(a.value);
-              }
-            });
-          });
+        return {
+          ...c,
+          variables: c.variables.map(replaceVariable),
+          clauses: replaceVariables(replacements, c.clauses),
+        };
       case "not-clause":
       case "or-clause":
       case "and-clause":
-        replaceVariables(replacements, c.clauses);
-        break;
+        return {
+          ...c,
+          clauses: replaceVariables(replacements, c.clauses),
+        };
       default:
-        return;
+        throw new Error(`Unknown clause type: ${c["type"]}`);
     }
   });
+};
 
 export const nodeFormatToDatalog = ({
   nodeFormat = "",
