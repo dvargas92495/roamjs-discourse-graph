@@ -163,7 +163,8 @@ const extensionId = "discourse-graph";
 export default runExtension({
   extensionId,
   run: async () => {
-    addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
+    const style =
+      addStyle(`.roamjs-discourse-live-preview>div>div>.rm-block-main,
 .roamjs-discourse-live-preview>div>div>.rm-inline-references,
 .roamjs-discourse-live-preview>div>div>.rm-block-children>.rm-multibar {
   display: none;
@@ -646,8 +647,13 @@ We expect that there will be no disruption in functionality. If you see issues a
           mapper: (r) => {
             const title = r[":node/title"] || "";
             return (
-              getNodes().find((n) => matchNode({ format: n.format, title }))
-                ?.text || (r[":block/string"] ? "block" : "page")
+              getNodes().find((n) =>
+                matchNode({
+                  format: n.format,
+                  title,
+                  specification: n.specification,
+                })
+              )?.text || (r[":block/string"] ? "block" : "page")
             );
           },
         });
@@ -750,7 +756,7 @@ We expect that there will be no disruption in functionality. If you see issues a
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
         //src: "http://localhost:3100/main.js",
-        src: `https://roamjs.com/query-builder/2022-07-26-19-41/main.js`,
+        src: `https://roamjs.com/query-builder/2022-07-29-02-57/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
       addScriptAsDependency({
@@ -761,12 +767,12 @@ We expect that there will be no disruption in functionality. If you see issues a
       });
     } else {
       addScriptAsDependency({
-        id: "roamjs-query-builder",
-        src: `https://roamjs.com/query-builder/2022-07-26-19-41/main.js`,
+        id: "roamjs-query-builder-main",
+        src: `https://roamjs.com/query-builder/2022-07-29-02-57/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
       addScriptAsDependency({
-        id: "roamjs-multiplayer",
+        id: "roamjs-multiplayer-main",
         src: "https://roamjs.com/multiplayer/2022-07-26-18-04/main.js",
         dataAttributes: { source: "discourse-graph" },
       });
@@ -1215,5 +1221,8 @@ We expect that there will be no disruption in functionality. If you see issues a
       label: "Open Feed",
       callback: () => renderBlockFeed({}),
     });
+    return {
+      elements: [style],
+    };
   },
 });

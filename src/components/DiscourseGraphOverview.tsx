@@ -96,7 +96,11 @@ const LoadingDiscourseData = ({
             id,
             label: id,
             filterId: nodes.find((n) =>
-              matchNode({ format: n.format, title: id })
+              matchNode({
+                format: n.format,
+                title: id,
+                specification: n.specification,
+              })
             )?.type,
           })),
         },

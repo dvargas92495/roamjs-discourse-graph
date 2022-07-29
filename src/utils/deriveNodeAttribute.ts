@@ -46,7 +46,7 @@ const deriveNodeAttribute = async ({
   const nodes = getNodes();
   const relations = getRelations();
   const nodeType = nodes.find((n) =>
-    matchNode({ format: n.format, title })
+    matchNode({ format: n.format, title, specification: n.specification })
   )?.type;
   const attributeNode = getSubTree({
     tree: getBasicTreeByParentUid(nodeType || ""),
@@ -123,7 +123,9 @@ const deriveNodeAttribute = async ({
     const postOp = `${postProcess.slice(
       0,
       match.index + totalOffset
-    )}${value}${postProcess.slice(match.index + match[0].length + totalOffset)}`;
+    )}${value}${postProcess.slice(
+      match.index + match[0].length + totalOffset
+    )}`;
     totalOffset = totalOffset + postOp.length - postProcess.length;
     postProcess = postOp;
   }

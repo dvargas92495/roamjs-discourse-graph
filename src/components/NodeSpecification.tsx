@@ -5,6 +5,7 @@ import { getNodeFormatExpression, getNodes } from "../util";
 import { Switch } from "@blueprintjs/core";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
+import refreshConfigTree from "../utils/refreshConfigTree";
 
 const NodeSpecification = ({
   parentUid,
@@ -32,24 +33,46 @@ const NodeSpecification = ({
           parentUid: scratchNode.uid,
           key: "conditions",
         }).uid;
+        const returnUid = getSubTree({
+          parentUid: scratchNode.uid,
+          key: "return",
+        }).uid;
         createBlock({
-          parentUid: conditionsUid,
+          parentUid: returnUid,
           node: {
-            text: "clause",
-            children: [
-              { text: "source", children: [{ text: node.text }] },
-              { text: "relation", children: [{ text: "has title" }] },
-              {
-                text: "destination",
+            text: "node",
+          },
+        })
+          .then(() =>
+            createBlock({
+              parentUid: conditionsUid,
+              node: {
+                text: "clause",
                 children: [
-                  { text: `/${getNodeFormatExpression(node.format).source}/` },
+                  { text: "source", children: [{ text: node.text }] },
+                  { text: "relation", children: [{ text: "has title" }] },
+                  {
+                    text: "target",
+                    children: [
+                      {
+                        text: `/${
+                          getNodeFormatExpression(node.format).source
+                        }/`,
+                      },
+                    ],
+                  },
                 ],
               },
-            ],
-          },
-        }).then(() => setMigrated(true));
+            })
+          )
+          .then(() => setMigrated(true));
       }
+    } else {
+      const tree = getBasicTreeByParentUid(parentUid);
+      const scratchNode = getSubTree({ tree, key: "scratch" });
+      Promise.all(scratchNode.children.map((c) => deleteBlock(c.uid)));
     }
+    return () => refreshConfigTree();
   }, [parentUid, setMigrated, enabled]);
   return (
     <div className={"roamjs-node-specification"}>
@@ -77,11 +100,13 @@ const NodeSpecification = ({
           }}
         />
       </p>
-      <div className={enabled ? "" : "bg-gray-200 opacity-75"}>
+      <div
+        className={`${enabled ? "" : "bg-gray-200 opacity-75"} overflow-auto`}
+      >
         <QueryEditor
           parentUid={parentUid}
           key={Number(migrated)}
-          defaultReturnNode={"page"}
+          defaultReturnNode={"node"}
         />
       </div>
     </div>

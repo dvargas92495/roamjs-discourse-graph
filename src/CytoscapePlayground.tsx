@@ -465,6 +465,7 @@ const CytoscapePlayground = ({
           shortcut: "T",
           type: TEXT_TYPE,
           format: "{content}",
+          specification: [],
         }),
     []
   );
@@ -854,8 +855,13 @@ const CytoscapePlayground = ({
           createNode(
             s,
             { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
-            coloredNodes.find((c) => matchNode({ format: c.format, title: s }))
-              ?.color || TEXT_COLOR
+            coloredNodes.find((c) =>
+              matchNode({
+                format: c.format,
+                title: s,
+                specification: c.specification,
+              })
+            )?.color || TEXT_COLOR
           );
         };
         // @ts-ignore

@@ -97,7 +97,13 @@ export const NodeConfigPanel: Panel = ({}) => {
           }).then((valueUid) => {
             setNodes([
               ...nodes,
-              { format, type: valueUid, text: label, shortcut },
+              {
+                format,
+                type: valueUid,
+                text: label,
+                shortcut,
+                specification: [],
+              },
             ]);
             refreshConfigTree();
             setFormat("");

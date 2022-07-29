@@ -28,7 +28,7 @@ const getContentFromNodes = ({
   allNodes: ReturnType<typeof getNodes>;
 }) => {
   const nodeFormat = allNodes.find((a) =>
-    matchNode({ title, format: a.format })
+    matchNode({ title, format: a.format, specification: a.specification })
   )?.format;
   if (!nodeFormat) return title;
   const regex = new RegExp(
@@ -130,29 +130,30 @@ const toMarkdown = ({
       return toMarkdown({ c: reference, i, v, opts });
     })
     .trim();
-  const finalProcessedText = opts.simplifiedFilename || opts.removeSpecialCharacters
-    ? XRegExp.matchRecursive(processedText, "#?\\[\\[", "\\]\\]", "i", {
-        valueNames: ["between", "left", "match", "right"],
-        unbalanced: "skip",
-      })
-        .map((s) => {
-          if (s.name === "match") {
-            const name = getFilename({
-              title: s.value,
-              allNodes: opts.allNodes,
-              maxFilenameLength: opts.maxFilenameLength,
-              simplifiedFilename: opts.simplifiedFilename,
-              removeSpecialCharacters: opts.removeSpecialCharacters,
-            });
-            return toLink(name, opts.linkType);
-          } else if (s.name === "left" || s.name === "right") {
-            return "";
-          } else {
-            return s.value;
-          }
+  const finalProcessedText =
+    opts.simplifiedFilename || opts.removeSpecialCharacters
+      ? XRegExp.matchRecursive(processedText, "#?\\[\\[", "\\]\\]", "i", {
+          valueNames: ["between", "left", "match", "right"],
+          unbalanced: "skip",
         })
-        .join("") || processedText
-    : processedText;
+          .map((s) => {
+            if (s.name === "match") {
+              const name = getFilename({
+                title: s.value,
+                allNodes: opts.allNodes,
+                maxFilenameLength: opts.maxFilenameLength,
+                simplifiedFilename: opts.simplifiedFilename,
+                removeSpecialCharacters: opts.removeSpecialCharacters,
+              });
+              return toLink(name, opts.linkType);
+            } else if (s.name === "left" || s.name === "right") {
+              return "";
+            } else {
+              return s.value;
+            }
+          })
+          .join("") || processedText
+      : processedText;
   return `${"".padStart(i * 4, " ")}${viewTypeToPrefix[v]}${
     c.heading ? `${"".padStart(c.heading, "#")} ` : ""
   }${finalProcessedText}${(c.children || [])
@@ -191,7 +192,7 @@ const getExportTypes = ({
         text: title,
         uid,
       }));
-    return allNodes.flatMap(({ format, text }) =>
+    return allNodes.flatMap(({ format, text, specification }) =>
       (results
         ? results.flatMap((r) =>
             Object.keys(r)
@@ -208,7 +209,7 @@ const getExportTypes = ({
           )
         : allPages
       )
-        .filter(({ text }) => matchNode({ format, title: text }))
+        .filter(({ text }) => matchNode({ format, title: text, specification }))
         .map((node) => ({ ...node, type: text }))
     );
   };

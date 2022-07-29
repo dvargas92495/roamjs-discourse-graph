@@ -61,7 +61,7 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
 
 const experimentalGetOverlayInfo = (title: string) =>
   Promise.all([
-    getDiscourseContextResults({title}),
+    getDiscourseContextResults({ title }),
     fireWorkerQuery({
       where: [
         {
@@ -98,7 +98,11 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
       )
         .then(({ refs, results }) => {
           const nodeType = getNodes().find((n) =>
-            matchNode({ format: n.format, title: tag })
+            matchNode({
+              format: n.format,
+              title: tag,
+              specification: n.specification,
+            })
           )?.type;
           const attribute = getSettingValueFromTree({
             tree: getBasicTreeByParentUid(nodeType),

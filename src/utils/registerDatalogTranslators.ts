@@ -7,6 +7,7 @@ import {
   getRelations,
   matchNode,
   ANY_RELATION_REGEX,
+  replaceVariables,
 } from "../util";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
@@ -44,45 +45,29 @@ const registerDatalogTranslators = () => {
   const isACallback: Parameters<
     typeof registerDatalogTranslator
   >[0]["callback"] = ({ source, target }) => {
-    const formatByType = Object.fromEntries([
-      ...discourseNodes.map((n) => [n.type, n.format]),
-      ...discourseNodes.map((n) => [n.text, n.format]),
+    const nodeByTypeOrText = Object.fromEntries([
+      ...discourseNodes.map((n) => [n.type, n] as const),
+      ...discourseNodes.map((n) => [n.text, n] as const),
     ]);
-    const freeVar = target === "*" ? `any-Title` : `${target}-Title`;
-    return [
-      {
-        type: "data-pattern",
-        arguments: [
+    return target === "*"
+      ? [
           {
-            type: "variable",
-            value: source,
+            type: "or-join-clause" as const,
+            variables: [{ type: "variable" as const, value: `any` }],
+            clauses: discourseNodes.map((dn) => ({
+              type: "and-clause" as const,
+              clauses: nodeFormatToDatalog({
+                freeVar: "any",
+                nodeFormat: dn.format,
+              }),
+            })),
           },
-          { type: "constant", value: ":node/title" },
-          {
-            type: "variable",
-            value: freeVar,
-          },
-        ],
-      },
-      ...(target === "*"
-        ? [
-            {
-              type: "or-join-clause" as const,
-              variables: [{ type: "variable" as const, value: freeVar }],
-              clauses: discourseNodes.map((dn) => ({
-                type: "and-clause" as const,
-                clauses: nodeFormatToDatalog({
-                  freeVar,
-                  nodeFormat: dn.format,
-                }),
-              })),
-            },
-          ]
-        : nodeFormatToDatalog({
-            freeVar,
-            nodeFormat: formatByType[target],
-          })),
-    ];
+        ]
+      : nodeFormatToDatalog({
+          freeVar: source,
+          nodeFormat: nodeByTypeOrText[target].format,
+          nodeSpec: nodeByTypeOrText[target].specification,
+        });
   };
   const discourseNodes = getNodes();
   registerDatalogTranslator({
@@ -159,9 +144,7 @@ const registerDatalogTranslators = () => {
   const nodeLabelByType = Object.fromEntries(
     discourseNodes.map((n) => [n.type, n.text])
   );
-  const nodeFormatByType = Object.fromEntries(
-    discourseNodes.map((n) => [n.type, n.format])
-  );
+  const nodeByType = Object.fromEntries(discourseNodes.map((n) => [n.type, n]));
   const nodeTypeByLabel = Object.fromEntries(
     discourseNodes.map((n) => [n.text.toLowerCase(), n.type])
   );
@@ -177,15 +160,21 @@ const registerDatalogTranslators = () => {
       targetType === condition.target ||
       relation.destination === "*" ||
       matchNode({
-        format: nodeFormatByType[relation.destination],
+        format: nodeByType[relation.destination].format,
+        specification: nodeByType[relation.destination].specification,
         title: condition.target,
       });
     if (sourceMatches) {
       return (
         targetMatches ||
         (!nodeTypeByLabel[condition.target.toLowerCase()] &&
-          Object.values(nodeFormatByType).every(
-            (format) => !matchNode({ format, title: condition.target })
+          Object.values(nodeByType).every(
+            (node) =>
+              !matchNode({
+                format: node.format,
+                specification: node.specification,
+                title: condition.target,
+              })
           ))
       );
     }
@@ -259,50 +248,14 @@ const registerDatalogTranslators = () => {
                 type: "clause",
               })
             );
-            const replaceVariables = (
-              clauses: (DatalogClause | DatalogAndClause)[]
-            ): void =>
-              clauses.forEach((c) => {
-                switch (c.type) {
-                  case "data-pattern":
-                  case "fn-expr":
-                  case "pred-expr":
-                  case "rule-expr":
-                    [...c.arguments]
-                      .filter((a) => a.type === "variable")
-                      .forEach((a) => {
-                        if (a.value === sourceNodeVar) {
-                          a.value = source;
-                        } else if (a.value === targetNodeVar) {
-                          a.value = target;
-                        } else {
-                          a.value = `${uid}-${a.value}`;
-                        }
-                      });
-                    break;
-                  case "not-join-clause":
-                  case "or-join-clause":
-                    c.variables
-                      .filter((a) => a.type === "variable")
-                      .forEach((a) => {
-                        if (a.value === sourceNodeVar) {
-                          a.value = source;
-                        } else if (a.value === targetNodeVar) {
-                          a.value = target;
-                        } else {
-                          a.value = `${uid}-${a.value}`;
-                        }
-                      });
-                  case "not-clause":
-                  case "or-clause":
-                  case "and-clause":
-                    replaceVariables(c.clauses);
-                    break;
-                  default:
-                    return;
-                }
-              });
-            replaceVariables(subQuery);
+            replaceVariables(
+              [
+                { from: sourceNodeVar, to: source },
+                { from: targetNodeVar, to: target },
+                { from: true, to: (v) => `${uid}-${v}` },
+              ],
+              subQuery
+            );
             return subQuery;
           }
         );
@@ -350,7 +303,8 @@ const registerDatalogTranslators = () => {
         return pageNames.filter((p) =>
           sourcedRelations.some((sr) =>
             matchNode({
-              format: nodeFormatByType[sr.target],
+              format: nodeByType[sr.target].format,
+              specification: nodeByType[sr.target].specification,
               title: p,
             })
           )

@@ -3,6 +3,7 @@ import type {
   RoamBasicNode,
   TextNode,
   DatalogClause,
+  DatalogAndClause,
 } from "roamjs-components/types/native";
 import createBlock from "roamjs-components/writes/createBlock";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
@@ -16,6 +17,10 @@ import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
 import treeRef from "./utils/configTreeRef";
 import refreshConfigTree from "./utils/refreshConfigTree";
+import { Condition } from "roamjs-components/types/query-builder";
+import compileDatalog from "roamjs-components/queries/compileDatalog";
+import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import { string } from "mathjs";
 
 export type PanelProps = {
   uid: string;
@@ -313,19 +318,25 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
 export const matchNode = ({
   format,
   title,
+  specification,
 }: {
   format: string;
   title: string;
+  specification: Condition[];
 }) => {
-  if (!format) return false;
-  const [prefix = "", ...rest] = format.split(/{[\w\d-]*}/);
-  const suffix = rest.slice(-1)[0] || "";
-  const middle = rest.slice(0, rest.length - 1);
-  return (
-    title.startsWith(prefix) &&
-    title.endsWith(suffix) &&
-    middle.every((s) => title.includes(s))
-  );
+  if (specification.length) {
+    const where = specification
+      .flatMap((c) =>
+        window.roamjs.extension.queryBuilder.conditionToDatalog(c)
+      )
+      .map((c) => compileDatalog(c, 0));
+    return !!window.roamAlphaAPI.data.fast.q(
+      `[:find ?node :where [or-join [?node] [?node :node/title "${title}] [?node :block/string "${title}"]] ${where.join(
+        " "
+      )}]`
+    ).length;
+  }
+  return getNodeFormatExpression(format).test(title);
 };
 
 export const getNodeFormatExpression = (format: string) =>
@@ -348,59 +359,98 @@ export const getNodeReferenceChildren = (title: string) => {
   return container;
 };
 
+export const replaceVariables = (
+  replacements: (
+    | { from: string; to: string }
+    | { from: true; to: (v: string) => string }
+  )[] = [],
+  clauses: (DatalogClause | DatalogAndClause)[]
+): void =>
+  clauses.forEach((c) => {
+    switch (c.type) {
+      case "data-pattern":
+      case "fn-expr":
+      case "pred-expr":
+      case "rule-expr":
+        [...c.arguments]
+          .filter((a) => a.type === "variable")
+          .forEach((a) => {
+            replacements.forEach((rep) => {
+              if (a.value === rep.from) {
+                a.value = rep.to;
+              } else if (rep.from === true) {
+                a.value = rep.to(a.value);
+              }
+            });
+          });
+        break;
+      case "not-join-clause":
+      case "or-join-clause":
+        c.variables
+          .filter((a) => a.type === "variable")
+          .forEach((a) => {
+            replacements.forEach((rep) => {
+              if (a.value === rep.from) {
+                a.value = rep.to;
+              } else if (rep.from === true) {
+                a.value = rep.to(a.value);
+              }
+            });
+          });
+      case "not-clause":
+      case "or-clause":
+      case "and-clause":
+        replaceVariables(replacements, c.clauses);
+        break;
+      default:
+        return;
+    }
+  });
+
 export const nodeFormatToDatalog = ({
   nodeFormat = "",
   freeVar,
+  nodeSpec = [],
 }: {
   nodeFormat?: string;
   freeVar: string;
+  nodeSpec?: Condition[];
 }): DatalogClause[] => {
-  const [prefix, ...rest] = nodeFormat.split(/{[\w\d-]*}/g);
-  const suffix = rest.slice(-1)[0] || "";
-  const middle = rest.slice(0, rest.length - 1);
-  return [
-    ...((prefix
-      ? [
-          {
-            type: "pred-expr",
-            pred: "clojure.string/starts-with?",
-            arguments: [
-              { type: "variable", value: freeVar },
-              { type: "constant", value: `"${prefix}"` },
-            ],
-          },
-        ]
-      : []) as DatalogClause[]),
-    ...((suffix
-      ? [
-          {
-            type: "pred-expr",
-            pred: "clojure.string/ends-with?",
-            arguments: [
-              { type: "variable", value: freeVar },
-              { type: "constant", value: `"${prefix}"` },
-            ],
-          },
-        ]
-      : []) as DatalogClause[]),
-    ...(middle.map((m) => ({
-      type: "pred-expr",
-      pred: "clojure.string/includes?",
-      arguments: [
-        { type: "variable", value: freeVar },
-        { type: "constant", value: `"${m}"` },
-      ],
-    })) as DatalogClause[]),
-  ];
+  if (nodeSpec.length) {
+    const clauses = nodeSpec.flatMap(
+      window.roamjs.extension.queryBuilder.conditionToDatalog
+    );
+    replaceVariables([{ from: "node", to: freeVar }], clauses);
+    return clauses;
+  }
+  return window.roamjs.extension.queryBuilder.conditionToDatalog({
+    source: freeVar,
+    relation: "has title",
+    target: `/${getNodeFormatExpression(nodeFormat).source}/`,
+    type: "clause",
+    uid: window.roamAlphaAPI.util.generateUID(),
+  });
 };
 
 export const getNodes = () =>
-  Object.entries(treeRef.nodes).map(([type, { text, children }]) => ({
-    format: getSettingValueFromTree({ tree: children, key: "format" }),
-    text,
-    shortcut: getSettingValueFromTree({ tree: children, key: "shortcut" }),
-    type,
-  }));
+  Object.entries(treeRef.nodes).map(([type, { text, children }]) => {
+    const spec = getSubTree({
+      tree: children,
+      key: "specification",
+    });
+    const specTree = spec.children;
+    return {
+      format: getSettingValueFromTree({ tree: children, key: "format" }),
+      text,
+      shortcut: getSettingValueFromTree({ tree: children, key: "shortcut" }),
+      type,
+      specification:
+        !!getSubTree({ tree: specTree, key: "enabled" }).uid &&
+        window.roamjs.loaded.has("query-builder")
+          ? window.roamjs.extension.queryBuilder.parseQuery(spec.uid).conditions
+          : [],
+    };
+  });
 
 export const getRelations = () =>
   (
@@ -514,8 +564,8 @@ export const getDiscourseContextResults = async ({
   nodes?: ReturnType<typeof getNodes>;
   relations?: ReturnType<typeof getRelations>;
 }) => {
-  const nodeType = nodes.find(({ format }) =>
-    matchNode({ format, title })
+  const nodeType = nodes.find(({ format, specification }) =>
+    matchNode({ format, title, specification })
   )?.type;
   const nodeTextByType = Object.fromEntries(
     nodes.map(({ type, text }) => [type, text])
