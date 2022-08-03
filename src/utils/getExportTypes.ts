@@ -19,6 +19,7 @@ import {
 } from "../util";
 import XRegExp from "xregexp";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
+import getSamePageApi from "./getSamePageApi";
 
 const getContentFromNodes = ({
   title,
@@ -389,6 +390,7 @@ const getExportTypes = ({
                         )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
                       )
                       .filter(([, { children = [] }]) => !!children.length)
+                      .map((a) => a as [{ title: string }, TreeNode])
                   : [];
                 const content = `---\n${yamlLines
                   .map((s) =>
@@ -497,7 +499,8 @@ const getExportTypes = ({
       name: "graph",
       callback: async ({ filename, graph }) => {
         const data = await getJsonData();
-        window.roamjs.extension.multiplayer.sendToGraph({
+        const { sendToGraph } = getSamePageApi();
+        sendToGraph({
           operation: "IMPORT_DISCOURSE_GRAPH",
           data: {
             ...data,

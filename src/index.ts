@@ -86,6 +86,7 @@ import { render as versioning } from "roamjs-components/components/VersionSwitch
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 import NodeSpecification from "./components/NodeSpecification";
+import getSamePageApi from "./utils/getSamePageApi";
 
 const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
@@ -414,18 +415,6 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
                   component: SubscriptionConfigPanel,
                 },
               } as Field<CustomField>,
-              {
-                title: "multiplayer",
-                Panel: FlagPanel,
-                description:
-                  "Whether or not to enable Multiplayer on this graph",
-                options: {
-                  onChange: (f) =>
-                    f
-                      ? window.roamjs.extension.multiplayer.enable()
-                      : window.roamjs.extension.multiplayer.disable(),
-                },
-              } as Field<FlagField>,
             ],
           },
           { id: "render references", fields: [], toggleable: true },
@@ -664,87 +653,80 @@ We expect that there will be no disruption in functionality. If you see issues a
       },
       { once: true }
     );
+    const samePageLoadedListener = () => {
+      const { addGraphListener, sendToGraph } = getSamePageApi();
+      addGraphListener({
+        operation: "IMPORT_DISCOURSE_GRAPH",
+        handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {
+          importDiscourseGraph(data);
+          const todayUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
+          const todayOrder = getChildrenLengthByPageUid(todayUid);
+          createBlock({
+            parentUid: todayUid,
+            order: todayOrder,
+            node: {
+              text: `Imported discourse graph from [[${graph}]]`,
+              children: [{ text: `[[${data.title}]]` }],
+            },
+          });
+          sendToGraph({
+            operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+            graph,
+          });
+        },
+      });
+      addGraphListener({
+        operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
+        handler: (_, graph) =>
+          renderToast({
+            id: "import-p2p-success",
+            content: `${graph} successfully imported your discourse graph!`,
+          }),
+      });
+      addGraphListener({
+        operation: "QUERY_REQUEST",
+        handler: (json, graph) => {
+          const { page, requestId } = json as {
+            page: string;
+            requestId: string;
+          };
+          const todayUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
+          const bottom = getChildrenLengthByPageUid(todayUid);
+          createBlock({
+            parentUid: todayUid,
+            order: bottom,
+            node: {
+              text: `New [[query request]] from [[${graph}]]`,
+              children: [
+                {
+                  text: `Get full page contents of [[${page}]]`,
+                },
+                {
+                  text: `{{Accept:${graph}:${requestId}:${page}}}`,
+                },
+              ],
+            },
+          });
+          renderToast({
+            id: "new-query-request",
+            content: `New query request from ${graph}`,
+            intent: Intent.PRIMARY,
+          });
+          sendToGraph({
+            operation: "QUERY_REQUEST_RECEIVED",
+            graph,
+          });
+        },
+      });
+    };
     document.body.addEventListener(
       "roamjs:multiplayer:loaded",
-      () => {
-        const isEnabled = getSubTree({
-          tree: configTree,
-          key: "subscriptions",
-        }).children.some((s) => toFlexRegex("multiplayer").test(s.text));
-        if (isEnabled) {
-          window.roamjs.extension.multiplayer.enable();
-          window.roamjs.extension.multiplayer.addGraphListener({
-            operation: "IMPORT_DISCOURSE_GRAPH",
-            handler: (
-              data: Parameters<typeof importDiscourseGraph>[0],
-              graph
-            ) => {
-              importDiscourseGraph(data);
-              const todayUid = window.roamAlphaAPI.util.dateToPageUid(
-                new Date()
-              );
-              const todayOrder = getChildrenLengthByPageUid(todayUid);
-              createBlock({
-                parentUid: todayUid,
-                order: todayOrder,
-                node: {
-                  text: `Imported discourse graph from [[${graph}]]`,
-                  children: [{ text: `[[${data.title}]]` }],
-                },
-              });
-              window.roamjs.extension.multiplayer.sendToGraph({
-                operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
-                graph,
-              });
-            },
-          });
-          window.roamjs.extension.multiplayer.addGraphListener({
-            operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
-            handler: (_, graph) =>
-              renderToast({
-                id: "import-p2p-success",
-                content: `${graph} successfully imported your discourse graph!`,
-              }),
-          });
-          window.roamjs.extension.multiplayer.addGraphListener({
-            operation: "QUERY_REQUEST",
-            handler: (json, graph) => {
-              const { page, requestId } = json as {
-                page: string;
-                requestId: string;
-              };
-              const todayUid = window.roamAlphaAPI.util.dateToPageUid(
-                new Date()
-              );
-              const bottom = getChildrenLengthByPageUid(todayUid);
-              createBlock({
-                parentUid: todayUid,
-                order: bottom,
-                node: {
-                  text: `New [[query request]] from [[${graph}]]`,
-                  children: [
-                    {
-                      text: `Get full page contents of [[${page}]]`,
-                    },
-                    {
-                      text: `{{Accept:${graph}:${requestId}:${page}}}`,
-                    },
-                  ],
-                },
-              });
-              renderToast({
-                id: "new-query-request",
-                content: `New query request from ${graph}`,
-                intent: Intent.PRIMARY,
-              });
-              window.roamjs.extension.multiplayer.sendToGraph({
-                operation: "QUERY_REQUEST_RECEIVED",
-                graph,
-              });
-            },
-          });
-        }
-      },
+      samePageLoadedListener,
+      { once: true }
+    );
+    document.body.addEventListener(
+      "roamjs:samepage:loaded",
+      samePageLoadedListener,
       { once: true }
     );
     if (window.roamjs.loaded.has("query-builder")) {
@@ -759,21 +741,10 @@ We expect that there will be no disruption in functionality. If you see issues a
         src: `https://roamjs.com/query-builder/2022-07-29-02-57/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
-      addScriptAsDependency({
-        id: "roamjs-multiplayer-main",
-        src: "http://localhost:3200/main.js",
-        ///src: "https://roamjs.com/multiplayer/2022-07-26-18-04/main.js",
-        dataAttributes: { source: "discourse-graph" },
-      });
     } else {
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
         src: `https://roamjs.com/query-builder/2022-07-29-02-57/main.js`,
-        dataAttributes: { source: "discourse-graph" },
-      });
-      addScriptAsDependency({
-        id: "roamjs-multiplayer-main",
-        src: "https://roamjs.com/multiplayer/2022-07-26-18-04/main.js",
         dataAttributes: { source: "discourse-graph" },
       });
     }
@@ -810,20 +781,9 @@ We expect that there will be no disruption in functionality. If you see issues a
     window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Send Query Request",
       callback: () => {
-        const graphs = window.roamjs.extension.multiplayer.getConnectedGraphs();
-        if (!graphs.length) {
-          renderToast({
-            id: "discouse-no-graphs",
-            content:
-              "There are no connected graphs available to ask for a query",
-            intent: Intent.WARNING,
-          });
-        } else {
-          queryRequestRender({
-            uid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
-            graphs,
-          });
-        }
+        queryRequestRender({
+          uid: window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"],
+        });
       },
     });
     createButtonObserver({
@@ -838,7 +798,9 @@ We expect that there will be no disruption in functionality. If you see issues a
             const title = page.join(":");
             const uid = getPageUidByPageTitle(title);
             const tree = getFullTreeByParentUid(uid).children;
-            window.roamjs.extension.multiplayer.sendToGraph({
+            const { sendToGraph, addGraphListener, removeGraphListener } =
+              getSamePageApi();
+            sendToGraph({
               graph,
               operation: `QUERY_RESPONSE/${requestId}`,
               data: {
@@ -850,7 +812,7 @@ We expect that there will be no disruption in functionality. If you see issues a
               },
             });
             const operation = `QUERY_RESPONSE_RECEIVED/${requestId}`;
-            window.roamjs.extension.multiplayer.addGraphListener({
+            addGraphListener({
               operation,
               handler: (_, g) => {
                 if (g === graph) {
@@ -859,7 +821,7 @@ We expect that there will be no disruption in functionality. If you see issues a
                     content: `Graph ${g} Successfully Received the query`,
                     intent: Intent.SUCCESS,
                   });
-                  window.roamjs.extension.multiplayer.removeGraphListener({
+                  removeGraphListener({
                     operation,
                   });
                   updateBlock({ uid: blockUid, text: "Sent" });

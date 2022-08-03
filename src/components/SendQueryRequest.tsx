@@ -2,13 +2,13 @@ import {
   Button,
   Classes,
   Dialog,
+  InputGroup,
   Intent,
   Label,
   Spinner,
   SpinnerSize,
 } from "@blueprintjs/core";
 import { useMemo, useState } from "react";
-import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import PageInput from "roamjs-components/components/PageInput";
 import type { RoamOverlayProps } from "roamjs-components/util/createOverlayRender";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
@@ -19,19 +19,15 @@ import createPage from "roamjs-components/writes/createPage";
 import { TreeNode } from "roamjs-components/types";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import nanoid from "nanoid";
+import getSamePageApi from "../utils/getSamePageApi";
 
 type Props = {
-  graphs: string[];
   uid?: string;
 };
 
-const SendQueryRequest = ({
-  onClose,
-  graphs,
-  uid,
-}: RoamOverlayProps<Props>) => {
+const SendQueryRequest = ({ onClose, uid }: RoamOverlayProps<Props>) => {
   const [loading, setLoading] = useState(false);
-  const [graph, setGraph] = useState<string>(graphs[0]);
+  const [graph, setGraph] = useState<string>("");
   const [page, setPage] = useState(() =>
     uid
       ? window.roamAlphaAPI
@@ -54,10 +50,9 @@ const SendQueryRequest = ({
       <div className={Classes.DIALOG_BODY}>
         <Label>
           Graph
-          <MenuItemSelect
-            items={graphs}
-            activeItem={graph}
-            onItemSelect={(et) => setGraph(et)}
+          <InputGroup
+            value={graph}
+            onChange={(e) => setGraph(e.target.value)}
           />
         </Label>
         <Label>
@@ -73,12 +68,14 @@ const SendQueryRequest = ({
             intent={Intent.PRIMARY}
             onClick={() => {
               setLoading(true);
-              window.roamjs.extension.multiplayer.sendToGraph({
+              const { sendToGraph, addGraphListener, removeGraphListener } =
+                getSamePageApi();
+              sendToGraph({
                 graph,
                 operation: "QUERY_REQUEST",
                 data: { page, requestId },
               });
-              window.roamjs.extension.multiplayer.addGraphListener({
+              addGraphListener({
                 operation: "QUERY_REQUEST_RECEIVED",
                 handler: (_, g) => {
                   if (g === graph) {
@@ -87,11 +84,11 @@ const SendQueryRequest = ({
                       content: `Query Successfully Requested From ${g}`,
                       intent: Intent.SUCCESS,
                     });
-                    window.roamjs.extension.multiplayer.removeGraphListener({
+                    removeGraphListener({
                       operation: "QUERY_REQUEST_RECEIVED",
                     });
                     const operation = `QUERY_RESPONSE/${requestId}`;
-                    window.roamjs.extension.multiplayer.addGraphListener({
+                    addGraphListener({
                       operation,
                       handler: (json, g) => {
                         if (g === graph) {
@@ -115,10 +112,8 @@ const SendQueryRequest = ({
                             content: `New Query Response From ${g}!`,
                             intent: Intent.SUCCESS,
                           });
-                          window.roamjs.extension.multiplayer.removeGraphListener(
-                            { operation }
-                          );
-                          window.roamjs.extension.multiplayer.sendToGraph({
+                          removeGraphListener({ operation });
+                          sendToGraph({
                             graph,
                             operation: `QUERY_RESPONSE_RECEIVED/${requestId}`,
                           });
