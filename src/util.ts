@@ -332,7 +332,9 @@ export const matchNode = ({
       )
       .map((c) => compileDatalog(c, 0));
     return !!window.roamAlphaAPI.data.fast.q(
-      `[:find ?node :where [or-join [?node] [?node :node/title "${title}] [?node :block/string "${title}"]] ${where.join(
+      `[:find ?node :where [or-join [?node] [?node :node/title "${normalizePageTitle(
+        title
+      )}"] [?node :block/string "${normalizePageTitle(title)}"]] ${where.join(
         " "
       )}]`
     ).length;

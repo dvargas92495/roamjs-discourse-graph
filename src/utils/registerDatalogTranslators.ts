@@ -74,6 +74,8 @@ const registerDatalogTranslators = () => {
     key: "is a",
     callback: isACallback,
     targetOptions: discourseNodes.map((d) => d.text),
+    isVariable: true,
+    placeholder: "Enter a discourse node",
   });
   registerDatalogTranslator({
     key: "self",
@@ -85,7 +87,7 @@ const registerDatalogTranslators = () => {
       getPageTitlesStartingWithPrefix("discourse-graph/queries/").map((q) =>
         q.substring("discourse-graph/queries/".length)
       ),
-    callback: ({ source, uid, target }) => {
+    callback: ({ source, target }) => {
       const queryUid = getPageUidByPageTitle(
         `discourse-graph/queries/${target}`
       );
@@ -138,6 +140,7 @@ const registerDatalogTranslators = () => {
       };
       return clauses.concat(orClause);
     },
+    placeholder: "Enter query label",
   });
 
   const discourseRelations = getRelations();
@@ -248,7 +251,7 @@ const registerDatalogTranslators = () => {
                 type: "clause",
               })
             );
-            replaceVariables(
+            return replaceVariables(
               [
                 { from: sourceNodeVar, to: source },
                 { from: targetNodeVar, to: target },
@@ -256,7 +259,6 @@ const registerDatalogTranslators = () => {
               ],
               subQuery
             );
-            return subQuery;
           }
         );
         if (andParts.length === 1) return andParts[0];
@@ -310,6 +312,7 @@ const registerDatalogTranslators = () => {
           )
         );
       },
+      placeholder: "Enter a valid target",
     });
   });
 };
