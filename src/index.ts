@@ -1069,8 +1069,9 @@ We expect that there will be no disruption in functionality. If you see issues a
         ),
     });
 
-    createHTMLObserver({
+    const referencesObserver = createHTMLObserver({
       tag: "DIV",
+      useBody: true,
       className: "rm-reference-main",
       callback: async (d: HTMLDivElement) => {
         const isMain = !!d.closest(".roam-article");
@@ -1190,8 +1191,10 @@ We expect that there will be no disruption in functionality. If you see issues a
       label: "Open Feed",
       callback: () => renderBlockFeed({}),
     });
+    console.log(referencesObserver);
     return {
       elements: [style],
+      observers: [referencesObserver]
     };
   },
 });

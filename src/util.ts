@@ -496,9 +496,9 @@ export const getNodes = (relations = getRelations()) =>
           shortcut: r.label.slice(0, 1),
           specification: r.triples.map(([source, relation, target]) => ({
             type: "clause",
-            source,
+            source: source === "source" ? r.source : source,
             relation,
-            target,
+            target: target === "destination" ? r.destination : target,
             uid: window.roamAlphaAPI.util.generateUID(),
           })),
           isRelationBacked: true,
@@ -540,7 +540,7 @@ export const getRelations = () =>
         .filter((t) => !/node positions/i.test(t.text))
         .map((t) => {
           const target = t.children[0]?.children?.[0]?.text || "";
-          return [t.text, t.children[0]?.text, target];
+          return [t.text, t.children[0]?.text, target] as const;
         }),
     }));
   });

@@ -43,6 +43,7 @@ import { render as renderToast } from "roamjs-components/components/Toast";
 import createPage from "roamjs-components/writes/createPage";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import updateBlock from "roamjs-components/writes/updateBlock";
+import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 
 export const NodeConfigPanel: Panel = ({}) => {
   const [nodes, setNodes] = useState(() =>
@@ -174,7 +175,8 @@ const RelationEditPreview = ({ previewUid }: { previewUid: string }) => {
 const edgeDisplayByUid = (uid: string) =>
   uid === "*"
     ? "Any"
-    : getPageTitleByPageUid(uid).replace(/^discourse-graph\/nodes\//, "");
+    : getPageTitleByPageUid(uid).replace(/^discourse-graph\/nodes\//, "") ||
+      getTextByBlockUid(uid);
 
 const RelationEditPanel = ({
   editingRelationInfo,
