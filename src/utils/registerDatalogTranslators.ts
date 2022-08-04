@@ -246,7 +246,7 @@ const registerDatalogTranslators = () => {
                     arguments: [
                       { type: "variable", value: triple[0] },
                       { type: "constant", value: ":block/uid" },
-                      { type: "constant", value },
+                      { type: "constant", value: `"${value}"` },
                     ],
                   },
                 ];

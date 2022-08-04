@@ -496,9 +496,16 @@ export const getNodes = (relations = getRelations()) =>
           shortcut: r.label.slice(0, 1),
           specification: r.triples.map(([source, relation, target]) => ({
             type: "clause",
-            source: source === "source" ? r.source : source,
+            source: /anchor/i.test(source) ? r.label : source,
             relation,
-            target: target === "destination" ? r.destination : target,
+            target:
+              target === "source"
+                ? r.source
+                : target === "destination"
+                ? r.destination
+                : /anchor/i.test(target)
+                ? r.label
+                : target,
             uid: window.roamAlphaAPI.util.generateUID(),
           })),
           isRelationBacked: true,
@@ -658,7 +665,7 @@ export const getDiscourseContextResults = async ({
                     source: returnNode,
                     // NOTE! This MUST be the OPPOSITE of `label`
                     relation: complement ? r.label : r.complement,
-                    target: getPageTitleByPageUid(uid),
+                    target: uid,
                     uid: conditionUid,
                     type: "clause",
                   },

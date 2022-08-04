@@ -1191,7 +1191,6 @@ We expect that there will be no disruption in functionality. If you see issues a
       label: "Open Feed",
       callback: () => renderBlockFeed({}),
     });
-    console.log(referencesObserver);
     return {
       elements: [style],
       observers: [referencesObserver]
