@@ -37,9 +37,7 @@ const ExportDialog = ({
           uid: a[":block/uid"] as string,
         }))
         .filter((a) =>
-          discourseNodes.some(({ format, specification }) =>
-            matchNode({ title: a.text || "", format, specification })
-          )
+          discourseNodes.some((n) => matchNode({ title: a.text || "", ...n }))
         ),
       relations: undefined,
     };

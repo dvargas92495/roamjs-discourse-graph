@@ -450,8 +450,8 @@ const CytoscapePlayground = ({
   const shadowInputRef = useRef<HTMLInputElement>(null);
   const cyRef = useRef<cytoscape.Core>(null);
   const sourceRef = useRef<cytoscape.NodeSingular>(null);
-  const allNodes = useMemo(getNodes, []);
   const allRelations = useMemo(getRelations, []);
+  const allNodes = useMemo(() => getNodes(allRelations), [allRelations]);
   const coloredNodes = useMemo(
     () =>
       allNodes
@@ -466,6 +466,7 @@ const CytoscapePlayground = ({
           type: TEXT_TYPE,
           format: "{content}",
           specification: [],
+          isRelationBacked: false,
         }),
     []
   );
@@ -857,9 +858,8 @@ const CytoscapePlayground = ({
             { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
             coloredNodes.find((c) =>
               matchNode({
-                format: c.format,
                 title: s,
-                specification: c.specification,
+                ...c,
               })
             )?.color || TEXT_COLOR
           );
@@ -1225,7 +1225,7 @@ const CytoscapePlayground = ({
                   setTimeout(async () => {
                     const elementsTree = getBasicTreeByParentUid(elementsUid);
                     const relationData = getRelations();
-                    const nodeData = getNodes();
+                    const nodeData = getNodes(relationData);
                     const nodes = await Promise.all(
                       elementsTree
                         .map((n) => {
@@ -1245,7 +1245,7 @@ const CytoscapePlayground = ({
                         .filter((e) => !!e.type)
                         .map((e) =>
                           getDiscourseContextResults({
-                            title: e.node,
+                            uid: e.uid,
                             nodes: nodeData,
                             relations: relationData,
                           }).then((results) => ({

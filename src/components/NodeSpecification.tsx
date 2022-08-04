@@ -40,7 +40,7 @@ const NodeSpecification = ({
         createBlock({
           parentUid: returnUid,
           node: {
-            text: "node",
+            text: node.text,
           },
         })
           .then(() =>

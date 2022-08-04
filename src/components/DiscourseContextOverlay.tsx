@@ -18,6 +18,7 @@ import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByPar
 import nanoid from "nanoid";
 import localStorageGet from "roamjs-components/util/localStorageGet";
 import fireWorkerQuery from "../utils/fireWorkerQuery";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 
 type DiscourseData = {
   results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
@@ -30,30 +31,32 @@ const cache: {
 const overlayQueue: (() => Promise<void>)[] = [];
 const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
   if (cache[tag]) return Promise.resolve(cache[tag]);
-  const nodes = getNodes();
   const relations = getRelations();
+  const nodes = getNodes(relations);
   return new Promise((resolve) => {
     const triggerNow = overlayQueue.length === 0;
     overlayQueue.push(() => {
       const start = new Date();
-      return getDiscourseContextResults({ title: tag, nodes, relations }).then(
-        (results) => {
-          const output = (cache[tag] = {
-            results,
-            refs: window.roamAlphaAPI.data.fast.q(
-              `[:find ?a :where [?b :node/title "${normalizePageTitle(
-                tag
-              )}"] [?a :block/refs ?b]]`
-            ).length,
-          });
-          const runTime = differenceInMilliseconds(new Date(), start);
-          setTimeout(() => {
-            overlayQueue.splice(0, 1);
-            overlayQueue[0]?.();
-          }, runTime * 4);
-          resolve(output);
-        }
-      );
+      return getDiscourseContextResults({
+        uid: getPageUidByPageTitle(tag),
+        nodes,
+        relations,
+      }).then((results) => {
+        const output = (cache[tag] = {
+          results,
+          refs: window.roamAlphaAPI.data.fast.q(
+            `[:find ?a :where [?b :node/title "${normalizePageTitle(
+              tag
+            )}"] [?a :block/refs ?b]]`
+          ).length,
+        });
+        const runTime = differenceInMilliseconds(new Date(), start);
+        setTimeout(() => {
+          overlayQueue.splice(0, 1);
+          overlayQueue[0]?.();
+        }, runTime * 4);
+        resolve(output);
+      });
     });
     if (triggerNow) overlayQueue[0]();
   });
@@ -61,7 +64,7 @@ const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
 
 const experimentalGetOverlayInfo = (title: string) =>
   Promise.all([
-    getDiscourseContextResults({ title }),
+    getDiscourseContextResults({ uid: getPageUidByPageTitle(title) }),
     fireWorkerQuery({
       where: [
         {
@@ -86,6 +89,7 @@ const experimentalGetOverlayInfo = (title: string) =>
   ]).then(([results, allrefs]) => ({ results, refs: allrefs.length }));
 
 const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
+  const tagUid = useMemo(() => getPageUidByPageTitle(tag), [tag]);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<DiscourseData["results"]>([]);
   const [refs, setRefs] = useState(0);
@@ -99,9 +103,8 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
         .then(({ refs, results }) => {
           const nodeType = getNodes().find((n) =>
             matchNode({
-              format: n.format,
-              title: tag,
-              specification: n.specification,
+              uid: tagUid,
+              ...n,
             })
           )?.type;
           const attribute = getSettingValueFromTree({
@@ -109,7 +112,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
             key: "Overlay",
             defaultValue: "Overlay",
           });
-          return deriveNodeAttribute({ title: tag, attribute }).then(
+          return deriveNodeAttribute({ uid: tagUid, attribute }).then(
             (score) => {
               setResults(results);
               setRefs(refs);
@@ -139,7 +142,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
             position: "relative",
           }}
         >
-          <ContextContent title={tag} results={results} />
+          <ContextContent uid={tagUid} results={results} />
           <span style={{ position: "absolute", bottom: "8px", left: "8px" }}>
             <Tooltip content={"Refresh Overlay"}>
               <Button

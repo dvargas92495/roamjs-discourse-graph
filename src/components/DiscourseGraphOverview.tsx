@@ -24,11 +24,12 @@ import {
   getDiscourseContextResults,
   getNodes,
   getRelations,
-  isNodeTitle,
+  isDiscourseNode,
   matchNode,
 } from "../util";
 import createQueryBuilderRender from "../utils/createQueryBuilderRender";
 import localStorageGet from "roamjs-components/util/localStorageGet";
+import { PullBlock } from "roamjs-components/types";
 
 type Props = {
   pageUid: string;
@@ -56,36 +57,42 @@ const LoadingDiscourseData = ({
 }: { onClose: () => void } & LoadingProps) => {
   const [numPages, setNumPages] = useState(0);
   const allPages = useMemo(
-    () => getAllPageNames().filter((p) => isNodeTitle(p)),
+    () =>
+      window.roamAlphaAPI.data.fast
+        .q("[:find (pull ?b [:block/uid]) :where [?b :node/title _]]")
+        .map((p) => (p[0] as PullBlock)[":block/uid"])
+        .filter(isDiscourseNode),
     []
   );
-  const nodes = useMemo(getNodes, []);
   const relations = useMemo(getRelations, []);
+  const nodes = useMemo(() => getNodes(relations), [relations]);
   useEffect(() => {
     const cyNodes = new Set<string>();
     const edges: CyData["elements"]["edges"] = [];
 
     Promise.all(
-      allPages.map((title, index) =>
-        getDiscourseContextResults({ title, nodes, relations }).then(
-          (results) => {
-            cyNodes.add(title);
-            results.forEach((res) =>
-              Object.values(res.results)
-                .filter((r) => !r.complement && title !== r.text)
-                .forEach((r) => {
-                  cyNodes.add(r.text);
-                  edges.push({
-                    source: title,
-                    label: res.label,
-                    target: r.text,
-                    id: r.id,
-                  });
-                })
-            );
-            setNumPages(index + 1);
-          }
-        )
+      allPages.map((uid, index) =>
+        getDiscourseContextResults({
+          uid,
+          nodes,
+          relations,
+        }).then((results) => {
+          cyNodes.add(uid);
+          results.forEach((res) =>
+            Object.values(res.results)
+              .filter((r) => !r.complement && uid !== r.text)
+              .forEach((r) => {
+                cyNodes.add(r.text);
+                edges.push({
+                  source: uid,
+                  label: res.label,
+                  target: r.text,
+                  id: r.id,
+                });
+              })
+          );
+          setNumPages(index + 1);
+        })
       )
     ).then(() => {
       onClose();
@@ -97,9 +104,8 @@ const LoadingDiscourseData = ({
             label: id,
             filterId: nodes.find((n) =>
               matchNode({
-                format: n.format,
                 title: id,
-                specification: n.specification,
+                ...n,
               })
             )?.type,
           })),

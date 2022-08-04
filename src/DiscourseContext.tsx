@@ -5,7 +5,7 @@ import { getDiscourseContextResults } from "./util";
 import createQueryBuilderRender from "./utils/createQueryBuilderRender";
 
 type Props = {
-  title: string;
+  uid: string;
   results?: Awaited<ReturnType<typeof getDiscourseContextResults>>;
 };
 
@@ -89,17 +89,16 @@ const ContextTab = ({
   );
 };
 
-export const ContextContent = ({ title, results }: Props) => {
+export const ContextContent = ({ uid, results }: Props) => {
   const [queryResults, setQueryResults] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    (results ? Promise.resolve(results) : getDiscourseContextResults({ title }))
+    (results ? Promise.resolve(results) : getDiscourseContextResults({ uid }))
       .then((q) =>
         setQueryResults(q.filter((r) => !!Object.keys(r.results).length))
       )
       .finally(() => setLoading(false));
-  }, [title, results, setQueryResults, setLoading]);
-  const parentUid = useMemo(() => getPageUidByPageTitle(title), [title]);
+  }, [uid, results, setQueryResults, setLoading]);
   const [tabId, setTabId] = useState(0);
   const [groupByTarget, setGroupByTarget] = useState(false);
   return queryResults.length ? (
@@ -113,7 +112,7 @@ export const ContextContent = ({ title, results }: Props) => {
           panel={
             <ContextTab
               key={i}
-              parentUid={parentUid}
+              parentUid={uid}
               r={r}
               groupByTarget={groupByTarget}
               setGroupByTarget={setGroupByTarget}
@@ -129,7 +128,7 @@ export const ContextContent = ({ title, results }: Props) => {
   );
 };
 
-const DiscourseContext = ({ title }: Props) => {
+const DiscourseContext = ({ uid }: Props) => {
   const [caretShown, setCaretShown] = useState(false);
   const [caretOpen, setCaretOpen] = useState(false);
   return (
@@ -154,7 +153,7 @@ const DiscourseContext = ({ title }: Props) => {
         </div>
       </div>
       <div style={{ paddingLeft: 16 }}>
-        {caretOpen && <ContextContent title={title} />}
+        {caretOpen && <ContextContent uid={uid} />}
       </div>
     </>
   );

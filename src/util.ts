@@ -318,40 +318,49 @@ export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
 
 export const matchNode = ({
   format,
-  title,
   specification,
-}: {
-  format: string;
-  title: string;
-  specification: Condition[];
-}) => {
-  if (specification.length) {
-    const where = specification
-      .flatMap((c) =>
+  text,
+  ...rest
+}: Pick<DiscourseNode, "format" | "specification" | "text"> &
+  (
+    | {
+        title: string;
+      }
+    | { uid: string }
+  )) => {
+  if (specification.length && window.roamjs.extension.queryBuilder) {
+    const where = replaceVariables(
+      [{ from: text, to: "node" }],
+      specification.flatMap((c) =>
         window.roamjs.extension.queryBuilder.conditionToDatalog(c)
       )
-      .map((c) => compileDatalog(c, 0));
+    ).map((c) => compileDatalog(c, 0));
+    const firstClause =
+      "title" in rest
+        ? `[or-join [?node] [?node :node/title "${normalizePageTitle(
+            rest.title
+          )}"] [?node :block/string "${normalizePageTitle(rest.title)}"]]`
+        : `[?node :block/uid "${rest.uid}"]`;
     return !!window.roamAlphaAPI.data.fast.q(
-      `[:find ?node :where [or-join [?node] [?node :node/title "${normalizePageTitle(
-        title
-      )}"] [?node :block/string "${normalizePageTitle(title)}"]] ${where.join(
-        " "
-      )}]`
+      `[:find ?node :where ${firstClause} ${where.join(" ")}]`
     ).length;
   }
+  const title = "title" in rest ? rest.title : getPageTitleByPageUid(rest.uid);
   return getNodeFormatExpression(format).test(title);
 };
 
 export const getNodeFormatExpression = (format: string) =>
-  new RegExp(
-    `^${format
-      .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
-      .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`,
-    "s"
-  );
+  format
+    ? new RegExp(
+        `^${format
+          .replace(/(\[|\]|\?|\.|\+)/g, "\\$1")
+          .replace(/{[a-zA-Z]+}/g, "(.*?)")}$`,
+        "s"
+      )
+    : /$^/;
 
-export const isNodeTitle = (title: string) =>
-  getNodes().some((n) => getNodeFormatExpression(n.format).test(title));
+export const isDiscourseNode = (uid: string) =>
+  getNodes().some((n) => matchNode({ ...n, uid }));
 
 export const getNodeReferenceChildren = (title: string) => {
   const container = document.createElement("div");
@@ -402,6 +411,17 @@ export const replaceVariables = (
             }
             return replaceVariable(a);
           }),
+          ...(c.type === "fn-expr"
+            ? {
+                binding:
+                  c.binding.type === "bind-scalar"
+                    ? {
+                        variable: replaceVariable(c.binding.variable),
+                        type: "bind-scalar",
+                      }
+                    : c.binding,
+              }
+            : {}),
         };
       case "not-join-clause":
       case "or-join-clause":
@@ -424,49 +444,68 @@ export const replaceVariables = (
 };
 
 export const nodeFormatToDatalog = ({
-  nodeFormat = "",
   freeVar,
-  nodeSpec = [],
-}: {
-  nodeFormat?: string;
+  ...node
+}: DiscourseNode & {
   freeVar: string;
-  nodeSpec?: Condition[];
 }): DatalogClause[] => {
-  if (nodeSpec.length) {
-    const clauses = nodeSpec.flatMap(
+  if (node.specification.length) {
+    const clauses = node.specification.flatMap(
       window.roamjs.extension.queryBuilder.conditionToDatalog
     );
-    replaceVariables([{ from: "node", to: freeVar }], clauses);
-    return clauses;
+    return replaceVariables([{ from: node.text, to: freeVar }], clauses);
   }
   return window.roamjs.extension.queryBuilder.conditionToDatalog({
     source: freeVar,
     relation: "has title",
-    target: `/${getNodeFormatExpression(nodeFormat).source}/`,
+    target: `/${getNodeFormatExpression(node.format).source}/`,
     type: "clause",
     uid: window.roamAlphaAPI.util.generateUID(),
   });
 };
 
-export const getNodes = () =>
-  Object.entries(treeRef.nodes).map(([type, { text, children }]) => {
-    const spec = getSubTree({
-      tree: children,
-      key: "specification",
-    });
-    const specTree = spec.children;
-    return {
-      format: getSettingValueFromTree({ tree: children, key: "format" }),
-      text,
-      shortcut: getSettingValueFromTree({ tree: children, key: "shortcut" }),
-      type,
-      specification:
-        !!getSubTree({ tree: specTree, key: "enabled" }).uid &&
-        window.roamjs.loaded.has("query-builder")
-          ? window.roamjs.extension.queryBuilder.parseQuery(spec.uid).conditions
-          : [],
-    };
-  });
+export const getNodes = (relations = getRelations()) =>
+  Object.entries(treeRef.nodes)
+    .map(([type, { text, children }]) => {
+      const spec = getSubTree({
+        tree: children,
+        key: "specification",
+      });
+      const specTree = spec.children;
+      return {
+        format: getSettingValueFromTree({ tree: children, key: "format" }),
+        text,
+        shortcut: getSettingValueFromTree({ tree: children, key: "shortcut" }),
+        type,
+        specification:
+          !!getSubTree({ tree: specTree, key: "enabled" }).uid &&
+          window.roamjs.loaded.has("query-builder")
+            ? window.roamjs.extension.queryBuilder.parseQuery(spec.uid)
+                .conditions
+            : [],
+        isRelationBacked: false,
+      };
+    })
+    .concat(
+      relations
+        .filter((r) => r.triples.some((t) => t.some((n) => /anchor/i.test(n))))
+        .map((r) => ({
+          format: "",
+          text: r.label,
+          type: r.id,
+          shortcut: r.label.slice(0, 1),
+          specification: r.triples.map(([source, relation, target]) => ({
+            type: "clause",
+            source,
+            relation,
+            target,
+            uid: window.roamAlphaAPI.util.generateUID(),
+          })),
+          isRelationBacked: true,
+        }))
+    );
+
+export type DiscourseNode = ReturnType<typeof getNodes>[number];
 
 export const getRelations = () =>
   (
@@ -572,17 +611,15 @@ const resultCache: Record<
 const CACHE_TIMEOUT = 1000 * 60 * 5;
 
 export const getDiscourseContextResults = async ({
-  title,
-  nodes = getNodes(),
+  uid,
   relations = getRelations(),
+  nodes = getNodes(relations),
 }: {
-  title: string;
+  uid: string;
   nodes?: ReturnType<typeof getNodes>;
   relations?: ReturnType<typeof getRelations>;
 }) => {
-  const nodeType = nodes.find(({ format, specification }) =>
-    matchNode({ format, title, specification })
-  )?.type;
+  const nodeType = nodes.find((n) => matchNode({ uid, ...n }))?.type;
   const nodeTextByType = Object.fromEntries(
     nodes.map(({ type, text }) => [type, text])
   );
@@ -609,7 +646,7 @@ export const getDiscourseContextResults = async ({
         const target = complement ? r.source : r.destination;
         const label = complement ? r.complement : r.label;
         const returnNode = nodeTextByType[target];
-        const cacheKey = `${title}~${label}~${target}`;
+        const cacheKey = `${uid}~${label}~${target}`;
         const conditionUid = window.roamAlphaAPI.util.generateUID();
         const resultsPromise = resultCache[cacheKey]
           ? Promise.resolve(resultCache[cacheKey])
@@ -621,7 +658,7 @@ export const getDiscourseContextResults = async ({
                     source: returnNode,
                     // NOTE! This MUST be the OPPOSITE of `label`
                     relation: complement ? r.label : r.complement,
-                    target: title,
+                    target: getPageTitleByPageUid(uid),
                     uid: conditionUid,
                     type: "clause",
                   },
@@ -668,7 +705,7 @@ export const getDiscourseContextResults = async ({
         ...a,
         context: contextUid as string,
       }))
-      .filter((a) => a.text !== title)
+      .filter((a) => a.uid !== uid)
       .forEach(
         (res) =>
           (groupedResults[r.label][res.uid] = {

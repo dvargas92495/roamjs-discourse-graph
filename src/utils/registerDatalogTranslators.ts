@@ -58,18 +58,18 @@ const registerDatalogTranslators = () => {
               type: "and-clause" as const,
               clauses: nodeFormatToDatalog({
                 freeVar: "any",
-                nodeFormat: dn.format,
+                ...dn
               }),
             })),
           },
         ]
       : nodeFormatToDatalog({
           freeVar: source,
-          nodeFormat: nodeByTypeOrText[target].format,
-          nodeSpec: nodeByTypeOrText[target].specification,
+          ...nodeByTypeOrText[target],
         });
   };
-  const discourseNodes = getNodes();
+  const discourseRelations = getRelations();
+  const discourseNodes = getNodes(discourseRelations);
   registerDatalogTranslator({
     key: "is a",
     callback: isACallback,
@@ -143,7 +143,6 @@ const registerDatalogTranslators = () => {
     placeholder: "Enter query label",
   });
 
-  const discourseRelations = getRelations();
   const nodeLabelByType = Object.fromEntries(
     discourseNodes.map((n) => [n.type, n.text])
   );
@@ -159,24 +158,31 @@ const registerDatalogTranslators = () => {
     const targetType = nodeLabelByType[relation.destination];
     const sourceMatches =
       sourceType === condition.source || relation.source === "*";
+    const targetNode = nodeByType[relation.destination];
     const targetMatches =
       targetType === condition.target ||
       relation.destination === "*" ||
       matchNode({
-        format: nodeByType[relation.destination].format,
-        specification: nodeByType[relation.destination].specification,
+        ...targetNode,
         title: condition.target,
+      }) ||
+      matchNode({
+        ...targetNode,
+        uid: condition.target,
       });
     if (sourceMatches) {
       return (
         targetMatches ||
         (!nodeTypeByLabel[condition.target.toLowerCase()] &&
-          Object.values(nodeByType).every(
+          !Object.values(nodeByType).some(
             (node) =>
-              !matchNode({
-                format: node.format,
-                specification: node.specification,
+              matchNode({
+                ...node,
                 title: condition.target,
+              }) ||
+              matchNode({
+                ...node,
+                uid: condition.target,
               })
           ))
       );
@@ -305,8 +311,7 @@ const registerDatalogTranslators = () => {
         return pageNames.filter((p) =>
           sourcedRelations.some((sr) =>
             matchNode({
-              format: nodeByType[sr.target].format,
-              specification: nodeByType[sr.target].specification,
+              ...nodeByType[sr.target],
               title: p,
             })
           )

@@ -41,6 +41,7 @@ const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
   return (
     <>
       <div style={{ display: "flex", marginBottom: 8 }}>
+        <p>This tab is deprecated - we recommend creating custom queries in for notification dashboards instead.</p>
         <Label>
           Type
           <MenuItemSelect

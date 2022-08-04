@@ -46,7 +46,7 @@ import {
   getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
-  isNodeTitle,
+  isDiscourseNode,
   matchNode,
 } from "./util";
 import refreshConfigTree from "./utils/refreshConfigTree";
@@ -81,6 +81,7 @@ import type {
   Field,
   SelectField,
   FlagField,
+  TextField,
 } from "roamjs-components/components/ConfigPanels/types";
 import { render as versioning } from "roamjs-components/components/VersionSwitcher";
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
@@ -116,7 +117,10 @@ const overlayPageRefHandler = (s: HTMLSpanElement) => {
     const tag =
       s.getAttribute("data-tag") ||
       s.parentElement.getAttribute("data-link-title");
-    if (!s.getAttribute("data-roamjs-discourse-overlay") && isNodeTitle(tag)) {
+    if (
+      !s.getAttribute("data-roamjs-discourse-overlay") &&
+      isDiscourseNode(getPageUidByPageTitle(tag))
+    ) {
       s.setAttribute("data-roamjs-discourse-overlay", "true");
       const parent = document.createElement("span");
       discourseOverlayRender({
@@ -187,11 +191,6 @@ export default runExtension({
 
 .roamjs-discourse-context-title:hover { 
   text-decoration: underline;
-}
-
-.roamjs-discourse-config-format {
-  flex-grow: 1;
-  padding-right: 8px;
 }
 
 .roamjs-discourse-edit-relations {
@@ -337,6 +336,10 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 
 .roamjs-discourse-playground-dialog textarea {
   min-height: 96px;
+}
+
+.bp3-tabs.bp3-vertical>.bp3-tab-panel {
+  flex-grow: 1;
 }`);
 
     const { pageUid } = await createConfigObserver({
@@ -368,6 +371,21 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
                   onChange: onPageRefObserverChange(previewPageRefHandler),
                 },
               } as Field<FlagField>,
+              {
+                title: "render references",
+                Panel: FlagPanel,
+                description:
+                  "Whether or not to render linked references within outline sidebar",
+              },
+              {
+                title: "subscriptions",
+                description:
+                  "Subscription User Settings to notify you of latest changes",
+                Panel: CustomPanel,
+                options: {
+                  component: SubscriptionConfigPanel,
+                },
+              } as Field<CustomField>,
             ],
           },
           {
@@ -403,21 +421,6 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
               } as Field<FlagField>,
             ],
           },
-          {
-            id: "subscriptions",
-            fields: [
-              {
-                title: user,
-                Panel: CustomPanel,
-                description:
-                  "Subscription User Settings to notify you of latest changes",
-                options: {
-                  component: SubscriptionConfigPanel,
-                },
-              } as Field<CustomField>,
-            ],
-          },
-          { id: "render references", fields: [], toggleable: true },
           {
             id: "export",
             fields: [
@@ -621,11 +624,11 @@ We expect that there will be no disruption in functionality. If you see issues a
 
         registerSelection({
           test: /^discourse:(.*)$/,
-          pull: ({ returnNode }) => `(pull ?${returnNode} [:node/title])`,
+          pull: ({ returnNode }) => `(pull ?${returnNode} [:block/uid])`,
           mapper: (r, key) => {
             const attribute = key.substring("discourse:".length);
-            const title = r[":node/title"] || "";
-            return deriveNodeAttribute({ title, attribute });
+            const uid = r[":block/uid"] || "";
+            return deriveNodeAttribute({ uid, attribute });
           },
         });
 
@@ -638,9 +641,8 @@ We expect that there will be no disruption in functionality. If you see issues a
             return (
               getNodes().find((n) =>
                 matchNode({
-                  format: n.format,
+                  ...n,
                   title,
-                  specification: n.specification,
                 })
               )?.text || (r[":block/string"] ? "block" : "page")
             );
@@ -941,7 +943,10 @@ We expect that there will be no disruption in functionality. If you see issues a
                     description: `The format ${nodeText} pages should have.`,
                     defaultValue: "\\",
                     Panel: TextPanel,
-                  },
+                    options: {
+                      placeholder: `Include "{content}" in format`,
+                    },
+                  } as Field<TextField>,
                   {
                     title: "Specification",
                     description: `The conditions specified to identify a ${nodeText} node.`,
@@ -1067,22 +1072,24 @@ We expect that there will be no disruption in functionality. If you see issues a
     createHTMLObserver({
       tag: "DIV",
       className: "rm-reference-main",
-      callback: (d: HTMLDivElement) => {
-        const title = elToTitle(getPageTitleByHtmlElement(d));
+      callback: async (d: HTMLDivElement) => {
+        const isMain = !!d.closest(".roam-article");
+        const uid = isMain
+          ? await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid()
+          : getPageUidByPageTitle(elToTitle(getPageTitleByHtmlElement(d)));
         if (
-          isNodeTitle(title) &&
+          isDiscourseNode(uid) &&
           !d.getAttribute("data-roamjs-discourse-context")
         ) {
           d.setAttribute("data-roamjs-discourse-context", "true");
           const parent =
-            d.querySelector("div.rm-reference-container") ||
-            d.children[0]?.children[0];
+            d.querySelector("div.rm-reference-container") || d.children[0];
           if (parent) {
             const p = document.createElement("div");
             parent.parentElement.insertBefore(p, parent);
             contextRender({
               parent: p,
-              title: elToTitle(getPageTitleByHtmlElement(d)),
+              uid,
             });
           }
         }
@@ -1101,7 +1108,7 @@ We expect that there will be no disruption in functionality. If you see issues a
               const title = elToTitle(
                 d.querySelector<HTMLHeadingElement>(".rm-title-display")
               );
-              if (isNodeTitle(title)) {
+              if (isDiscourseNode(getPageUidByPageTitle(title))) {
                 const container = getNodeReferenceChildren(title);
                 d.appendChild(container);
               }

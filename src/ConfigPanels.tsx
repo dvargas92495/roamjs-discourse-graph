@@ -45,7 +45,9 @@ import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageU
 import updateBlock from "roamjs-components/writes/updateBlock";
 
 export const NodeConfigPanel: Panel = ({}) => {
-  const [nodes, setNodes] = useState(getNodes);
+  const [nodes, setNodes] = useState(() =>
+    getNodes().filter((n) => !n.isRelationBacked)
+  );
   const [format, setFormat] = useState("");
   const [label, setLabel] = useState("");
   const [shortcut, setShortcut] = useState("");
@@ -59,40 +61,29 @@ export const NodeConfigPanel: Panel = ({}) => {
           className={"roamjs-discourse-config-label"}
         />
       </Label>
-      <div style={{ display: "flex", marginBottom: 8 }}>
-        <Label className={"roamjs-discourse-config-format"}>
-          Format
-          <InputGroup
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            style={{ flexGrow: 1, paddingRight: 8 }}
-            placeholder={`Include "{content}" in format`}
-          />
-        </Label>
-        <Label>
-          Shortcut
-          <InputGroup
-            value={shortcut}
-            onChange={(e) =>
-              setShortcut(e.target.value.slice(-1).toUpperCase())
-            }
-            style={{ maxWidth: 72 }}
-          />
-        </Label>
-      </div>
       <Button
         text={"Add Node"}
         intent={Intent.PRIMARY}
         rightIcon={"plus"}
         minimal
         style={{ marginBottom: 8 }}
-        disabled={!format || !shortcut || !label}
+        disabled={!label}
         onClick={() => {
           createPage({
             title: `discourse-graph/nodes/${label}`,
             tree: [
-              { text: "Shortcut", children: [{ text: shortcut }] },
-              { text: "Format", children: [{ text: format }] },
+              {
+                text: "Shortcut",
+                children: [{ text: label.slice(0, 1).toUpperCase() }],
+              },
+              {
+                text: "Format",
+                children: [
+                  {
+                    text: `[[${label.slice(0, 3).toUpperCase()}]] - {content}`,
+                  },
+                ],
+              },
             ],
           }).then((valueUid) => {
             setNodes([
@@ -103,6 +94,7 @@ export const NodeConfigPanel: Panel = ({}) => {
                 text: label,
                 shortcut,
                 specification: [],
+                isRelationBacked: false,
               },
             ]);
             refreshConfigTree();
@@ -122,33 +114,23 @@ export const NodeConfigPanel: Panel = ({}) => {
           return (
             <li
               key={n.type}
-              style={{ border: "1px dashed #80808080", padding: 4 }}
+              style={{ border: "1px dashed #80808080" }}
+              className={"p-2"}
             >
-              <H6
-                style={{ margin: 0, cursor: "pointer" }}
-                onClick={() =>
-                  window.roamAlphaAPI.ui.mainWindow.openPage({
-                    page: { uid: n.type },
-                  })
-                }
-              >
-                {n.text}
-              </H6>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <span style={{ display: "inline-block", minWidth: 200 }}>
-                  <b>Format: </b> {n.format}
-                </span>
-                <span>
-                  <b>Shortcut: </b> {n.shortcut}
-                </span>
+              <div className="flex justify-between items-center">
+                <H6
+                  className={"flex-grow m-0 cursor-pointer"}
+                  onClick={() =>
+                    window.roamAlphaAPI.ui.mainWindow.openPage({
+                      page: { uid: n.type },
+                    })
+                  }
+                >
+                  {n.text}
+                </H6>
                 <Button
                   icon={"trash"}
+                  minimal
                   onClick={() => {
                     window.roamAlphaAPI
                       .deletePage({ page: { uid: n.type } })
@@ -188,6 +170,11 @@ const RelationEditPreview = ({ previewUid }: { previewUid: string }) => {
     <div ref={containerRef} className={"roamjs-discourse-editor-preview"}></div>
   );
 };
+
+const edgeDisplayByUid = (uid: string) =>
+  uid === "*"
+    ? "Any"
+    : getPageTitleByPageUid(uid).replace(/^discourse-graph\/nodes\//, "");
 
 const RelationEditPanel = ({
   editingRelationInfo,
@@ -248,13 +235,7 @@ const RelationEditPanel = ({
     []
   );
   const initialSource = useMemo(
-    () =>
-      initialSourceUid === "*"
-        ? "Any"
-        : getPageTitleByPageUid(initialSourceUid).replace(
-            /^discourse-graph\/nodes\//,
-            ""
-          ),
+    () => edgeDisplayByUid(initialSourceUid),
     [initialSourceUid]
   );
   const [source, setSource] = useState(initialSourceUid);
@@ -267,13 +248,7 @@ const RelationEditPanel = ({
     []
   );
   const initialDestination = useMemo(
-    () =>
-      initialDestinationUid === "*"
-        ? "Any"
-        : getPageTitleByPageUid(initialDestinationUid).replace(
-            /^discourse-graph\/nodes\//,
-            ""
-          ),
+    () => edgeDisplayByUid(initialDestinationUid),
     [initialDestinationUid]
   );
   const [destination, setDestination] = useState(initialDestinationUid);
@@ -990,13 +965,18 @@ const RelationEditPanel = ({
                       },
                     ]),
                 }));
-              getShallowTreeByParentUid(ifUid).forEach(({ uid }) =>
-                deleteBlock(uid)
+              await Promise.all(
+                getShallowTreeByParentUid(ifUid).map(({ uid }) =>
+                  deleteBlock(uid)
+                )
               );
-              blocks.forEach((block, order) =>
-                createBlock({ parentUid: ifUid, node: block, order })
+              await Promise.all(
+                blocks.map((block, order) =>
+                  createBlock({ parentUid: ifUid, node: block, order })
+                )
               );
-              setTimeout(back, 1);
+              refreshConfigTree();
+              back();
             }, 1);
           }}
         />

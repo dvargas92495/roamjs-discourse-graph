@@ -13,7 +13,7 @@ import getAttributeValueByBlockAndName from "roamjs-components/queries/getAttrib
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 
 const getRelatedResults = ({
-  title,
+  uid,
   nodes,
   relations,
   relationLabel,
@@ -23,7 +23,7 @@ const getRelatedResults = ({
   target: string;
 }) =>
   getDiscourseContextResults({
-    title,
+    uid,
     nodes,
     relations: ANY_RELATION_REGEX.test(relationLabel)
       ? relations
@@ -38,16 +38,14 @@ const getRelatedResults = ({
 
 const deriveNodeAttribute = async ({
   attribute,
-  title,
+  uid,
 }: {
   attribute: string;
-  title: string;
+  uid: string;
 }): Promise<string | number> => {
-  const nodes = getNodes();
   const relations = getRelations();
-  const nodeType = nodes.find((n) =>
-    matchNode({ format: n.format, title, specification: n.specification })
-  )?.type;
+  const nodes = getNodes(relations);
+  const nodeType = nodes.find((n) => matchNode({ uid, ...n }))?.type;
   const attributeNode = getSubTree({
     tree: getBasicTreeByParentUid(nodeType || ""),
     key: "Attributes",
@@ -65,7 +63,7 @@ const deriveNodeAttribute = async ({
     const value =
       op === "count"
         ? await getRelatedResults({
-            title,
+            uid,
             nodes,
             relations,
             relationLabel: args[0],
@@ -74,16 +72,16 @@ const deriveNodeAttribute = async ({
         : op === "attribute"
         ? getAttributeValueByBlockAndName({
             name: args[0],
-            uid: getPageUidByPageTitle(title),
+            uid,
           })
         : op === "discourse"
         ? await deriveNodeAttribute({
-            title,
+            uid,
             attribute: args[0],
           })
         : op === "sum"
         ? await getRelatedResults({
-            title,
+            uid,
             nodes,
             relations,
             relationLabel: args[0],
@@ -92,7 +90,7 @@ const deriveNodeAttribute = async ({
             .then((results) =>
               Promise.all(
                 results.map((r) =>
-                  deriveNodeAttribute({ attribute: args[2], title: r.text })
+                  deriveNodeAttribute({ attribute: args[2], uid: r.uid })
                 )
               )
             )
@@ -101,7 +99,7 @@ const deriveNodeAttribute = async ({
             )
         : op === "average"
         ? await getRelatedResults({
-            title,
+            uid,
             nodes,
             relations,
             relationLabel: args[0],
@@ -110,7 +108,7 @@ const deriveNodeAttribute = async ({
             .then((results) =>
               Promise.all(
                 results.map((r) =>
-                  deriveNodeAttribute({ attribute: args[2], title: r.text })
+                  deriveNodeAttribute({ attribute: args[2], uid: r.uid })
                 )
               )
             )

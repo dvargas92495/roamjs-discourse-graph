@@ -19,7 +19,11 @@ import { getNodes, nodeFormatToDatalog } from "./util";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getSubTree from "roamjs-components/util/getSubTree";
-import { InputTextNode, RoamBasicNode } from "roamjs-components/types";
+import {
+  InputTextNode,
+  PullBlock,
+  RoamBasicNode,
+} from "roamjs-components/types/native";
 
 type Props = {
   textarea: HTMLTextAreaElement;
@@ -53,19 +57,19 @@ const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
             new RegExp(text, "i").test(val)
           );
           if (referencedNode) {
-            const referencedTitle =
-              window.roamAlphaAPI.q(
-                `[:find ?t :where [?b :block/uid "${blockUid}"] (or-join [?b ?r] (and [?b :block/parents ?p] [?p :block/refs ?r]) (and [?b :block/page ?r])) ${nodeFormatToDatalog(
-                  {
-                    freeVar: "r",
-                    nodeFormat: referencedNode.format,
-                    nodeSpec: referencedNode.specification,
-                  }
-                )
-                  .map((c) => compileDatalog(c, 0))
-                  .join(" ")}]`
-              )?.[0]?.[0] || "";
-            return referencedTitle ? `[[${referencedTitle}]]` : "";
+            const referenced = window.roamAlphaAPI.data.fast.q(
+              `[:find (pull ?r [:node/title :block/string]) :where [?b :block/uid "${blockUid}"] (or-join [?b ?r] (and [?b :block/parents ?p] [?p :block/refs ?r]) (and [?b :block/page ?r])) ${nodeFormatToDatalog(
+                {
+                  freeVar: "r",
+                  ...referencedNode,
+                }
+              )
+                .map((c) => compileDatalog(c, 0))
+                .join(" ")}]`
+            )?.[0]?.[0] as PullBlock;
+            return referenced?.[":node/title"]
+              ? `[[${referenced?.[":node/title"]}]]`
+              : referenced?.[":block/string"] || "";
           }
           return "";
         });

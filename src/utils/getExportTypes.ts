@@ -28,9 +28,7 @@ const getContentFromNodes = ({
   title: string;
   allNodes: ReturnType<typeof getNodes>;
 }) => {
-  const nodeFormat = allNodes.find((a) =>
-    matchNode({ title, format: a.format, specification: a.specification })
-  )?.format;
+  const nodeFormat = allNodes.find((a) => matchNode({ title, ...a }))?.format;
   if (!nodeFormat) return title;
   const regex = new RegExp(
     `^${nodeFormat
@@ -181,7 +179,8 @@ const getExportTypes = ({
 }: Props): Parameters<
   typeof window.roamjs.extension.queryBuilder.ExportDialog
 >[0]["exportTypes"] => {
-  const allNodes = getNodes();
+  const allRelations = getRelations();
+  const allNodes = getNodes(allRelations);
   const nodeLabelByType = Object.fromEntries(
     allNodes.map((a) => [a.type, a.text])
   );
@@ -193,7 +192,7 @@ const getExportTypes = ({
         text: title,
         uid,
       }));
-    return allNodes.flatMap(({ format, text, specification }) =>
+    return allNodes.flatMap((n) =>
       (results
         ? results.flatMap((r) =>
             Object.keys(r)
@@ -210,15 +209,15 @@ const getExportTypes = ({
           )
         : allPages
       )
-        .filter(({ text }) => matchNode({ format, title: text, specification }))
-        .map((node) => ({ ...node, type: text }))
+        .filter(({ text }) => matchNode({ title: text, ...n }))
+        .map((node) => ({ ...node, type: n.text }))
     );
   };
   const getRelationData = (rels?: ReturnType<typeof getRelations>) =>
     relations
       ? Promise.resolve(relations)
       : Promise.all(
-          (rels || getRelations())
+          (rels || allRelations)
             .filter(
               (s) =>
                 s.triples.some((t) => t[2] === "source") &&
@@ -253,7 +252,6 @@ const getExportTypes = ({
             })
         ).then((r) => r.flat());
   const getJsonData = () => {
-    const allRelations = getRelations();
     const grammar = allRelations.map(({ label, destination, source }) => ({
       label,
       destination: nodeLabelByType[destination],
@@ -380,7 +378,7 @@ const getExportTypes = ({
               type,
             };
             const treeNode = getFullTreeByParentUid(uid);
-            return getDiscourseContextResults({ title: text }).then(
+            return getDiscourseContextResults({ uid }).then(
               (discourseResults) => {
                 const referenceResults = isFlagEnabled("render references")
                   ? window.roamAlphaAPI
