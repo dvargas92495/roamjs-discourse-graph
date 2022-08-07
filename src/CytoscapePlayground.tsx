@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import ReactDOM from "react-dom";
 import cytoscape from "cytoscape";
 import {
   Button,
@@ -14,15 +13,12 @@ import {
   Icon,
   InputGroup,
   Intent,
-  Menu,
-  MenuItem,
   Position,
   Tooltip,
 } from "@blueprintjs/core";
 import createBlock from "roamjs-components/writes/createBlock";
 import createPage from "roamjs-components/writes/createPage";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
-import getAllPageNames from "roamjs-components/queries/getAllPageNames";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import type { InputTextNode, RoamBasicNode } from "roamjs-components/types";
@@ -43,7 +39,6 @@ import {
 } from "./util";
 import editCursor from "./cursors/edit.png";
 import trashCursor from "./cursors/trash.png";
-import fuzzy from "fuzzy";
 import triplesToBlocks from "./utils/triplesToBlocks";
 import { renderLoading } from "roamjs-components/components/Loading";
 import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
