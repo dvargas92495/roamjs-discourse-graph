@@ -602,16 +602,16 @@ const RelationEditPanel = ({
       .then(() => updateBlock({ uid: previewUid, open: true }))
       .then(() => {
         let order = 0;
-        triplesToBlocks({
+        return triplesToBlocks({
           defaultPageTitle: "Any Page",
           toPage: (text, children) =>
             createBlock({
               node: { text, children, open: true },
               parentUid: previewUid,
               order: order++,
-            }),
+            }).then(() => Promise.resolve()),
           nodeFormatsByLabel,
-        })(triples);
+        })(triples)();
       });
   }, [previewUid, tab, elementsRef, nodeFormatsByLabel]);
   return (

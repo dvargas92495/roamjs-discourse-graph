@@ -57,7 +57,9 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
                     title,
                   })
                     .then(() => {
-                      const parentUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
+                      const parentUid = window.roamAlphaAPI.util.dateToPageUid(
+                        new Date()
+                      );
                       return createBlock({
                         node: { text: `[[${title}]]` },
                         parentUid,
@@ -76,6 +78,11 @@ const ImportDialog = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-export const render = createOverlayRender("discourse-import", ImportDialog);
+type Props = {};
+
+export const render = createOverlayRender<Props>(
+  "discourse-import",
+  ImportDialog
+);
 
 export default ImportDialog;

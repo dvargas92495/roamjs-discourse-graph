@@ -27,17 +27,22 @@ const ExportDialog = ({
     if (fromQuery) return fromQuery;
     const discourseNodes = getNodes();
     return {
-      nodes: window.roamAlphaAPI.data.fast
-        .q(
-          `[:find (pull ?p [:node/title :block/uid]) :where [?p :node/title _]]`
-        )
-        .map((a) => a[0] as PullBlock)
-        .map((a) => ({
-          text: a[":node/title"] as string,
-          uid: a[":block/uid"] as string,
-        }))
-        .filter((a) =>
-          discourseNodes.some((n) => matchNode({ title: a.text || "", ...n }))
+      nodes: () =>
+        Promise.resolve(
+          window.roamAlphaAPI.data.fast
+            .q(
+              `[:find (pull ?p [:node/title :block/uid]) :where [?p :node/title _]]`
+            )
+            .map((a) => a[0] as PullBlock)
+            .map((a) => ({
+              text: a[":node/title"] as string,
+              uid: a[":block/uid"] as string,
+            }))
+            .filter((a) =>
+              discourseNodes.some((n) =>
+                matchNode({ title: a.text || "", ...n })
+              )
+            )
         ),
       relations: undefined,
     };

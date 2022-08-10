@@ -271,6 +271,8 @@ const BlockFeedContent = () => {
   );
 };
 
+type Props = {};
+
 const BlockFeed = ({ onClose }: { onClose: () => void }) => {
   return (
     <ResizableDrawer onClose={onClose} title={"Block Feed"}>
@@ -279,4 +281,4 @@ const BlockFeed = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-export const render = createOverlayRender("block-feed", BlockFeed);
+export const render = createOverlayRender<Props>("block-feed", BlockFeed);

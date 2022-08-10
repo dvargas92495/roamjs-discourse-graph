@@ -165,7 +165,9 @@ const toMarkdown = ({
 };
 
 type Props = {
-  results?: Result[];
+  results?: Parameters<
+    typeof window.roamjs.extension.queryBuilder.ExportDialog
+  >[0]["results"];
   relations?: {
     target: string;
     source: string;
@@ -185,16 +187,18 @@ const getExportTypes = ({
     allNodes.map((a) => [a.type, a.text])
   );
   nodeLabelByType["*"] = "Any";
-  const getPageData = (): (Result & { type: string })[] => {
+  const getPageData = async (): Promise<(Result & { type: string })[]> => {
     const allPages = window.roamAlphaAPI
       .q("[:find (pull ?e [:block/uid :node/title]) :where [?e :node/title _]]")
       .map(([{ title, uid }]: [Record<string, string>]) => ({
         text: title,
         uid,
       }));
+    const allResults =
+      typeof results === "function" ? await results() : results;
     return allNodes.flatMap((n) =>
-      (results
-        ? results.flatMap((r) =>
+      (allResults
+        ? allResults.flatMap((r) =>
             Object.keys(r)
               .filter((k) => k.endsWith(`-uid`))
               .map((k) => ({
@@ -251,13 +255,13 @@ const getExportTypes = ({
                     );
             })
         ).then((r) => r.flat());
-  const getJsonData = () => {
+  const getJsonData = async () => {
     const grammar = allRelations.map(({ label, destination, source }) => ({
       label,
       destination: nodeLabelByType[destination],
       source: nodeLabelByType[source],
     }));
-    const nodes = getPageData().map(({ text, uid }) => {
+    const nodes = (await getPageData()).map(({ text, uid }) => {
       const { date, displayName } = getPageMetadata(text);
       const { children } = getFullTreeByParentUid(uid);
       return {
@@ -280,9 +284,9 @@ const getExportTypes = ({
   return [
     {
       name: "Neo4j",
-      callback: ({ filename }) => {
+      callback: async ({ filename }) => {
         const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
-        const nodeData = getPageData()
+        const nodeData = (await getPageData())
           .map(({ text, uid, type }) => {
             const value = text.replace(new RegExp(`^\\[\\[\\w*\\]\\] - `), "");
             const { displayName, date } = getPageMetadata(text);
@@ -360,7 +364,7 @@ const getExportTypes = ({
               "date: {date}",
             ];
         const pages = await Promise.all(
-          getPageData().map(({ text, uid, context: _, type, ...rest }) => {
+          (await getPageData()).map(({ text, uid, context: _, type, ...rest }) => {
             const v = getPageViewType(text) || "bullet";
             const { date, displayName } = getPageMetadata(text);
             const resultCols = Object.keys(rest).filter(

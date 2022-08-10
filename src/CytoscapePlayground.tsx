@@ -1310,7 +1310,6 @@ const CytoscapePlayground = ({
                 onClick={() => {
                   const elementsTree = getBasicTreeByParentUid(elementsUid);
                   const relationData = getRelations();
-                  const recentPageRef: Record<string, string> = {};
                   const recentlyOpened = new Set<string>();
                   const connectedNodeUids = new Set<string>();
                   elementsTree
@@ -1421,24 +1420,28 @@ const CytoscapePlayground = ({
                         target,
                       }));
                     })
-                    .forEach(
+                    .map(
                       triplesToBlocks({
                         defaultPageTitle: `Auto generated from ${title}`,
                         toPage: (title: string, blocks: InputTextNode[]) => {
-                          const parentUid =
-                            getPageUidByPageTitle(title) ||
-                            recentPageRef[title];
-                          (parentUid
-                            ? Promise.resolve(parentUid)
-                            : createPage({
+                          const parentUid = getPageUidByPageTitle(title);
+                          return Promise.resolve(
+                            parentUid ||
+                              createPage({
                                 title: title,
-                              }).then(
-                                (parentUid) =>
-                                  (recentPageRef[title] = parentUid)
-                              )
+                              })
                           ).then((parentUid) => {
                             blocks.forEach((node, order) =>
-                              createBlock({ node, order, parentUid })
+                              createBlock({ node, order, parentUid }).catch(
+                                () =>
+                                  console.error(
+                                    `Failed to create block: ${JSON.stringify(
+                                      { node, order, parentUid },
+                                      null,
+                                      4
+                                    )}`
+                                  )
+                              )
                             );
                             if (!recentlyOpened.has(parentUid)) {
                               recentlyOpened.add(parentUid);
@@ -1450,7 +1453,8 @@ const CytoscapePlayground = ({
                           });
                         },
                       })
-                    );
+                    )
+                    .reduce((p, c) => p.then(c), Promise.resolve());
                 }}
               />
             </Tooltip>

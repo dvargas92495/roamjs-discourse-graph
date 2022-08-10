@@ -4,13 +4,12 @@ import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByPar
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import {
   ANY_RELATION_REGEX,
+  findDiscourseNode,
   getDiscourseContextResults,
   getNodes,
   getRelations,
-  matchNode,
 } from "../util";
 import getAttributeValueByBlockAndName from "roamjs-components/queries/getAttributeValueByBlockAndName";
-import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 
 const getRelatedResults = ({
   uid,
@@ -45,7 +44,9 @@ const deriveNodeAttribute = async ({
 }): Promise<string | number> => {
   const relations = getRelations();
   const nodes = getNodes(relations);
-  const nodeType = nodes.find((n) => matchNode({ uid, ...n }))?.type;
+  const discourseNode = findDiscourseNode(uid, nodes);
+  if (!discourseNode) return 0;
+  const nodeType = discourseNode.type;
   const attributeNode = getSubTree({
     tree: getBasicTreeByParentUid(nodeType || ""),
     key: "Attributes",

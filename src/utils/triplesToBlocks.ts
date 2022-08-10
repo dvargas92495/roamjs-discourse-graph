@@ -7,7 +7,7 @@ const triplesToBlocks =
     nodeFormatsByLabel = {},
   }: {
     defaultPageTitle: string;
-    toPage: (title: string, blocks: InputTextNode[]) => void;
+    toPage: (title: string, blocks: InputTextNode[]) => Promise<void>;
     nodeFormatsByLabel?: Record<string, string>;
   }) =>
   (
@@ -16,7 +16,8 @@ const triplesToBlocks =
       target: string;
       relation: string;
     }[]
-  ) => {
+  ) =>
+  () => {
     const relationToTitle = (source: string) => {
       const rel = triples.find(
         (h) =>
@@ -86,14 +87,16 @@ const triplesToBlocks =
         }),
         {} as Record<string, string[]>
       );
-      Object.entries(pages).forEach((p) =>
-        toPage(
-          relationToTitle(p[0]) || p[0],
-          p[1].map(toBlock).concat(Array.from(blockReferences))
+      return Promise.all(
+        Object.entries(pages).map((p) =>
+          toPage(
+            relationToTitle(p[0]) || p[0],
+            p[1].map(toBlock).concat(Array.from(blockReferences))
+          )
         )
-      );
+      ).then(() => Promise.resolve());
     } else {
-      toPage(
+      return toPage(
         defaultPageTitle,
         Array.from(
           triples.reduce(

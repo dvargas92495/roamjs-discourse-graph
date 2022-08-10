@@ -3,10 +3,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom";
 import { ContextContent } from "../DiscourseContext";
 import {
+  findDiscourseNode,
   getDiscourseContextResults,
   getNodes,
   getRelations,
-  matchNode,
 } from "../util";
 import { useInViewport } from "react-in-viewport";
 import { refreshUi } from "../dataWorkerClient";
@@ -101,24 +101,21 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
         : getOverlayInfo(tag)
       )
         .then(({ refs, results }) => {
-          const nodeType = getNodes().find((n) =>
-            matchNode({
-              uid: tagUid,
-              ...n,
-            })
-          )?.type;
-          const attribute = getSettingValueFromTree({
-            tree: getBasicTreeByParentUid(nodeType),
-            key: "Overlay",
-            defaultValue: "Overlay",
-          });
-          return deriveNodeAttribute({ uid: tagUid, attribute }).then(
-            (score) => {
-              setResults(results);
-              setRefs(refs);
-              setScore(score);
-            }
-          );
+          const discourseNode = findDiscourseNode(tagUid);
+          if (discourseNode) {
+            const attribute = getSettingValueFromTree({
+              tree: getBasicTreeByParentUid(discourseNode.type),
+              key: "Overlay",
+              defaultValue: "Overlay",
+            });
+            return deriveNodeAttribute({ uid: tagUid, attribute }).then(
+              (score) => {
+                setResults(results);
+                setRefs(refs);
+                setScore(score);
+              }
+            );
+          }
         })
         .finally(() => setLoading(false)),
     [tag, setResults, setLoading, setRefs, setScore]

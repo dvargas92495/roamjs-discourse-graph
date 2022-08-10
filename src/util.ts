@@ -18,10 +18,8 @@ import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
 import treeRef from "./utils/configTreeRef";
 import refreshConfigTree from "./utils/refreshConfigTree";
-import { Condition } from "roamjs-components/types/query-builder";
 import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
-import { string } from "mathjs";
 
 export type PanelProps = {
   uid: string;
@@ -359,8 +357,16 @@ export const getNodeFormatExpression = (format: string) =>
       )
     : /$^/;
 
-export const isDiscourseNode = (uid: string) =>
-  getNodes().some((n) => matchNode({ ...n, uid }));
+const discourseNodeTypeCache: Record<string, DiscourseNode | false> = {};
+export const findDiscourseNode = (uid: string, nodes = getNodes()) =>
+  typeof discourseNodeTypeCache[uid] !== "undefined"
+    ? discourseNodeTypeCache[uid]
+    : (discourseNodeTypeCache[uid] = nodes.find((n) =>
+        matchNode({ ...n, uid })
+      )) || false;
+
+export const isDiscourseNode = (uid: string, nodes = getNodes()) =>
+  !!findDiscourseNode(uid, nodes);
 
 export const getNodeReferenceChildren = (title: string) => {
   const container = document.createElement("div");
@@ -626,7 +632,9 @@ export const getDiscourseContextResults = async ({
   nodes?: ReturnType<typeof getNodes>;
   relations?: ReturnType<typeof getRelations>;
 }) => {
-  const nodeType = nodes.find((n) => matchNode({ uid, ...n }))?.type;
+  const discourseNode = findDiscourseNode(uid);
+  if (!discourseNode) return [];
+  const nodeType = discourseNode?.type;
   const nodeTextByType = Object.fromEntries(
     nodes.map(({ type, text }) => [type, text])
   );

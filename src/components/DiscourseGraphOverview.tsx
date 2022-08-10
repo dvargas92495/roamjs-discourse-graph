@@ -56,16 +56,16 @@ const LoadingDiscourseData = ({
   resolve,
 }: { onClose: () => void } & LoadingProps) => {
   const [numPages, setNumPages] = useState(0);
+  const relations = useMemo(getRelations, []);
+  const nodes = useMemo(() => getNodes(relations), [relations]);
   const allPages = useMemo(
     () =>
       window.roamAlphaAPI.data.fast
         .q("[:find (pull ?b [:block/uid]) :where [?b :node/title _]]")
         .map((p) => (p[0] as PullBlock)[":block/uid"])
-        .filter(isDiscourseNode),
-    []
+        .filter((uid) => isDiscourseNode(uid, nodes)),
+    [nodes]
   );
-  const relations = useMemo(getRelations, []);
-  const nodes = useMemo(() => getNodes(relations), [relations]);
   useEffect(() => {
     const cyNodes = new Set<string>();
     const edges: CyData["elements"]["edges"] = [];
