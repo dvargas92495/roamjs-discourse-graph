@@ -878,9 +878,11 @@ const CytoscapePlayground = ({
           `[:block/uid "${elementsUid}"]`,
           (b, a) => {
             const before = new Set(
-              b[":block/children"].map((c) => c[":db/id"])
+              (b?.[":block/children"] || []).map((c) => c[":db/id"])
             );
-            const after = a[":block/children"].map((c) => c[":db/id"]);
+            const after = (a?.[":block/children"] || []).map(
+              (c) => c[":db/id"]
+            );
             const newNodes = after
               .filter((c) => !before.has(c))
               .map((n) =>
@@ -1233,25 +1235,26 @@ const CytoscapePlayground = ({
                             ];
                           return {
                             node: n.text,
-                            uid: n.uid,
+                            cyId: n.uid,
                             type: getNodeType(n),
                           };
                         })
                         .filter((e) => !!e.type)
-                        .map((e) =>
-                          getDiscourseContextResults({
-                            uid: e.uid,
+                        .map((e) => {
+                          const uid = getPageUidByPageTitle(e.node);
+                          return getDiscourseContextResults({
+                            uid,
                             nodes: nodeData,
                             relations: relationData,
                           }).then((results) => ({
-                            id: e.uid,
-                            uid: getPageUidByPageTitle(e.node),
+                            cyId: e.cyId,
+                            uid,
                             results,
-                          }))
-                        )
+                          }));
+                        })
                     );
                     const validNodes = Object.fromEntries(
-                      nodes.map((n) => [n.uid, n.id])
+                      nodes.map((n) => [n.uid, n.cyId])
                     );
                     const edges = nodes.flatMap((e) =>
                       e.results.flatMap((result) =>
@@ -1260,7 +1263,7 @@ const CytoscapePlayground = ({
                           .map(([target]) => {
                             return drawEdge({
                               target: validNodes[target],
-                              source: e.id,
+                              source: e.cyId,
                               text: result.label,
                             });
                           })

@@ -740,13 +740,13 @@ We expect that there will be no disruption in functionality. If you see issues a
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
         //src: "http://localhost:3100/main.js",
-        src: `https://roamjs.com/query-builder/2022-08-07-20-52/main.js`,
+        src: `https://roamjs.com/query-builder/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
     } else {
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
-        src: `https://roamjs.com/query-builder/2022-08-07-20-52/main.js`,
+        src: `https://roamjs.com/query-builder/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
     }
