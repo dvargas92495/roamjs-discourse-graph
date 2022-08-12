@@ -29,8 +29,8 @@ type Props = {
 const ExtraColumnRow = (r: Result) => {
   const [contextOpen, setContextOpen] = useState(false);
   const [contextRowReady, setContextRowReady] = useState(false);
-  const contextId = useMemo(nanoId, []);
-  const anchorId = useMemo(nanoId, []);
+  const contextId = useMemo(() => `td-${nanoId()}`, []);
+  const anchorId = useMemo(() => `td-${nanoId()}`, []);
   const [anchorOpen, setAnchorOpen] = useState(false);
   const [anchorRowReady, setAnchorRowReady] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
@@ -278,7 +278,7 @@ const ContextTab = ({
               width: 72,
               header: <Icon icon={"data-connection"} />,
               row: ExtraColumnRow,
-              reserve: [/anchor/, /context/],
+              reserved: [/anchor/, /context/],
             }
           : undefined
       }
@@ -321,6 +321,10 @@ export const ContextContent = ({ uid, results }: Props) => {
     <>
       <style>{`.roamjs-discourse-result-panel .roamjs-query-results-header {
   padding-top: 0;
+}
+
+.roamjs-discourse-result-panel .roamjs-query-results-metadata {
+  display: none;
 }`}</style>
       <Tabs
         selectedTabId={tabId}
