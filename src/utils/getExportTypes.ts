@@ -244,11 +244,17 @@ const getExportTypes = ({
                           type: "clause",
                         },
                       ],
-                      selections: [],
+                      selections: [
+                        {
+                          uid: window.roamAlphaAPI.util.generateUID(),
+                          text: `node:${targetLabel}`,
+                          label: "source",
+                        },
+                      ],
                     })
                     .then((results) =>
                       results.map((result) => ({
-                        source: s.source,
+                        source: result["source-uid"],
                         target: result.uid,
                         label: s.label,
                       }))
@@ -364,7 +370,9 @@ const getExportTypes = ({
               "date: {date}",
             ];
         const pages = await Promise.all(
-          (await getPageData()).map(({ text, uid, context: _, type, ...rest }) => {
+          (
+            await getPageData()
+          ).map(({ text, uid, context: _, type, ...rest }) => {
             const v = getPageViewType(text) || "bullet";
             const { date, displayName } = getPageMetadata(text);
             const resultCols = Object.keys(rest).filter(
