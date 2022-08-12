@@ -30,7 +30,10 @@ type Props = {
 };
 
 const NodeMenu = ({ onClose, textarea }: { onClose: () => void } & Props) => {
-  const NODE_LABELS = useMemo(getNodes, []);
+  const NODE_LABELS = useMemo(
+    () => getNodes().filter((n) => !n.isRelationBacked),
+    []
+  );
   const indexBySC = useMemo(
     () => Object.fromEntries(NODE_LABELS.map((mi, i) => [mi.shortcut, i])),
     [NODE_LABELS]
