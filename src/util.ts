@@ -684,6 +684,11 @@ export const getDiscourseContextResults = async ({
                     label: "context",
                     text: `node:${conditionUid}-Context`,
                   },
+                  {
+                    uid: window.roamAlphaAPI.util.generateUID(),
+                    label: "anchor",
+                    text: `node:${conditionUid}-Anchor`,
+                  },
                 ],
               })
               .then((results) => {
