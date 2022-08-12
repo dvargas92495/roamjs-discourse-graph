@@ -30,19 +30,22 @@ const ExtraColumnRow = (r: Result) => {
   const [contextOpen, setContextOpen] = useState(false);
   const [contextRowReady, setContextRowReady] = useState(false);
   const contextId = useMemo(nanoId, []);
+  const anchorId = useMemo(nanoId, []);
   const [anchorOpen, setAnchorOpen] = useState(false);
+  const [anchorRowReady, setAnchorRowReady] = useState(false);
   const containerRef = useRef<HTMLSpanElement>(null);
   const contextPageTitle = useMemo(
-    () => r.context && getPageTitleByPageUid(r.context.toString()),
-    [r.context]
+    () =>
+      r["context-uid"] && getPageTitleByPageUid(r["context-uid"].toString()),
+    [r["context-uid"]]
   );
   const contextBreadCrumbs = useMemo(
     () =>
-      r.context
+      r["context-uid"]
         ? window.roamAlphaAPI
             .q(
               `[:find (pull ?p [:node/title :block/string :block/uid]) :where 
-              [?b :block/uid "${r.context}"]
+              [?b :block/uid "${r["context-uid"]}"]
               [?b :block/parents ?p]
             ]`
             )
@@ -51,15 +54,17 @@ const ExtraColumnRow = (r: Result) => {
             )
             .map((a) => ({ uid: a.uid, text: a.string || a.title || "" }))
         : [],
-    [r.context]
+    [r["context-uid"]]
   );
   const contextChildren = useMemo(
     () =>
-      r.context &&
+      r["context-uid"] &&
       (contextPageTitle
-        ? getShallowTreeByParentUid(r.context.toString()).map(({ uid }) => uid)
-        : [r.context.toString()]),
-    [r.context, contextPageTitle, r.uid]
+        ? getShallowTreeByParentUid(r["context-uid"].toString()).map(
+            ({ uid }) => uid
+          )
+        : [r["context-uid"].toString()]),
+    [r["context-uid"], contextPageTitle, r.uid]
   );
   useEffect(() => {
     if (contextOpen) {
@@ -75,7 +80,7 @@ const ExtraColumnRow = (r: Result) => {
       setContextRowReady(false);
       document.getElementById(contextId)?.remove();
     }
-  }, [contextOpen, r.uid, contextPageTitle, setContextRowReady, contextId]);
+  }, [contextOpen, setContextRowReady, contextId]);
   useEffect(() => {
     if (contextRowReady) {
       setTimeout(() => {
@@ -90,9 +95,24 @@ const ExtraColumnRow = (r: Result) => {
       }, 1);
     }
   }, [contextRowReady]);
+  useEffect(() => {
+    if (anchorOpen) {
+      const row = containerRef.current.closest("tr");
+      const anchorElement = document.createElement("tr");
+      const anchorTd = document.createElement("td");
+      anchorTd.colSpan = row.childElementCount;
+      anchorElement.id = anchorId;
+      row.parentElement.insertBefore(anchorElement, row.nextElementSibling);
+      anchorElement.append(anchorTd);
+      setAnchorRowReady(true);
+    } else {
+      setAnchorRowReady(false);
+      document.getElementById(anchorId)?.remove();
+    }
+  }, [anchorOpen, setAnchorRowReady, anchorId]);
   return (
     <span ref={containerRef}>
-      {r.context && (
+      {r["context-uid"] && (
         <Tooltip content={"Context"}>
           <Button
             onClick={() => setContextOpen(!contextOpen)}
@@ -115,13 +135,18 @@ const ExtraColumnRow = (r: Result) => {
         </Tooltip>
       )}
       <style>
-        {`#${contextId} td {
-          position: relative;
-          background-color: #F5F8FA;
-          padding: 16px;
-          max-height: 240px;
-          overflow-y: scroll;
-        }`}
+        {`#${contextId} td,
+#${anchorId} td {
+  position: relative;
+  background-color: #F5F8FA;
+  padding: 16px;
+  max-height: 240px;
+  overflow-y: scroll;
+}
+#${contextId} .bp3-portal,
+#${anchorId} .bp3-portal {
+  position: relative;
+}`}
       </style>
       {contextRowReady && (
         <Portal
@@ -170,6 +195,16 @@ const ExtraColumnRow = (r: Result) => {
           />
         </Tooltip>
       )}
+      {anchorRowReady && (
+        <Portal
+          container={
+            document.getElementById(anchorId)
+              ?.firstElementChild as HTMLDataElement
+          }
+        >
+          <ContextContent uid={r["anchor-uid"] as string} />
+        </Portal>
+      )}
     </span>
   );
 };
@@ -186,6 +221,11 @@ const ContextTab = ({
   setGroupByTarget: (b: boolean) => void;
 }) => {
   const [subTabId, setSubTabId] = useState(0);
+  const hasExtra = useMemo(
+    () =>
+      Object.values(r.results).some((r: Result) => !!(r.context || r.anchor)),
+    [r]
+  );
   const subTabs = useMemo(
     () =>
       groupByTarget
@@ -232,11 +272,16 @@ const ContextTab = ({
         </>
       }
       // @ts-ignore
-      extraColumn={{
-        width: 60,
-        header: <Icon icon={"data-connection"} />,
-        row: ExtraColumnRow,
-      }}
+      extraColumn={
+        hasExtra
+          ? {
+              width: 72,
+              header: <Icon icon={"data-connection"} />,
+              row: ExtraColumnRow,
+              reserve: [/anchor/, /context/],
+            }
+          : undefined
+      }
     />
   );
   return subTabs.length ? (

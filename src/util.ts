@@ -721,10 +721,6 @@ export const getDiscourseContextResults = async ({
   );
   rawResults.forEach((r) =>
     r.results
-      .map(({ context, ["context-uid"]: contextUid, ...a }) => ({
-        ...a,
-        context: contextUid as string,
-      }))
       .filter((a) => a.uid !== uid)
       .forEach(
         (res) =>
