@@ -63,10 +63,12 @@ const registerDatalogTranslators = () => {
             })),
           },
         ]
-      : nodeFormatToDatalog({
+      : nodeByTypeOrText[target]
+      ? nodeFormatToDatalog({
           freeVar: source,
           ...nodeByTypeOrText[target],
-        });
+        })
+      : [];
   };
   const discourseRelations = getRelations();
   const discourseNodes = getNodes(discourseRelations);
