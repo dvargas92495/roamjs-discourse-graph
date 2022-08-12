@@ -247,7 +247,7 @@ const getExportTypes = ({
                       selections: [
                         {
                           uid: window.roamAlphaAPI.util.generateUID(),
-                          text: `node:${targetLabel}`,
+                          text: `node:${s.id}-${targetLabel}`,
                           label: "source",
                         },
                       ],
