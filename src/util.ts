@@ -663,6 +663,20 @@ export const getDiscourseContextResults = async ({
         const returnNode = nodeTextByType[target];
         const cacheKey = `${uid}~${label}~${target}`;
         const conditionUid = window.roamAlphaAPI.util.generateUID();
+        const selections = [];
+        if (r.triples.some((t) => t.some((a) => /context/i.test(a)))) {
+          selections.push({
+            uid: window.roamAlphaAPI.util.generateUID(),
+            label: "context",
+            text: `node:${conditionUid}-Context`,
+          });
+        } else if (r.triples.some((t) => t.some((a) => /anchor/i.test(a)))) {
+          selections.push({
+            uid: window.roamAlphaAPI.util.generateUID(),
+            label: "anchor",
+            text: `node:${conditionUid}-Anchor`,
+          });
+        }
         const resultsPromise = resultCache[cacheKey]
           ? Promise.resolve(resultCache[cacheKey])
           : window.roamjs.extension.queryBuilder
@@ -678,18 +692,7 @@ export const getDiscourseContextResults = async ({
                     type: "clause",
                   },
                 ],
-                selections: [
-                  {
-                    uid: window.roamAlphaAPI.util.generateUID(),
-                    label: "context",
-                    text: `node:${conditionUid}-Context`,
-                  },
-                  {
-                    uid: window.roamAlphaAPI.util.generateUID(),
-                    label: "anchor",
-                    text: `node:${conditionUid}-Anchor`,
-                  },
-                ],
+                selections,
               })
               .then((results) => {
                 resultCache[cacheKey] = results;
