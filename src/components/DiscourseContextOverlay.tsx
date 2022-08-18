@@ -19,6 +19,7 @@ import nanoid from "nanoid";
 import localStorageGet from "roamjs-components/util/localStorageGet";
 import fireWorkerQuery from "../utils/fireWorkerQuery";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import { getNodeEnv } from "roamjs-components/util/env";
 
 type DiscourseData = {
   results: Awaited<ReturnType<typeof getDiscourseContextResults>>;
@@ -28,37 +29,84 @@ type DiscourseData = {
 const cache: {
   [title: string]: DiscourseData;
 } = {};
-const overlayQueue: (() => Promise<void>)[] = [];
-const getOverlayInfo = (tag: string): Promise<DiscourseData> => {
+const overlayQueue: {
+  tag: string;
+  callback: () => Promise<void>;
+  start: number;
+  queued: number;
+  end: number;
+  mid: number;
+  id: string;
+}[] = [];
+
+if (getNodeEnv() === "development") {
+  document.body.addEventListener("roamjs:discourse-graph:loaded", () => {
+    window.roamjs.extension.discourseGraph = {
+      ...(window.roamjs.extension.discourseGraph || {}),
+      overlayQueue,
+      getDiscourseContextResults: (
+        args: { uid: string } | { title: string }
+      ) => {
+        const uid =
+          "uid" in args ? args.uid : getPageUidByPageTitle(args.title);
+        window.roamjs.extension.discourseGraph[uid] = {
+          start: new Date().valueOf(),
+        };
+        return getDiscourseContextResults({ uid, ignoreCache: true }).then(
+          (res) => {
+            // @ts-ignore
+            window.roamjs.extension.discourseGraph[uid].end =
+              new Date().valueOf();
+            return res;
+          }
+        );
+      },
+    };
+  });
+}
+
+const getOverlayInfo = (tag: string, id: string): Promise<DiscourseData> => {
   if (cache[tag]) return Promise.resolve(cache[tag]);
   const relations = getRelations();
   const nodes = getNodes(relations);
   return new Promise((resolve) => {
     const triggerNow = overlayQueue.length === 0;
-    overlayQueue.push(() => {
-      const start = new Date();
-      return getDiscourseContextResults({
-        uid: getPageUidByPageTitle(tag),
-        nodes,
-        relations,
-      }).then((results) => {
-        const output = (cache[tag] = {
-          results,
-          refs: window.roamAlphaAPI.data.fast.q(
-            `[:find ?a :where [?b :node/title "${normalizePageTitle(
-              tag
-            )}"] [?a :block/refs ?b]]`
-          ).length,
+    overlayQueue.push({
+      id,
+      start: 0,
+      end: 0,
+      mid: 0,
+      queued: new Date().valueOf(),
+      callback() {
+        const self = this;
+        const start = (self.start = new Date().valueOf());
+        return getDiscourseContextResults({
+          uid: getPageUidByPageTitle(tag),
+          nodes,
+          relations,
+        }).then(function resultCallback(results) {
+          self.mid = new Date().valueOf();
+          const output = (cache[tag] = {
+            results,
+            refs: window.roamAlphaAPI.data.fast.q(
+              `[:find ?a :where [?b :node/title "${normalizePageTitle(
+                tag
+              )}"] [?a :block/refs ?b]]`
+            ).length,
+          });
+          const runTime = (self.end = new Date().valueOf() - start);
+          setTimeout(() => {
+            overlayQueue.splice(0, 1);
+            if (overlayQueue.length) {
+              overlayQueue[0].callback();
+            }
+          }, runTime * 4);
+          resolve(output);
         });
-        const runTime = differenceInMilliseconds(new Date(), start);
-        setTimeout(() => {
-          overlayQueue.splice(0, 1);
-          overlayQueue[0]?.();
-        }, runTime * 4);
-        resolve(output);
-      });
+      },
+      tag,
     });
-    if (triggerNow) overlayQueue[0]();
+    if (triggerNow) overlayQueue[0].callback?.();
   });
 };
 
@@ -98,7 +146,7 @@ const DiscourseContextOverlay = ({ tag, id }: { tag: string; id: string }) => {
     () =>
       (localStorageGet("experimental") === "true"
         ? experimentalGetOverlayInfo(tag)
-        : getOverlayInfo(tag)
+        : getOverlayInfo(tag, id)
       )
         .then(({ refs, results }) => {
           const discourseNode = findDiscourseNode(tagUid);

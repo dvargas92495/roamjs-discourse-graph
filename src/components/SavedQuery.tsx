@@ -12,7 +12,6 @@ import getParentUidByBlockUid from "roamjs-components/queries/getParentUidByBloc
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 import createBlock from "roamjs-components/writes/createBlock";
-import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
@@ -27,6 +26,7 @@ const SavedQuery = ({
   setResultsReferenced,
   editSavedQuery,
   initialResults,
+  onRefresh,
 }: {
   uid: string;
   onDelete?: () => void;
@@ -36,6 +36,7 @@ const SavedQuery = ({
   setResultsReferenced: (s: Set<string>) => void;
   editSavedQuery: (s: string) => void;
   initialResults?: QueryBuilderResults;
+  onRefresh: () => void;
 }) => {
   const [results, setResults] = useState<QueryBuilderResults>(
     initialResults || []
@@ -75,6 +76,7 @@ const SavedQuery = ({
     >
       <ResultsView
         parentUid={uid}
+        onRefresh={onRefresh}
         header={
           error ? (
             <div className="text-red-700 mb-4">{error}</div>

@@ -10,13 +10,13 @@ import {
 } from "@blueprintjs/core";
 import { useMemo, useState } from "react";
 import PageInput from "roamjs-components/components/PageInput";
-import type { RoamOverlayProps } from "roamjs-components/util/createOverlayRender";
+import type { RoamOverlayProps } from "roamjs-components/util/renderOverlay";
 import createOverlayRender from "roamjs-components/util/createOverlayRender";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import createBlock from "roamjs-components/writes/createBlock";
 import createPage from "roamjs-components/writes/createPage";
-import { TreeNode } from "roamjs-components/types";
+import { PullBlock, TreeNode } from "roamjs-components/types";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import nanoid from "nanoid";
 import getSamePageApi from "../utils/getSamePageApi";
@@ -30,11 +30,12 @@ const SendQueryRequest = ({ onClose, uid }: RoamOverlayProps<Props>) => {
   const [graph, setGraph] = useState<string>("");
   const [page, setPage] = useState(() =>
     uid
-      ? window.roamAlphaAPI
-          .q(
+      ? (
+          window.roamAlphaAPI.data.fast.q(
             `[:find (pull ?p [:node/title]) :where [?r :block/uid "${uid}"] [?r :block/refs ?p]]`
-          )
-          .map((p) => (p[0]?.title as string) || "")
+          ) as [PullBlock][]
+        )
+          .map((p) => p[0]?.[":node/title"] || "")
           .reduce((prev, cur) => (cur.length > prev.length ? cur : prev), "")
       : ""
   );

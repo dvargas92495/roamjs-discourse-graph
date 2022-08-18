@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
+import { PullBlock } from "roamjs-components/types";
 
 type Props = { title: string };
 
@@ -22,19 +23,27 @@ const Content = ({ title, uid }: { title: string; uid: string }) => {
 const ContextContent = ({ title }: Props) => {
   const queryResults = useMemo(
     () =>
-      window.roamAlphaAPI
-        .q(
+      (
+        window.roamAlphaAPI.data.fast.q(
           `[:find (pull ?pr [:node/title]) (pull ?r [:block/uid :block/children :create/time]) :where [?p :node/title "${title}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
+        ) as [PullBlock, PullBlock][]
+      )
+        .filter(
+          ([, { [":block/children"]: children = [] }]) => !!children.length
         )
-        .filter(([, { children = [] }]) => !!children.length)
-        .sort(([, { time: a = 0 }], [, { time: b = 0 }]) => a - b),
+        .sort(
+          ([, { [":create/time"]: a = 0 }], [, { [":create/time"]: b = 0 }]) =>
+            a - b
+        ),
     [title]
   );
   return (
     <>
-      {queryResults.map(([{ title }, { uid }]) => (
-        <Content title={title} uid={uid} />
-      ))}
+      {queryResults.map(
+        ([{ [":node/title"]: title }, { [":block/uid"]: uid }]) => (
+          <Content title={title} uid={uid} />
+        )
+      )}
     </>
   );
 };

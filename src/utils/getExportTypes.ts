@@ -5,7 +5,7 @@ import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByPar
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import getPageViewType from "roamjs-components/queries/getPageViewType";
-import { TreeNode, ViewType } from "roamjs-components/types";
+import { PullBlock, TreeNode, ViewType } from "roamjs-components/types";
 import { Result } from "roamjs-components/types/query-builder";
 import getSettingIntFromTree from "roamjs-components/util/getSettingIntFromTree";
 import getSubTree from "roamjs-components/util/getSubTree";
@@ -20,6 +20,21 @@ import {
 import XRegExp from "xregexp";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import getSamePageApi from "./getSamePageApi";
+
+const pullBlockToTreeNode = (n: PullBlock, v: `:${ViewType}`): TreeNode => ({
+  text: n[":block/string"] || n[":node/title"] || "",
+  open: typeof n[":block/open"] === "undefined" ? true : n[":block/open"],
+  order: n[":block/order"] || 0,
+  uid: n[":block/uid"] || "",
+  heading: n[":block/heading"] || 0,
+  viewType: (n[":children/view-type"] || v).slice(1) as ViewType,
+  editTime: new Date(n[":edit/time"] || 0),
+  props: { imageResize: {}, iframe: {} },
+  textAlign: n[":block/text-align"] || "left",
+  children: ((n[":block/children"] || []) as PullBlock[])
+    .sort(({ [":block/order"]: a }, { [":block/order"]: b }) => a - b)
+    .map((r) => pullBlockToTreeNode(r, n[":children/view-type"] || v)),
+});
 
 const getContentFromNodes = ({
   title,
@@ -393,14 +408,16 @@ const getExportTypes = ({
             return getDiscourseContextResults({ uid }).then(
               (discourseResults) => {
                 const referenceResults = isFlagEnabled("render references")
-                  ? window.roamAlphaAPI
-                      .q(
+                  ? (
+                      window.roamAlphaAPI.data.fast.q(
                         `[:find (pull ?pr [:node/title]) (pull ?r [:block/heading [:block/string :as "text"] [:children/view-type :as "viewType"] {:block/children ...}]) :where [?p :node/title "${normalizePageTitle(
                           text
                         )}"] [?r :block/refs ?p] [?r :block/page ?pr]]`
-                      )
-                      .filter(([, { children = [] }]) => !!children.length)
-                      .map((a) => a as [{ title: string }, TreeNode])
+                      ) as [PullBlock, PullBlock][]
+                    ).filter(
+                      ([, { [":block/children"]: children = [] }]) =>
+                        !!children.length
+                    )
                   : [];
                 const content = `---\n${yamlLines
                   .map((s) =>
@@ -452,7 +469,7 @@ const getExportTypes = ({
                           (r) =>
                             `${toLink(
                               getFilename({
-                                title: r[0].title,
+                                title: r[0][":node/title"],
                                 maxFilenameLength,
                                 simplifiedFilename,
                                 allNodes,
@@ -460,7 +477,7 @@ const getExportTypes = ({
                               }),
                               linkType
                             )}\n\n${toMarkdown({
-                              c: r[1],
+                              c: pullBlockToTreeNode(r[1], ":bullet"),
                               opts: {
                                 refs: optsRefs,
                                 embeds: optsEmbeds,

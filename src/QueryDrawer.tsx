@@ -17,6 +17,7 @@ import SavedQuery from "./components/SavedQuery";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import getSubTree from "roamjs-components/util/getSubTree";
+import { PullBlock } from "roamjs-components/types/native";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
@@ -40,54 +41,50 @@ const SavedQueriesContainer = ({
   clearOnClick: (s: string) => void;
   setQuery: (s: string) => void;
 }) => {
-  const refreshResultsReferenced = useCallback(
-    (pageUid = getCurrentPageUid()) => {
-      const title = getPageTitleByPageUid(pageUid);
-      if (title.startsWith("Playground")) {
-        return new Set(
-          window.roamAlphaAPI
-            .q(
-              `[:find (pull ?c [:block/string]) :where 
+  const [resultsReferenced, setResultsReferenced] = useState(new Set<string>());
+  const refreshResultsReferenced = useCallback(() => {
+    return window.roamAlphaAPI.ui.mainWindow
+      .getOpenPageOrBlockUid()
+      .then(
+        (uid) => uid || window.roamAlphaAPI.util.dateToPageTitle(new Date())
+      )
+      .then((pageUid) => {
+        const title = getPageTitleByPageUid(pageUid);
+        if (title.startsWith("Playground")) {
+          return new Set(
+            (
+              window.roamAlphaAPI.data.fast.q(
+                `[:find (pull ?c [:block/string]) :where 
             [?p :block/uid "${pageUid}"] 
             [?e :block/page ?p] 
-            [?e :block/string "elements"] 
+            [?e :block/string "elements"]
             [?e :block/children ?c]]`
+              ) as [PullBlock][]
             )
-            .filter((a) => a.length && a[0])
-            .map((a) => a[0].string)
-        );
-      }
-      return new Set(
-        window.roamAlphaAPI
-          .q(
-            `[:find (pull ?r [:node/title]) :where 
+              .filter((a) => a.length && a[0])
+              .map((a) => a[0][":block/string"])
+          );
+        }
+        return new Set(
+          (
+            window.roamAlphaAPI.q(
+              `[:find (pull ?r [:node/title]) :where 
             [?p :block/uid "${pageUid}"] 
             [?b :block/page ?p] 
             [?b :block/refs ?r]]`
+            ) as [PullBlock][]
           )
-          .filter((a) => a.length && a[0])
-          .map((a) => a[0].title)
-      );
-    },
-    []
-  );
-  const [resultsReferenced, setResultsReferenced] = useState(
-    refreshResultsReferenced
-  );
-  const hashChangeListener = useCallback(
-    (e: HashChangeEvent) =>
-      setResultsReferenced(
-        refreshResultsReferenced(
-          e.newURL.match(/\/page\/(.*)$/)?.[1] ||
-            window.roamAlphaAPI.util.dateToPageTitle(new Date())
-        )
-      ),
-    [refreshResultsReferenced, setResultsReferenced]
-  );
+            .filter((a) => a.length && a[0])
+            .map((a) => a[0][":node/title"])
+        );
+      })
+      .then(setResultsReferenced);
+  }, [setResultsReferenced]);
   useEffect(() => {
-    window.addEventListener("hashchange", hashChangeListener);
-    return () => window.removeEventListener("hashchange", hashChangeListener);
-  }, [hashChangeListener]);
+    window.addEventListener("hashchange", refreshResultsReferenced);
+    return () =>
+      window.removeEventListener("hashchange", refreshResultsReferenced);
+  }, [refreshResultsReferenced]);
   return (
     <>
       <hr />
@@ -105,6 +102,7 @@ const SavedQueriesContainer = ({
           setResultsReferenced={setResultsReferenced}
           editSavedQuery={setQuery}
           initialResults={sq.results}
+          onRefresh={refreshResultsReferenced}
         />
       ))}
     </>
@@ -152,9 +150,7 @@ const QueryDrawerContent = ({
               },
               parentUid: blockUid,
             }),
-            fireQuery(
-              parseQuery(blockUid)
-            ),
+            fireQuery(parseQuery(blockUid)),
           ]).then(([newSavedUid, results]) =>
             Promise.all(
               getSubTree({ key: "scratch", parentUid: blockUid }).children.map(

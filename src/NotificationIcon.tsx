@@ -4,6 +4,7 @@ import ReactDOM from "react-dom";
 import getCurrentUserUid from "roamjs-components/queries/getCurrentUserUid";
 import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
 import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
+import { PullBlock } from "roamjs-components/types";
 import updateBlock from "roamjs-components/writes/updateBlock";
 import { getPixelValue } from "./util";
 
@@ -26,10 +27,11 @@ const NotificationIcon = ({ parentUid, timestamp, configUid }: Props) => {
   >([]);
   useEffect(() => {
     setNewBlocks(
-      window.roamAlphaAPI
-        .q(
+      (
+        window.roamAlphaAPI.q(
           `[:find ?u ?s ?w ?t :where [?b :edit/time ?t] [(< ${timestamp} ?t)] [?user :user/uid ?w] [(!= ?w "${me}")] [?b :edit/user ?user] [?b :block/uid ?u] [?b :block/string ?s] [?b :block/parents ?p] [?p :block/uid "${parentUid}"]]`
-        )
+        ) as [string, string, string, number][]
+      )
         .map(([uid, text, editedBy, editedTime]) => ({
           uid,
           text,
@@ -100,17 +102,19 @@ const NotificationIcon = ({ parentUid, timestamp, configUid }: Props) => {
                   <span
                     className={"roamjs-discourse-notification-uid"}
                     onClick={() => {
-                      window.roamAlphaAPI
-                        .q(
-                          `[:find ?u ?o :where [?p :block/uid ?u] [?b :block/parents ?p] [?p :block/open ?o] [?b :block/uid "${b.uid}"]]`
-                        )
-                        .forEach(
-                          ([uid, openState]) =>
-                            !openState &&
-                            window.roamAlphaAPI.updateBlock({
-                              block: { uid, open: true },
-                            })
-                        );
+                      (
+                        window.roamAlphaAPI.data.fast.q(
+                          `[:find (pull ?p [:block/uid :block/open]) :where [?b :block/uid "${b.uid}"] [?b :block/parents ?p]]`
+                        ) as [PullBlock][]
+                      ).forEach(
+                        ([
+                          { [":block/uid"]: uid, [":block/open"]: openState },
+                        ]) =>
+                          !openState &&
+                          window.roamAlphaAPI.updateBlock({
+                            block: { uid, open: true },
+                          })
+                      );
                       setTimeout(() => {
                         const blockDiv = Array.from(
                           document.querySelectorAll<HTMLDivElement>(

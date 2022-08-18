@@ -627,10 +627,12 @@ export const getDiscourseContextResults = async ({
   uid,
   relations = getRelations(),
   nodes = getNodes(relations),
+  ignoreCache,
 }: {
   uid: string;
   nodes?: ReturnType<typeof getNodes>;
   relations?: ReturnType<typeof getRelations>;
+  ignoreCache?: true,
 }) => {
   const discourseNode = findDiscourseNode(uid);
   if (!discourseNode) return [];
@@ -677,7 +679,7 @@ export const getDiscourseContextResults = async ({
             text: `node:${conditionUid}-Anchor`,
           });
         }
-        const resultsPromise = resultCache[cacheKey]
+        const resultsPromise = resultCache[cacheKey] && !ignoreCache
           ? Promise.resolve(resultCache[cacheKey])
           : window.roamjs.extension.queryBuilder
               .fireQuery({
