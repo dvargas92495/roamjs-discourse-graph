@@ -56,6 +56,7 @@ navigator(cytoscape);
 
 type NodeDialogProps = {
   node: cytoscape.NodeSingular;
+  nodeType: string;
 };
 
 type EdgeDialogProps = {
@@ -148,16 +149,38 @@ const editLabel = async (node: cytoscape.NodeSingular, value: string) => {
 const LabelDialog = ({
   onClose,
   node,
+  nodeType,
 }: {
   onClose: () => void;
 } & NodeDialogProps) => {
   const [label, setLabel] = useState(node.data("label"));
   const [loading, setLoading] = useState(false);
+  const [options, setOptions] = useState<string[]>([]);
   const onSubmit = () => {
     setLoading(false);
     editLabel(node, label);
     updateBlock({ uid: node.id(), text: label }).then(onClose);
   };
+  useEffect(() => {
+    if (nodeType !== TEXT_TYPE) {
+      const conditionUid = window.roamAlphaAPI.util.generateUID();
+      window.roamjs.extension.queryBuilder
+        .fireQuery({
+          returnNode: "node",
+          selections: [],
+          conditions: [
+            {
+              source: "node",
+              relation: "is a",
+              target: nodeType,
+              uid: conditionUid,
+              type: "clause",
+            },
+          ],
+        })
+        .then((results) => setOptions(results.map((r) => r.text)));
+    }
+  }, [nodeType]);
   return (
     <>
       <Dialog
@@ -170,12 +193,22 @@ const LabelDialog = ({
         className={"roamjs-discourse-playground-dialog"}
       >
         <div className={Classes.DIALOG_BODY}>
-          <PageInput
-            value={label}
-            setValue={setLabel}
-            onConfirm={onSubmit}
-            multiline
-          />
+          {nodeType !== TEXT_TYPE ? (
+            <AutocompleteInput
+              value={label}
+              setValue={setLabel}
+              onConfirm={onSubmit}
+              options={options}
+              multiline
+            />
+          ) : (
+            <PageInput
+              value={label}
+              setValue={setLabel}
+              onConfirm={onSubmit}
+              multiline
+            />
+          )}
         </div>
         <div className={Classes.DIALOG_FOOTER}>
           <div className={Classes.DIALOG_FOOTER_ACTIONS}>
@@ -342,9 +375,8 @@ const COLORS = [
 const TEXT_COLOR = "888888";
 const TEXT_TYPE = "&TEX-node";
 const SELECTION_MODES = [
-  { id: "NORMAL", tooltip: "Normal", icon: "new-link", shortcut: "n" },
-  { id: "CONNECT", tooltip: "Draw Edge", icon: "git-branch", shortcut: "c" },
   { id: "EDIT", tooltip: "Edit", icon: "edit", shortcut: "e" },
+  { id: "CONNECT", tooltip: "Draw Edge", icon: "git-branch", shortcut: "c" },
   { id: "DELETE", tooltip: "Delete", icon: "delete", shortcut: "d" },
   { id: "ALIAS", tooltip: "Alias", icon: "application", shortcut: "a" },
 ] as const;
@@ -503,7 +535,9 @@ const CytoscapePlayground = ({
     parentUid: pageUid,
     field: "elements",
   });
-  const [selectionMode, setSelectionMode] = useState<SelectionMode>("NORMAL");
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>(
+    SELECTION_MODES[0].id
+  );
   const selectionModeRef = useRef(selectionMode);
   const edgeCallback = useCallback(
     (edge: cytoscape.EdgeSingular) => {
@@ -623,13 +657,20 @@ const CytoscapePlayground = ({
         if ((e.originalEvent.target as HTMLElement).tagName !== "CANVAS") {
           return;
         }
-        if (selectionModeRef.current === "ALIAS") {
+        if (e.originalEvent.shiftKey) {
+          const title = n.data("label");
+          const uid = getPageUidByPageTitle(title);
+          (uid ? Promise.resolve(uid) : createPage({ title })).then((uid) =>
+            openBlockInSidebar(uid)
+          );
+        } else if (selectionModeRef.current === "ALIAS") {
           clearSourceRef();
           createOverlayRender<NodeDialogProps>(
             "playground-alias",
             AliasDialog
           )({
             node: n,
+            nodeType: nodeTypeByColor[n.data("color")],
           });
         } else if (selectionModeRef.current === "DELETE") {
           clearSourceRef();
@@ -671,12 +712,6 @@ const CytoscapePlayground = ({
             n.lock();
             sourceRef.current = n;
           }
-        } else if (selectionModeRef.current === "NORMAL") {
-          const title = n.data("label");
-          const uid = getPageUidByPageTitle(title);
-          (uid ? Promise.resolve(uid) : createPage({ title })).then((uid) =>
-            openBlockInSidebar(uid)
-          );
         } else if (selectionModeRef.current === "EDIT") {
           clearSourceRef();
           if (!["source", "destination"].includes(n.id())) {
@@ -685,6 +720,7 @@ const CytoscapePlayground = ({
               LabelDialog
             )({
               node: n,
+              nodeType: nodeTypeByColor[n.data("color")],
             });
           }
         }
@@ -695,9 +731,7 @@ const CytoscapePlayground = ({
         setInputSetting({ blockUid: uid, value: `${x},${y}`, key: "position" });
       });
       n.on("mousemove", () => {
-        if (selectionModeRef.current === "NORMAL") {
-          containerRef.current.style.cursor = "pointer";
-        } else if (selectionModeRef.current === "ALIAS") {
+        if (selectionModeRef.current === "ALIAS") {
           containerRef.current.style.cursor = "alias";
         } else if (selectionModeRef.current === "DELETE") {
           containerRef.current.style.cursor = `url(${trashCursor}), auto`;
@@ -848,9 +882,19 @@ const CytoscapePlayground = ({
         cyRef.current.edges().forEach(edgeCallback);
         globalRefs.clearOnClick = (s: string) => {
           const { x1, x2, y1, y2 } = cyRef.current.extent();
+          const lastTime = cyRef.current.scratch("last_insert") as {
+            x: number;
+            y: number;
+          } | null;
+          const position = lastTime
+            ? {
+                x: lastTime.x + (x2 - x1) * 0.1,
+                y: lastTime.y + (y2 - y1) * 0.1,
+              }
+            : { x: (x2 + x1) / 2, y: (y2 + y1) / 2 };
           createNode(
             s,
-            { x: (x2 + x1) / 2, y: (y2 + y1) / 2 },
+            position,
             coloredNodes.find((c) =>
               matchNode({
                 title: s,
@@ -858,6 +902,7 @@ const CytoscapePlayground = ({
               })
             )?.color || TEXT_COLOR
           );
+          cyRef.current.scratch("last_insert", position);
         };
         // @ts-ignore
         cyRef.current.navigator({
@@ -866,10 +911,12 @@ const CytoscapePlayground = ({
 
         cyRef.current.on("zoom", () => {
           if (overlaysShownRef.current) refreshNodeOverlays();
+          cyRef.current.scratch("last_insert", null);
         });
 
         cyRef.current.on("pan", () => {
           if (overlaysShownRef.current) refreshNodeOverlays();
+          cyRef.current.scratch("last_insert", null);
         });
 
         containerRef.current.dispatchEvent(new Event("cytoscape:loaded"));
@@ -1256,17 +1303,35 @@ const CytoscapePlayground = ({
                     const validNodes = Object.fromEntries(
                       nodes.map((n) => [n.uid, n.cyId])
                     );
+                    const edgeCache = new Set(
+                      Array.from(cyRef.current.edges()).map((e) =>
+                        JSON.stringify([
+                          e.source().id(),
+                          e.data("label"),
+                          e.target().id(),
+                        ])
+                      )
+                    );
                     const edges = nodes.flatMap((e) =>
                       e.results.flatMap((result) =>
                         Object.entries(result.results)
                           .filter(([k, v]) => !v.complement && !!validNodes[k])
-                          .map(([target]) => {
-                            return drawEdge({
-                              target: validNodes[target],
-                              source: e.cyId,
-                              text: result.label,
-                            });
-                          })
+                          .map(([target]) => ({
+                            target: validNodes[target],
+                            source: e.cyId,
+                            text: result.label,
+                          }))
+                          .filter(
+                            (edge) =>
+                              !edgeCache.has(
+                                JSON.stringify([
+                                  edge.source,
+                                  edge.text,
+                                  edge.target,
+                                ])
+                              )
+                          )
+                          .map(drawEdge)
                       )
                     );
                     Promise.all(edges)

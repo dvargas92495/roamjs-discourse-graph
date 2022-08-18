@@ -9,13 +9,11 @@ import React, {
 import createBlock from "roamjs-components/writes/createBlock";
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
-import getCurrentPageUid from "roamjs-components/dom/getCurrentPageUid";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import ResizableDrawer from "./ResizableDrawer";
 import SavedQuery from "./components/SavedQuery";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
-import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import getSubTree from "roamjs-components/util/getSubTree";
 import { PullBlock } from "roamjs-components/types/native";
 
@@ -82,6 +80,7 @@ const SavedQueriesContainer = ({
   }, [setResultsReferenced]);
   useEffect(() => {
     window.addEventListener("hashchange", refreshResultsReferenced);
+    refreshResultsReferenced();
     return () =>
       window.removeEventListener("hashchange", refreshResultsReferenced);
   }, [refreshResultsReferenced]);
@@ -149,15 +148,22 @@ const QueryDrawerContent = ({
                 text: savedQueryLabel,
               },
               parentUid: blockUid,
-            }),
+            }).then((newSavedUid) =>
+              createBlock({
+                node: {
+                  text: "scratch",
+                },
+                parentUid: newSavedUid,
+              }).then((scratchUid) => ({ newSavedUid, scratchUid }))
+            ),
             fireQuery(parseQuery(blockUid)),
-          ]).then(([newSavedUid, results]) =>
+          ]).then(([{ newSavedUid, scratchUid }, results]) =>
             Promise.all(
               getSubTree({ key: "scratch", parentUid: blockUid }).children.map(
                 (c, order) =>
                   window.roamAlphaAPI.moveBlock({
                     location: {
-                      "parent-uid": newSavedUid,
+                      "parent-uid": scratchUid,
                       order,
                     },
                     block: { uid: c.uid },
