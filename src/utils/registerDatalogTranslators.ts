@@ -218,113 +218,144 @@ const registerDatalogTranslators = () => {
           )
           .filter((r) => !!r);
         if (!filteredRelations.length) return [];
-        const andParts = filteredRelations.map(
-          ({ triples, source: _source, destination, forward }) => {
-            const sourceTriple = triples.find((t) => t[2] === "source");
-            const targetTriple = triples.find(
-              (t) => t[2] === "destination" || t[2] === "target"
-            );
-            if (!sourceTriple || !targetTriple) return [];
-            const computeEdgeTriple = (
-              value: string,
-              triple: readonly [string, string, string]
-            ): DatalogClause[] => {
-              const possibleNodeType = nodeTypeByLabel[value.toLowerCase()];
-              if (possibleNodeType) {
-                return conditionToDatalog({
-                  uid,
-                  not: false,
-                  target: possibleNodeType,
-                  relation: "is a",
-                  source: triple[0],
-                  type: "clause",
-                });
-              } else if (
-                !!window.roamAlphaAPI.pull("[:db/id]", [":block/uid", value])
-              ) {
-                return [
+        const andParts = filteredRelations.map(({ triples, forward }) => {
+          const sourceTriple = triples.find((t) => t[2] === "source");
+          const targetTriple = triples.find(
+            (t) => t[2] === "destination" || t[2] === "target"
+          );
+          if (!sourceTriple || !targetTriple) return [];
+          const computeEdgeTriple = (
+            value: string,
+            triple: readonly [string, string, string]
+          ): DatalogClause[] => {
+            const possibleNodeType = nodeTypeByLabel[value.toLowerCase()];
+            if (possibleNodeType) {
+              return conditionToDatalog({
+                uid,
+                not: false,
+                target: possibleNodeType,
+                relation: "is a",
+                source: triple[0],
+                type: "clause",
+              });
+            } else if (
+              !!window.roamAlphaAPI.pull("[:db/id]", [":block/uid", value])
+            ) {
+              return [
+                {
+                  type: "data-pattern",
+                  arguments: [
+                    { type: "variable", value: triple[0] },
+                    { type: "constant", value: ":block/uid" },
+                    { type: "constant", value: `"${value}"` },
+                  ],
+                },
+              ];
+            } else {
+              return conditionToDatalog({
+                uid,
+                not: false,
+                target: value,
+                relation: "has title",
+                source: triple[0],
+                type: "clause",
+              });
+            }
+          };
+          const edgeTriples = forward
+            ? computeEdgeTriple(source, sourceTriple)
+                .concat(computeEdgeTriple(target, targetTriple))
+                .concat([
                   {
                     type: "data-pattern",
                     arguments: [
-                      { type: "variable", value: triple[0] },
+                      { type: "variable", value: sourceTriple[0] },
                       { type: "constant", value: ":block/uid" },
-                      { type: "constant", value: `"${value}"` },
+                      { type: "variable", value: `${source}-uid` },
                     ],
                   },
-                ];
-              } else {
-                return conditionToDatalog({
-                  uid,
-                  not: false,
-                  target: value,
-                  relation: "has title",
-                  source: triple[0],
-                  type: "clause",
-                });
-              }
-            };
-            const edgeTriples = forward
-              ? computeEdgeTriple(source, sourceTriple)
-                  .concat(computeEdgeTriple(target, targetTriple))
-                  .concat([
-                    {
-                      type: "data-pattern",
-                      arguments: [
-                        { type: "variable", value: sourceTriple[0] },
-                        { type: "constant", value: ":block/uid" },
-                        { type: "variable", value: `${source}-uid` },
-                      ],
-                    },
-                    {
-                      type: "data-pattern",
-                      arguments: [
-                        { type: "variable", value: source },
-                        { type: "constant", value: ":block/uid" },
-                        { type: "variable", value: `${source}-uid` },
-                      ],
-                    },
-                  ])
-              : computeEdgeTriple(target, sourceTriple)
-                  .concat(computeEdgeTriple(source, targetTriple))
-                  .concat([
-                    {
-                      type: "data-pattern",
-                      arguments: [
-                        { type: "variable", value: targetTriple[0] },
-                        { type: "constant", value: ":block/uid" },
-                        { type: "variable", value: `${source}-uid` },
-                      ],
-                    },
-                    {
-                      type: "data-pattern",
-                      arguments: [
-                        { type: "variable", value: source },
-                        { type: "constant", value: ":block/uid" },
-                        { type: "variable", value: `${source}-uid` },
-                      ],
-                    },
-                  ]);
-            const subQuery = triples
-              .filter((t) => t !== sourceTriple && t !== targetTriple)
-              .flatMap(([src, rel, tar]) =>
-                conditionToDatalog({
-                  source: src,
-                  relation: rel,
-                  target: tar,
-                  not: false,
-                  uid,
-                  type: "clause",
-                })
-              );
-            return replaceVariables(
-              [
-                { from: source, to: source },
-                { from: true, to: (v) => `${uid}-${v}` },
-              ],
-              edgeTriples.concat(subQuery)
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: source },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${source}-uid` },
+                    ],
+                  },
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: targetTriple[0] },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${target}-uid` },
+                    ],
+                  },
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: target },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${target}-uid` },
+                    ],
+                  },
+                ])
+            : computeEdgeTriple(target, sourceTriple)
+                .concat(computeEdgeTriple(source, targetTriple))
+                .concat([
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: targetTriple[0] },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${source}-uid` },
+                    ],
+                  },
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: source },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${source}-uid` },
+                    ],
+                  },
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: sourceTriple[0] },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${target}-uid` },
+                    ],
+                  },
+                  {
+                    type: "data-pattern",
+                    arguments: [
+                      { type: "variable", value: target },
+                      { type: "constant", value: ":block/uid" },
+                      { type: "variable", value: `${target}-uid` },
+                    ],
+                  },
+                ]);
+          const subQuery = triples
+            .filter((t) => t !== sourceTriple && t !== targetTriple)
+            .flatMap(([src, rel, tar]) =>
+              conditionToDatalog({
+                source: src,
+                relation: rel,
+                target: tar,
+                not: false,
+                uid,
+                type: "clause",
+              })
             );
-          }
-        );
+          return replaceVariables(
+            [
+              { from: source, to: source },
+              { from: target, to: target },
+              { from: true, to: (v) => `${uid}-${v}` },
+            ],
+            edgeTriples.concat(subQuery)
+          );
+        });
         if (andParts.length === 1) return andParts[0];
 
         const orJoinedVars = collectVariables(andParts[0]);

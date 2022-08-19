@@ -245,7 +245,6 @@ const getExportTypes = ({
             .flatMap((s) => {
               const sourceLabel = nodeLabelByType[s.source];
               const targetLabel = nodeLabelByType[s.destination];
-              const targetNode = s.triples.find(t => t[2] === 'destination')[0];
               return !sourceLabel || !targetLabel
                 ? []
                 : window.roamjs.extension.queryBuilder
@@ -263,7 +262,7 @@ const getExportTypes = ({
                       selections: [
                         {
                           uid: window.roamAlphaAPI.util.generateUID(),
-                          text: `node:${s.id}-${targetNode}`,
+                          text: `node:${targetLabel}`,
                           label: "target",
                         },
                       ],
