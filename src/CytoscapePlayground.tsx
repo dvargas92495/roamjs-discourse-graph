@@ -888,8 +888,8 @@ const CytoscapePlayground = ({
           } | null;
           const position = lastTime
             ? {
-                x: lastTime.x + (x2 - x1) * 0.1,
-                y: lastTime.y + (y2 - y1) * 0.1,
+                x: lastTime.x + (x2 - x1) * 0.025,
+                y: lastTime.y + (y2 - y1) * 0.05,
               }
             : { x: (x2 + x1) / 2, y: (y2 + y1) / 2 };
           createNode(
