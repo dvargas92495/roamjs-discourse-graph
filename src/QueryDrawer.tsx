@@ -16,10 +16,7 @@ import SavedQuery from "./components/SavedQuery";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
 import getSubTree from "roamjs-components/util/getSubTree";
 import { PullBlock } from "roamjs-components/types/native";
-
-type QueryBuilderResults = Parameters<
-  typeof window.roamjs.extension.queryBuilder.ResultsView
->[0]["results"];
+import { Result } from "roamjs-components/types/query-builder";
 
 type Props = {
   blockUid: string;
@@ -32,9 +29,9 @@ const SavedQueriesContainer = ({
   clearOnClick,
   setQuery,
 }: {
-  savedQueries: { uid: string; text: string; results?: QueryBuilderResults }[];
+  savedQueries: { uid: string; text: string; results?: Result[] }[];
   setSavedQueries: (
-    s: { uid: string; text: string; results?: QueryBuilderResults }[]
+    s: { uid: string; text: string; results?: Result[] }[]
   ) => void;
   clearOnClick: (s: string) => void;
   setQuery: (s: string) => void;
@@ -115,7 +112,7 @@ const QueryDrawerContent = ({
 }: Props) => {
   const tree = useMemo(() => getBasicTreeByParentUid(blockUid), []);
   const [savedQueries, setSavedQueries] = useState<
-    { text: string; uid: string; results?: QueryBuilderResults }[]
+    { text: string; uid: string; results?: Result[] }[]
   >(
     tree
       .filter((t) => !toFlexRegex("scratch").test(t.text))
