@@ -202,15 +202,11 @@ const getExportTypes = ({
     allNodes.map((a) => [a.type, a.text])
   );
   nodeLabelByType["*"] = "Any";
-  const getPageData = async (): Promise<(Result & { type: string })[]> => {
-    const allPages = window.roamAlphaAPI
-      .q("[:find (pull ?e [:block/uid :node/title]) :where [?e :node/title _]]")
-      .map(([{ title, uid }]: [Record<string, string>]) => ({
-        text: title,
-        uid,
-      }));
+  const getPageData = async (
+    isBackendEnabled: boolean
+  ): Promise<(Result & { type: string })[]> => {
     const allResults =
-      typeof results === "function" ? await results() : results;
+      typeof results === "function" ? await results(isBackendEnabled) : results;
     return allNodes.flatMap((n) =>
       (allResults
         ? allResults.flatMap((r) =>
@@ -226,17 +222,24 @@ const getExportTypes = ({
                 uid: r.uid,
               })
           )
-        : allPages
+        : window.roamAlphaAPI
+            .q(
+              "[:find (pull ?e [:block/uid :node/title]) :where [?e :node/title _]]"
+            )
+            .map(([{ title, uid }]: [Record<string, string>]) => ({
+              text: title,
+              uid,
+            }))
       )
         .filter(({ text }) => matchNode({ title: text, ...n }))
         .map((node) => ({ ...node, type: n.text }))
     );
   };
-  const getRelationData = (rels?: ReturnType<typeof getRelations>) =>
+  const getRelationData = (isBackendEnabled: boolean) =>
     relations
       ? Promise.resolve(relations)
       : Promise.all(
-          (rels || allRelations)
+          allRelations
             .filter(
               (s) =>
                 s.triples.some((t) => t[2] === "source") &&
@@ -266,6 +269,7 @@ const getExportTypes = ({
                           label: "target",
                         },
                       ],
+                      isBackendEnabled,
                     })
                     .then((results) =>
                       results.map((result) => ({
@@ -276,13 +280,13 @@ const getExportTypes = ({
                     );
             })
         ).then((r) => r.flat());
-  const getJsonData = async () => {
+  const getJsonData = async (isBackendEnabled: boolean) => {
     const grammar = allRelations.map(({ label, destination, source }) => ({
       label,
       destination: nodeLabelByType[destination],
       source: nodeLabelByType[source],
     }));
-    const nodes = (await getPageData()).map(({ text, uid }) => {
+    const nodes = (await getPageData(isBackendEnabled)).map(({ text, uid }) => {
       const { date, displayName } = getPageMetadata(text);
       const { children } = getFullTreeByParentUid(uid);
       return {
@@ -294,7 +298,7 @@ const getExportTypes = ({
       };
     });
     const nodeSet = new Set(nodes.map((n) => n.uid));
-    return getRelationData().then((rels) => {
+    return getRelationData(isBackendEnabled).then((rels) => {
       const relations = uniqJsonArray(
         rels.filter((r) => nodeSet.has(r.source) && nodeSet.has(r.target))
       );
@@ -305,9 +309,9 @@ const getExportTypes = ({
   return [
     {
       name: "Neo4j",
-      callback: async ({ filename }) => {
+      callback: async ({ filename, isBackendEnabled }) => {
         const nodeHeader = "uid:ID,label:LABEL,title,author,date\n";
-        const nodeData = (await getPageData())
+        const nodeData = (await getPageData(isBackendEnabled))
           .map(({ text, uid, type }) => {
             const value = text.replace(new RegExp(`^\\[\\[\\w*\\]\\] - `), "");
             const { displayName, date } = getPageMetadata(text);
@@ -317,7 +321,7 @@ const getExportTypes = ({
           })
           .join("\n");
         const relationHeader = "start:START_ID,end:END_ID,label:TYPE\n";
-        return getRelationData().then((rels) => {
+        return getRelationData(isBackendEnabled).then((rels) => {
           const relationData = rels.map(
             ({ source, target, label }) =>
               `${source},${target},${label.toUpperCase()}`
@@ -338,7 +342,7 @@ const getExportTypes = ({
     },
     {
       name: "Markdown",
-      callback: async () => {
+      callback: async ({ isBackendEnabled }) => {
         const configTree = getBasicTreeByParentUid(
           getPageUidByPageTitle("roam/js/discourse-graph")
         );
@@ -386,7 +390,7 @@ const getExportTypes = ({
             ];
         const pages = await Promise.all(
           (
-            await getPageData()
+            await getPageData(isBackendEnabled)
           ).map(({ text, uid, context: _, type, ...rest }) => {
             const v = getPageViewType(text) || "bullet";
             const { date, displayName } = getPageMetadata(text);
@@ -512,8 +516,8 @@ const getExportTypes = ({
     },
     {
       name: "JSON",
-      callback: async ({ filename }) => {
-        const data = await getJsonData();
+      callback: async ({ filename, isBackendEnabled }) => {
+        const data = await getJsonData(isBackendEnabled);
         return [
           {
             title: `${filename.replace(/\.json$/, "")}.json`,
@@ -524,8 +528,8 @@ const getExportTypes = ({
     },
     {
       name: "graph",
-      callback: async ({ filename, graph }) => {
-        const data = await getJsonData();
+      callback: async ({ filename, graph, isBackendEnabled }) => {
+        const data = await getJsonData(isBackendEnabled);
         const { sendToGraph } = getSamePageApi();
         sendToGraph({
           operation: "IMPORT_DISCOURSE_GRAPH",

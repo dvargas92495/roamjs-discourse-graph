@@ -1,9 +1,16 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import createOverlayQueryBuilderRender from "./utils/createOverlayQueryBuilderRender";
-import { Result } from "roamjs-components/types/query-builder";
+import {
+  ExportDialogComponent,
+  Result,
+} from "roamjs-components/types/query-builder";
 import getExportTypes from "./utils/getExportTypes";
 import { getNodes, matchNode } from "./util";
 import type { PullBlock } from "roamjs-components/types";
+import { Checkbox } from "@blueprintjs/core";
+import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
+import getSubTree from "roamjs-components/util/getSubTree";
+import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 
 type Props = {
   fromQuery?: {
@@ -27,36 +34,40 @@ const ExportDialog = ({
     if (fromQuery) return fromQuery;
     const discourseNodes = getNodes();
     return {
-      nodes: () =>
-        Promise.resolve(
-          window.roamAlphaAPI.data.fast
-            .q(
-              `[:find (pull ?p [:node/title :block/uid]) :where [?p :node/title _]]`
-            )
-            .map((a) => a[0] as PullBlock)
-            .map((a) => ({
-              text: a[":node/title"] as string,
-              uid: a[":block/uid"] as string,
-            }))
-            .filter((a) =>
-              discourseNodes.some((n) =>
-                matchNode({ title: a.text || "", ...n })
-              )
-            )
-        ),
+      nodes: (isBackendEnabled: boolean) =>
+        Promise.all(
+          discourseNodes.map((d) =>
+            window.roamjs.extension.queryBuilder.fireQuery({
+              returnNode: "node",
+              conditions: [
+                {
+                  relation: "is a",
+                  source: "node",
+                  target: d.type,
+                  uid: window.roamAlphaAPI.util.generateUID(),
+                  type: "clause",
+                },
+              ],
+              selections: [],
+              isBackendEnabled,
+            })
+          )
+        ).then((r) => r.flat()),
       relations: undefined,
     };
   }, [fromQuery]);
   return (
-    <QBExportDialog
-      isOpen={true}
-      onClose={onClose}
-      results={exportArgs.nodes}
-      exportTypes={getExportTypes({
-        results: exportArgs.nodes,
-        relations: exportArgs.relations,
-      })}
-    />
+    <>
+      <QBExportDialog
+        isOpen={true}
+        onClose={onClose}
+        results={exportArgs.nodes}
+        exportTypes={getExportTypes({
+          results: exportArgs.nodes,
+          relations: exportArgs.relations,
+        })}
+      />
+    </>
   );
 };
 

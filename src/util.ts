@@ -590,7 +590,18 @@ export const getPixelValue = (
 ) =>
   el ? Number((getComputedStyle(el)[field] || "0px").replace(/px$/, "")) : 0;
 
-export const getPageMetadata = (title: string) => {
+const displayNameCache: Record<string, string> = {};
+const getDisplayName = (s: string) => {
+  if (displayNameCache[s]) {
+    return displayNameCache[s];
+  }
+  const value = getDisplayNameByUid(s);
+  displayNameCache[s] = value;
+  setTimeout(() => delete displayNameCache[s], 120000);
+  return value;
+};
+
+export const getPageMetadata = (title: string, cacheKey?: string) => {
   const results = window.roamAlphaAPI.q(
     `[:find (pull ?p [:create/time :block/uid]) (pull ?cu [:user/uid]) :where [?p :node/title "${normalizePageTitle(
       title
@@ -598,7 +609,8 @@ export const getPageMetadata = (title: string) => {
   ) as [[{ time: number; uid: string }, { uid: string }]];
   if (results.length) {
     const [[{ time: createdTime, uid: id }, { uid }]] = results;
-    const displayName = getDisplayNameByUid(uid);
+
+    const displayName = getDisplayName(uid);
     const date = new Date(createdTime);
     return { displayName, date, id };
   }
@@ -628,11 +640,13 @@ export const getDiscourseContextResults = async ({
   relations = getRelations(),
   nodes = getNodes(relations),
   ignoreCache,
+  isBackendEnabled = false,
 }: {
   uid: string;
   nodes?: ReturnType<typeof getNodes>;
   relations?: ReturnType<typeof getRelations>;
-  ignoreCache?: true,
+  ignoreCache?: true;
+  isBackendEnabled?: boolean;
 }) => {
   const discourseNode = findDiscourseNode(uid);
   if (!discourseNode) return [];
@@ -679,30 +693,32 @@ export const getDiscourseContextResults = async ({
             text: `node:${conditionUid}-Anchor`,
           });
         }
-        const resultsPromise = resultCache[cacheKey] && !ignoreCache
-          ? Promise.resolve(resultCache[cacheKey])
-          : window.roamjs.extension.queryBuilder
-              .fireQuery({
-                returnNode,
-                conditions: [
-                  {
-                    source: returnNode,
-                    // NOTE! This MUST be the OPPOSITE of `label`
-                    relation: complement ? r.label : r.complement,
-                    target: uid,
-                    uid: conditionUid,
-                    type: "clause",
-                  },
-                ],
-                selections,
-              })
-              .then((results) => {
-                resultCache[cacheKey] = results;
-                setTimeout(() => {
-                  delete resultCache[cacheKey];
-                }, CACHE_TIMEOUT);
-                return results;
-              });
+        const resultsPromise =
+          resultCache[cacheKey] && !ignoreCache
+            ? Promise.resolve(resultCache[cacheKey])
+            : window.roamjs.extension.queryBuilder
+                .fireQuery({
+                  returnNode,
+                  conditions: [
+                    {
+                      source: returnNode,
+                      // NOTE! This MUST be the OPPOSITE of `label`
+                      relation: complement ? r.label : r.complement,
+                      target: uid,
+                      uid: conditionUid,
+                      type: "clause",
+                    },
+                  ],
+                  selections,
+                  isBackendEnabled,
+                })
+                .then((results) => {
+                  resultCache[cacheKey] = results;
+                  setTimeout(() => {
+                    delete resultCache[cacheKey];
+                  }, CACHE_TIMEOUT);
+                  return results;
+                });
         return resultsPromise.then((results) => ({
           label,
           complement,

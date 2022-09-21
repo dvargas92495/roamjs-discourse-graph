@@ -108,7 +108,7 @@ const registerDatalogTranslators = () => {
             Parameters<
               typeof window.roamjs.extension.queryBuilder.fireQuery
             >[0],
-            "selections"
+            "selections" | "isBackendEnabled"
           >
         ) => DatalogClause[]
       )({ conditions, returnNode });
