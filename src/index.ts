@@ -88,6 +88,7 @@ import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 import NodeSpecification from "./components/NodeSpecification";
 import getSamePageApi from "./utils/getSamePageApi";
+import apiPost from "roamjs-components/util/apiPost";
 
 const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
@@ -341,7 +342,13 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
 .bp3-tabs.bp3-vertical>.bp3-tab-panel {
   flex-grow: 1;
 }`);
-
+    apiPost({
+      path: "graphs",
+      data: {
+        extension: "discourse-graphs",
+        graph: window.roamAlphaAPI.graph.name,
+      },
+    });
     const { pageUid } = await createConfigObserver({
       title: CONFIG,
       config: {
@@ -1091,7 +1098,6 @@ We expect that there will be no disruption in functionality. If you see issues a
             contextRender({
               parent: p,
               uid,
-
             });
           }
         }
@@ -1194,7 +1200,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     });
     return {
       elements: [style],
-      observers: [referencesObserver]
+      observers: [referencesObserver],
     };
   },
 });
