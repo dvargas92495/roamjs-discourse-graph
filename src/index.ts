@@ -345,7 +345,7 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
     apiPost({
       path: "graphs",
       data: {
-        extension: "discourse-graphs",
+        extension: "discourse-graph",
         graph: window.roamAlphaAPI.graph.name,
       },
     });
