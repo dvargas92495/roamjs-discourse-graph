@@ -1,4 +1,3 @@
-import addStyle from "roamjs-components/dom/addStyle";
 import createBlock from "roamjs-components/writes/createBlock";
 import createHTMLObserver from "roamjs-components/dom/createHTMLObserver";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
@@ -9,9 +8,7 @@ import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import runExtension from "roamjs-components/util/runExtension";
 import toConfig from "roamjs-components/util/toConfigPageName";
 import updateBlock from "roamjs-components/writes/updateBlock";
-import {
-  render as configPageRender,
-} from "roamjs-components/components/ConfigPage";
+import { render as configPageRender } from "roamjs-components/components/ConfigPage";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { render as exportRender } from "./ExportDialog";
@@ -29,16 +26,12 @@ import { render as notificationRender } from "./NotificationIcon";
 import { render as queryRequestRender } from "./components/SendQueryRequest";
 import { render as renderBlockFeed } from "./components/BlockFeed";
 import {
-  getNodeReferenceChildren,
   getNodes,
-  getQueriesUid,
-  getSubscribedBlocks,
   getUserIdentifier,
   isFlagEnabled,
   isDiscourseNode,
   matchNode,
 } from "./util";
-import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
 import getSubTree from "roamjs-components/util/getSubTree";
@@ -55,10 +48,7 @@ import NodeAttributes from "./components/NodeAttributes";
 import deriveNodeAttribute from "./utils/deriveNodeAttribute";
 import type { DatalogClause } from "roamjs-components/types/native";
 import TextPanel from "roamjs-components/components/ConfigPanels/TextPanel";
-import FlagPanel from "roamjs-components/components/ConfigPanels/FlagPanel";
 import CustomPanel from "roamjs-components/components/ConfigPanels/CustomPanel";
-import NumberPanel from "roamjs-components/components/ConfigPanels/NumberPanel";
-import MultiTextPanel from "roamjs-components/components/ConfigPanels/MultiTextPanel";
 import SelectPanel from "roamjs-components/components/ConfigPanels/SelectPanel";
 import BlocksPanel from "roamjs-components/components/ConfigPanels/BlocksPanel";
 import type {
@@ -68,12 +58,14 @@ import type {
   FlagField,
   TextField,
 } from "roamjs-components/components/ConfigPanels/types";
-import { render as versioning } from "roamjs-components/components/VersionSwitcher";
+import treeRef from "./utils/configTreeRef";
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 import NodeSpecification from "./components/NodeSpecification";
 import getSamePageApi from "./utils/getSamePageApi";
 import apiPost from "roamjs-components/util/apiPost";
+import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
+import refreshConfigTree from "./utils/refreshConfigTree";
 
 const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
@@ -525,6 +517,21 @@ export default runExtension({
       }
     };
 
+    const getQueriesUid = () => {
+      const uid = treeRef.tree.find((t) =>
+        toFlexRegex("queries").test(t.text)
+      )?.uid;
+      if (uid) return Promise.resolve(uid);
+    
+      return createBlock({
+        node: { text: "queries" },
+        parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
+        order: 3,
+      }).then((uid) => {
+        refreshConfigTree();
+        return uid;
+      });
+    };
     window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Open Query Drawer",
       callback: () =>
@@ -563,28 +570,12 @@ export default runExtension({
         }
       },
     });
-    setTimeout(() => {
-      if (isFlagEnabled("render references")) {
-        createHTMLObserver({
-          className: "rm-sidebar-window",
-          tag: "div",
-          callback: (d) => {
-            const label = d.querySelector<HTMLSpanElement>(
-              ".window-headers div span"
-            );
-            if (label && label.innerText.startsWith("Outline")) {
-              const title = elToTitle(
-                d.querySelector<HTMLHeadingElement>(".rm-title-display")
-              );
-              if (isDiscourseNode(getPageUidByPageTitle(title))) {
-                const container = getNodeReferenceChildren(title);
-                d.appendChild(container);
-              }
-            }
-          },
-        });
-      }
-    }, 1);
+
+    const getSubscribedBlocks = () =>
+      //treeRef.tree
+      getBasicTreeByParentUid(
+        getPageUidByPageTitle("roam/js/discourse-graph")
+      ).find((s) => toFlexRegex("subscriptions").test(s.text))?.children || [];
 
     const showNotificationIcon = (url: string) => {
       const subscribedBlocks = getSubscribedBlocks();
