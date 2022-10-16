@@ -8,11 +8,15 @@ import getRoamUrl from "roamjs-components/dom/getRoamUrl";
 import BlockInput from "roamjs-components/components/BlockInput";
 import MenuItemSelect from "roamjs-components/components/MenuItemSelect";
 import PageInput from "roamjs-components/components/PageInput";
-import { getUserIdentifier, Panel } from "./util";
+import { getUserIdentifier } from "./util";
+import type { CustomField } from "roamjs-components/components/ConfigPanels/types";
 
 const SUBSCRIPTION_TYPES = ["page", "block"] as const;
 
-const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
+const SubscriptionConfigPanel: CustomField["options"]["component"] = ({
+  uid,
+  parentUid,
+}) => {
   const rootUid = useMemo(() => {
     if (uid) return uid;
     const newUid = window.roamAlphaAPI.util.generateUID();
@@ -41,7 +45,10 @@ const SubscriptionConfigPanel: Panel = ({ uid, parentUid }) => {
   return (
     <>
       <div style={{ display: "flex", marginBottom: 8 }}>
-        <p>This tab is deprecated - we recommend creating custom queries in for notification dashboards instead.</p>
+        <p>
+          This tab is deprecated - we recommend creating custom queries in for
+          notification dashboards instead.
+        </p>
         <Label>
           Type
           <MenuItemSelect

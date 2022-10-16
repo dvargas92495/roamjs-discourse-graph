@@ -5,48 +5,17 @@ import type {
   DatalogClause,
   DatalogVariable,
 } from "roamjs-components/types/native";
-import createBlock from "roamjs-components/writes/createBlock";
 import getCurrentUserDisplayName from "roamjs-components/queries/getCurrentUserDisplayName";
 import getCurrentUserUid from "roamjs-components/queries/getCurrentUserUid";
 import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
-import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import normalizePageTitle from "roamjs-components/queries/normalizePageTitle";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
-import { render as referenceRender } from "./ReferenceContext";
 import getSubTree from "roamjs-components/util/getSubTree";
 import treeRef from "./utils/configTreeRef";
-import refreshConfigTree from "./utils/refreshConfigTree";
 import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import { Result } from "roamjs-components/types/query-builder";
-
-export type PanelProps = {
-  uid: string;
-  parentUid: string;
-  title: string;
-};
-export type Panel = (props: PanelProps) => React.ReactElement;
-
-export const getSubscribedBlocks = () =>
-  treeRef.tree.find((s) => toFlexRegex("subscriptions").test(s.text))
-    ?.children || [];
-
-export const getQueriesUid = () => {
-  const uid = treeRef.tree.find((t) =>
-    toFlexRegex("queries").test(t.text)
-  )?.uid;
-  if (uid) return Promise.resolve(uid);
-
-  return createBlock({
-    node: { text: "queries" },
-    parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
-    order: 3,
-  }).then((uid) => {
-    refreshConfigTree();
-    return uid;
-  });
-};
 
 export const isFlagEnabled = (
   flag: string,
@@ -65,32 +34,6 @@ export const isFlagEnabled = (
 
 export const ANY_RELATION_REGEX = /Has Any Relation To/i;
 
-export const DEFAULT_NODE_VALUES = [
-  {
-    type: "_CLM-node",
-    format: "[[CLM]] - {content}",
-    text: "Claim",
-    shortcut: "C",
-  },
-  {
-    type: "_QUE-node",
-    format: "[[QUE]] - {content}",
-    text: "Question",
-    shortcut: "Q",
-  },
-  {
-    type: "_EVD-node",
-    format: "[[EVD]] - {content} - {Source}",
-    text: "Evidence",
-    shortcut: "E",
-  },
-  {
-    type: "_SRC-node",
-    format: "@{content}",
-    text: "Source",
-    shortcut: "S",
-  },
-];
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   {
     text: "Informs",
@@ -367,15 +310,6 @@ export const findDiscourseNode = (uid: string, nodes = getNodes()) =>
 
 export const isDiscourseNode = (uid: string, nodes = getNodes()) =>
   !!findDiscourseNode(uid, nodes);
-
-export const getNodeReferenceChildren = (title: string) => {
-  const container = document.createElement("div");
-  referenceRender({
-    title,
-    container,
-  });
-  return container;
-};
 
 export const replaceVariables = (
   replacements: (
