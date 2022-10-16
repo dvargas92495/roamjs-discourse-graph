@@ -49,7 +49,6 @@ import {
   matchNode,
 } from "./util";
 import refreshConfigTree from "./utils/refreshConfigTree";
-import { NodeConfigPanel, RelationConfigPanel } from "./ConfigPanels";
 import SubscriptionConfigPanel from "./SubscriptionConfigPanel";
 import ReactDOM from "react-dom";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
@@ -397,23 +396,6 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
           {
             id: "grammar",
             fields: [
-              {
-                title: "nodes",
-                Panel: CustomPanel,
-                description: "The types of nodes in your discourse graph",
-                options: {
-                  component: NodeConfigPanel,
-                },
-              } as Field<CustomField>,
-              {
-                title: "relations",
-                Panel: CustomPanel,
-                description: "The types of relations in your discourse graph",
-                defaultValue: DEFAULT_RELATION_VALUES,
-                options: {
-                  component: RelationConfigPanel,
-                },
-              } as Field<CustomField>,
               {
                 title: "overlay",
                 Panel: FlagPanel,
