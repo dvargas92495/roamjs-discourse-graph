@@ -518,12 +518,6 @@ export const getUserIdentifier = () => {
   return getCurrentUserDisplayName() || getDisplayNameByUid(uid) || uid;
 };
 
-export const getPixelValue = (
-  el: HTMLElement,
-  field: "width" | "paddingLeft"
-) =>
-  el ? Number((getComputedStyle(el)[field] || "0px").replace(/px$/, "")) : 0;
-
 const displayNameCache: Record<string, string> = {};
 const getDisplayName = (s: string) => {
   if (displayNameCache[s]) {

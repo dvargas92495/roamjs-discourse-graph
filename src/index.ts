@@ -13,7 +13,6 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
-import { render as queryRender } from "./QueryDrawer";
 import { render as contextRender } from "./DiscourseContext";
 import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
 import {
@@ -516,32 +515,6 @@ export default runExtension({
         createBlock({ parentUid, node: { text }, order });
       }
     };
-
-    const getQueriesUid = () => {
-      const uid = treeRef.tree.find((t) =>
-        toFlexRegex("queries").test(t.text)
-      )?.uid;
-      if (uid) return Promise.resolve(uid);
-    
-      return createBlock({
-        node: { text: "queries" },
-        parentUid: getPageUidByPageTitle("roam/js/discourse-graph"),
-        order: 3,
-      }).then((uid) => {
-        refreshConfigTree();
-        return uid;
-      });
-    };
-    window.roamAlphaAPI.ui.commandPalette.addCommand({
-      label: "Open Query Drawer",
-      callback: () =>
-        getQueriesUid().then((blockUid) =>
-          queryRender({
-            blockUid,
-            clearOnClick,
-          })
-        ),
-    });
 
     const referencesObserver = createHTMLObserver({
       tag: "DIV",
