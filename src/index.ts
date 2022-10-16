@@ -30,7 +30,6 @@ import {
   listeners,
   shutdownDataWorker,
 } from "./dataWorkerClient";
-import { render as cyRender } from "./CytoscapePlayground";
 import { render as overviewRender } from "./components/DiscourseGraphOverview";
 import { render as previewRender } from "./LivePreview";
 import { render as notificationRender } from "./NotificationIcon";
@@ -771,19 +770,7 @@ We expect that there will be no disruption in functionality. If you see issues a
       samePageLoadedListener,
       { once: true }
     );
-    if (window.roamjs.loaded.has("query-builder")) {
-      console.warn(`It appears that you have the Query Builder extension installed as well as Discourse Graph.
-    
-    This is not necessary, as the Discourse Graph extension already comes preloaded with its own copy of Query Builder by default. Please remove the Query Builder extension as this redundancy could cause unforseen issues`);
-    }
-    if (process.env.NODE_ENV === "development") {
-      addScriptAsDependency({
-        id: "roamjs-query-builder-main",
-        //src: "http://localhost:3100/main.js",
-        src: `https://roamjs.com/query-builder/main.js`,
-        dataAttributes: { source: "discourse-graph" },
-      });
-    } else {
+    if (process.env.NODE_ENV === "production") {
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
         src: `https://roamjs.com/query-builder/main.js`,
@@ -896,10 +883,6 @@ We expect that there will be no disruption in functionality. If you see issues a
       }
     };
 
-    const globalRefs: { [key: string]: (...args: string[]) => void } = {
-      clearOnClick: () => {},
-    };
-
     const hidePageMetadata = configTree.some((t) =>
       toFlexRegex("hide page metadata").test(t.text)
     );
@@ -927,23 +910,7 @@ We expect that there will be no disruption in functionality. If you see issues a
             h1.parentElement.insertBefore(container, h1.nextSibling);
           }
         }
-        if (title.startsWith("Playground") && !!h1.closest(".roam-article")) {
-          const children = document.querySelector<HTMLDivElement>(
-            ".roam-article .rm-block-children"
-          );
-          if (!children.hasAttribute("data-roamjs-discourse-playground")) {
-            children.setAttribute("data-roamjs-discourse-playground", "true");
-            const parent = document.createElement("div");
-            children.parentElement.appendChild(parent);
-            parent.style.height = "500px";
-            cyRender({
-              parent,
-              title,
-              previewEnabled: isFlagEnabled("preview"),
-              globalRefs,
-            });
-          }
-        } else if (title === "Discourse Graph Overview") {
+        if (title === "Discourse Graph Overview") {
           const children = document.querySelector<HTMLDivElement>(
             ".roam-article .rm-block-children"
           );
@@ -1091,13 +1058,8 @@ We expect that there will be no disruption in functionality. If you see issues a
         );
       } else {
         const parentUid = getCurrentPageUid();
-        const pageTitle = getPageTitleByPageUid(parentUid);
-        if (pageTitle.startsWith("Playground")) {
-          globalRefs.clearOnClick(tag);
-        } else {
-          const order = getChildrenLengthByPageUid(parentUid);
-          createBlock({ parentUid, node: { text }, order });
-        }
+        const order = getChildrenLengthByPageUid(parentUid);
+        createBlock({ parentUid, node: { text }, order });
       }
     };
 
