@@ -11,10 +11,8 @@ import updateBlock from "roamjs-components/writes/updateBlock";
 import { render as configPageRender } from "roamjs-components/components/ConfigPage";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as renderToast } from "roamjs-components/components/Toast";
-import { render as exportRender } from "./ExportDialog";
 import { render as importRender } from "./ImportDialog";
 import { render as contextRender } from "./DiscourseContext";
-import { render as renderSavedQueryPage } from "./components/SavedQueryPage";
 import {
   initializeDataWorker,
   listeners,
@@ -27,7 +25,6 @@ import { render as renderBlockFeed } from "./components/BlockFeed";
 import {
   getNodes,
   getUserIdentifier,
-  isFlagEnabled,
   isDiscourseNode,
   matchNode,
 } from "./util";
@@ -276,11 +273,6 @@ export default runExtension({
     }
 
     window.roamAlphaAPI.ui.commandPalette.addCommand({
-      label: "Export Discourse Graph",
-      callback: () => exportRender({}),
-    });
-
-    window.roamAlphaAPI.ui.commandPalette.addCommand({
       label: "Import Discourse Graph",
       callback: () => importRender({}),
     });
@@ -470,27 +462,6 @@ export default runExtension({
                 { once: true }
               );
             }
-          }
-        } else if (title.startsWith("discourse-graph/queries/")) {
-          // in order to deprecate this branch we need to do two things:
-          // - add `discourse-graph/queries` as a prefix to qb config
-          // - ensure that query pages could still get DG export types
-          const uid = getPageUidByPageTitle(title);
-          const attribute = `data-roamjs-${uid}`;
-          const containerParent = h1.parentElement?.parentElement;
-          if (containerParent && !containerParent.hasAttribute(attribute)) {
-            containerParent.setAttribute(attribute, "true");
-            const parent = document.createElement("div");
-            const configPageId = title.split("/").slice(-1)[0];
-            parent.id = `${configPageId}-config`;
-            containerParent.insertBefore(
-              parent,
-              h1.parentElement?.nextElementSibling || null
-            );
-            renderSavedQueryPage({
-              pageUid: uid,
-              parent,
-            });
           }
         }
       },

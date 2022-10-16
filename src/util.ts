@@ -17,21 +17,6 @@ import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import { Result } from "roamjs-components/types/query-builder";
 
-export const isFlagEnabled = (
-  flag: string,
-  inputTree?: RoamBasicNode[]
-): boolean => {
-  const flagParts = flag.split(".");
-  const tree = inputTree || treeRef.tree;
-  if (flagParts.length === 1)
-    return tree.some((t) => toFlexRegex(flag).test(t.text));
-  else
-    return isFlagEnabled(
-      flagParts.slice(1).join("."),
-      getSubTree({ tree, key: flagParts[0] }).children
-    );
-};
-
 export const ANY_RELATION_REGEX = /Has Any Relation To/i;
 
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
