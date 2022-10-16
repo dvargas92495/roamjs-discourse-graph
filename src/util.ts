@@ -3,7 +3,6 @@ import type {
   RoamBasicNode,
   TextNode,
   DatalogClause,
-  DatalogAndClause,
   DatalogVariable,
 } from "roamjs-components/types/native";
 import createBlock from "roamjs-components/writes/createBlock";
@@ -20,6 +19,7 @@ import treeRef from "./utils/configTreeRef";
 import refreshConfigTree from "./utils/refreshConfigTree";
 import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
+import { Result } from "roamjs-components/types/query-builder";
 
 export type PanelProps = {
   uid: string;
@@ -621,14 +621,6 @@ export const getPageMetadata = (title: string, cacheKey?: string) => {
   };
 };
 
-export type Result = {
-  text: string;
-  uid: string;
-  createdTime: number;
-  editedTime: number;
-  context?: string;
-};
-
 const resultCache: Record<
   string,
   Awaited<ReturnType<typeof window.roamjs.extension.queryBuilder.fireQuery>>
@@ -736,7 +728,7 @@ export const getDiscourseContextResults = async ({
       r.label,
       {} as Record<
         string,
-        Partial<Result & { target: string; complement: boolean; id: string }>
+        Partial<Result & { target: string; complement: number; id: string }>
       >,
     ])
   );
@@ -748,7 +740,7 @@ export const getDiscourseContextResults = async ({
           (groupedResults[r.label][res.uid] = {
             ...res,
             target: nodeTextByType[r.target],
-            complement: r.complement,
+            complement: r.complement ? 1 : 0,
             id: r.id,
           })
       )

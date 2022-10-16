@@ -4,7 +4,6 @@ import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTit
 import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import createPage from "roamjs-components/writes/createPage";
 import updateBlock from "roamjs-components/writes/updateBlock";
-import { Result } from "../util";
 import { render as exportRender } from "../ExportDialog";
 import getQBClauses from "../utils/getQBClauses";
 import getSubTree from "roamjs-components/util/getSubTree";
@@ -12,6 +11,7 @@ import getParentUidByBlockUid from "roamjs-components/queries/getParentUidByBloc
 import deleteBlock from "roamjs-components/writes/deleteBlock";
 import getShallowTreeByParentUid from "roamjs-components/queries/getShallowTreeByParentUid";
 import createBlock from "roamjs-components/writes/createBlock";
+import { Result } from "roamjs-components/types/query-builder";
 
 type QueryBuilderResults = Parameters<
   typeof window.roamjs.extension.queryBuilder.ResultsView
