@@ -6,13 +6,15 @@ import getDisplayNameByUid from "roamjs-components/queries/getDisplayNameByUid";
 import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import { PullBlock } from "roamjs-components/types";
 import updateBlock from "roamjs-components/writes/updateBlock";
-import { getPixelValue } from "./util";
 
 type Props = {
   parentUid: string;
   timestamp: number;
   configUid: string;
 };
+
+export const getPixelValue = (el: HTMLElement, field: "width" | "paddingLeft") =>
+  el ? Number((getComputedStyle(el)[field] || "0px").replace(/px$/, "")) : 0;
 
 const idRef: Record<string, string> = {};
 
