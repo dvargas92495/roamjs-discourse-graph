@@ -41,7 +41,6 @@ import NodeIndex from "./components/NodeIndex";
 import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
 import registerDatalogTranslators from "./utils/registerDatalogTranslators";
 import NodeAttributes from "./components/NodeAttributes";
-import deriveNodeAttribute from "./utils/deriveNodeAttribute";
 import type { DatalogClause } from "roamjs-components/types/native";
 import TextPanel from "roamjs-components/components/ConfigPanels/TextPanel";
 import CustomPanel from "roamjs-components/components/ConfigPanels/CustomPanel";
@@ -141,53 +140,6 @@ export default runExtension({
       },
     });
 
-    document.body.addEventListener(
-      "roamjs:query-builder:loaded",
-      () => {
-        registerDatalogTranslators();
-
-        const { registerSelection } = window.roamjs.extension.queryBuilder;
-        registerSelection({
-          test: /^(.*)-(.*)$/,
-          pull: ({ returnNode }) => `(pull ?${returnNode} [:node/title])`,
-          mapper: () => {
-            return `This selection is deprecated. Define a Node Attribute and use \`discourse:attribute\` instead.`;
-          },
-        });
-
-        registerSelection({
-          test: /^discourse:(.*)$/,
-          pull: ({ returnNode }) => `(pull ?${returnNode} [:block/uid])`,
-          mapper: (r, key) => {
-            const attribute = key.substring("discourse:".length);
-            const uid = r[":block/uid"] || "";
-            return deriveNodeAttribute({ uid, attribute });
-          },
-        });
-
-        registerSelection({
-          test: /^\s*type\s*$/i,
-          pull: ({ returnNode }) =>
-            `(pull ?${returnNode} [:node/title :block/string])`,
-          mapper: (r) => {
-            const title = r[":node/title"] || "";
-            return (
-              getNodes().find((n) =>
-                matchNode({
-                  ...n,
-                  title,
-                })
-              )?.text || (r[":block/string"] ? "block" : "page")
-            );
-          },
-        });
-
-        document.body.dispatchEvent(
-          new Event("roamjs:discourse-graph:query-builder")
-        );
-      },
-      { once: true }
-    );
     const samePageLoadedListener = () => {
       const { addGraphListener, sendToGraph } = getSamePageApi();
       addGraphListener({
