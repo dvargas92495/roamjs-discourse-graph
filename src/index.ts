@@ -16,7 +16,7 @@ export default runExtension({
     if (process.env.NODE_ENV === "production") {
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
-        src: `https://roamjs.com/query-builder/main.js`,
+        src: `https://roamjs.com/query-builder/trojan/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
     }
