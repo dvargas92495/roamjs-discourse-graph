@@ -12,11 +12,6 @@ import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { render as importRender } from "./ImportDialog";
 import { render as contextRender } from "./DiscourseContext";
-import {
-  initializeDataWorker,
-  shutdownDataWorker,
-} from "./dataWorkerClient";
-import { render as overviewRender } from "./components/DiscourseGraphOverview";
 import { render as notificationRender } from "./NotificationIcon";
 import { render as queryRequestRender } from "./components/SendQueryRequest";
 import { render as renderBlockFeed } from "./components/BlockFeed";
@@ -32,9 +27,6 @@ import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
-import type { DatalogClause } from "roamjs-components/types/native";
-import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
-import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 import getSamePageApi from "./utils/getSamePageApi";
 import apiPost from "roamjs-components/util/apiPost";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
@@ -52,68 +44,6 @@ export default runExtension({
       data: {
         extension: "discourse-graph",
         graph: window.roamAlphaAPI.graph.name,
-      },
-    });
-
-    let fireQueryRef: FireQuery;
-    registerExperimentalMode({
-      feature: "Cached Graph",
-      onEnable: () => {
-        initializeDataWorker(
-          getPageUidByPageTitle("roam/js/discourse-graph")
-        ).then((worker) => {
-          const swapFireQuery = () => {
-            fireQueryRef = window.roamjs.extension.queryBuilder.fireQuery;
-            window.roamjs.extension.queryBuilder.fireQuery = async (args) => {
-              // @ts-ignore temporary
-              const { getDatalogQueryComponents } =
-                window.roamjs.extension.queryBuilder;
-              const { where, definedSelections } = (
-                getDatalogQueryComponents as (
-                  args: Parameters<FireQuery>[0]
-                ) => {
-                  where: DatalogClause[];
-                  definedSelections: {
-                    pull: string;
-                    label: string;
-                    key: string;
-                  }[];
-                }
-              )(args);
-              const pull = definedSelections
-                .flatMap((sel) => {
-                  const pullExec = /\(pull \?([^\s]+) \[([^\]]+)\]\)/.exec(
-                    sel.pull
-                  );
-                  if (!pullExec || pullExec.length < 3) return [];
-                  const [_, _var, fields] = pullExec;
-                  return fields.split(/\s+/).map((field) => ({
-                    label: field.endsWith("uid")
-                      ? `${sel.label}-uid`
-                      : sel.label,
-                    field,
-                    _var,
-                  }));
-                })
-                .filter((s) => !!s);
-              return fireWorkerQuery({ where, pull, worker });
-            };
-          };
-          if (window.roamjs.extension.queryBuilder) {
-            swapFireQuery();
-          } else {
-            document.body.addEventListener(
-              "roamjs:discourse-graph:query-builder",
-              swapFireQuery,
-              { once: true }
-            );
-          }
-        });
-      },
-      onDisable: () => {
-        if (fireQueryRef)
-          window.roamjs.extension.queryBuilder.fireQuery = fireQueryRef;
-        shutdownDataWorker();
       },
     });
 
@@ -278,30 +208,6 @@ export default runExtension({
         return Array.from(e.childNodes).map(elToTitle).join("");
       }
     };
-
-    createHTMLObserver({
-      tag: "H1",
-      className: "rm-title-display",
-      callback: (h1: HTMLHeadingElement) => {
-        const title = elToTitle(h1);
-        if (title === "Discourse Graph Overview") {
-          const children = document.querySelector<HTMLDivElement>(
-            ".roam-article .rm-block-children"
-          );
-          if (!children.hasAttribute("data-roamjs-discourse-overview")) {
-            children.setAttribute("data-roamjs-discourse-overview", "true");
-            children.style.display = "none";
-            const p = document.createElement("div");
-            children.parentElement.appendChild(p);
-            p.style.height = "500px";
-            overviewRender({
-              parent: p,
-              pageUid: getPageTitleByPageUid(title),
-            });
-          }
-        }
-      },
-    });
 
     const clearOnClick = (tag: string) => {
       const uid = window.roamAlphaAPI.ui.getFocusedBlock()?.["block-uid"] || "";
