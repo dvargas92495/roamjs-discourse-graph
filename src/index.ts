@@ -8,14 +8,12 @@ import getTextByBlockUid from "roamjs-components/queries/getTextByBlockUid";
 import runExtension from "roamjs-components/util/runExtension";
 import toConfig from "roamjs-components/util/toConfigPageName";
 import updateBlock from "roamjs-components/writes/updateBlock";
-import { render as configPageRender } from "roamjs-components/components/ConfigPage";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { render as importRender } from "./ImportDialog";
 import { render as contextRender } from "./DiscourseContext";
 import {
   initializeDataWorker,
-  listeners,
   shutdownDataWorker,
 } from "./dataWorkerClient";
 import { render as overviewRender } from "./components/DiscourseGraphOverview";
@@ -23,44 +21,24 @@ import { render as notificationRender } from "./NotificationIcon";
 import { render as queryRequestRender } from "./components/SendQueryRequest";
 import { render as renderBlockFeed } from "./components/BlockFeed";
 import {
-  getNodes,
   getUserIdentifier,
   isDiscourseNode,
-  matchNode,
 } from "./util";
 import ReactDOM from "react-dom";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
-import getSubTree from "roamjs-components/util/getSubTree";
 import { Intent } from "@blueprintjs/core";
 import createButtonObserver from "roamjs-components/dom/createButtonObserver";
 import getUidsFromButton from "roamjs-components/dom/getUidsFromButton";
 import getFullTreeByParentUid from "roamjs-components/queries/getFullTreeByParentUid";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
-import React from "react";
-import NodeIndex from "./components/NodeIndex";
 import addScriptAsDependency from "roamjs-components/dom/addScriptAsDependency";
-import registerDatalogTranslators from "./utils/registerDatalogTranslators";
-import NodeAttributes from "./components/NodeAttributes";
 import type { DatalogClause } from "roamjs-components/types/native";
-import TextPanel from "roamjs-components/components/ConfigPanels/TextPanel";
-import CustomPanel from "roamjs-components/components/ConfigPanels/CustomPanel";
-import SelectPanel from "roamjs-components/components/ConfigPanels/SelectPanel";
-import BlocksPanel from "roamjs-components/components/ConfigPanels/BlocksPanel";
-import type {
-  CustomField,
-  Field,
-  SelectField,
-  FlagField,
-  TextField,
-} from "roamjs-components/components/ConfigPanels/types";
-import treeRef from "./utils/configTreeRef";
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
-import NodeSpecification from "./components/NodeSpecification";
 import getSamePageApi from "@samepage/external/getSamePageAPI";
 import apiPost from "roamjs-components/util/apiPost";
 import getBasicTreeByParentUid from "roamjs-components/queries/getBasicTreeByParentUid";
-import refreshConfigTree from "./utils/refreshConfigTree";
+import getSubTree from "roamjs-components/util/getSubTree";
 
 const CONFIG = toConfig("discourse-graph");
 const user = getUserIdentifier();
@@ -360,99 +338,6 @@ Click on the ✖️ to dismiss for good (you won't see this message again).`,
               parent: p,
               pageUid: getPageTitleByPageUid(title),
             });
-          }
-        } else if (title.startsWith("discourse-graph/nodes/")) {
-          const nodeText = title.substring("discourse-graph/nodes/".length);
-          const allNodes = getNodes();
-          const node = allNodes.find(({ text }) => text === nodeText);
-          if (node) {
-            const renderNode = () =>
-              configPageRender({
-                h: h1,
-                title,
-                config: [
-                  {
-                    title: "Index",
-                    description:
-                      "Index of all of the pages in your graph of this type",
-                    Panel: CustomPanel,
-                    options: {
-                      component: ({ uid }) =>
-                        React.createElement(NodeIndex, {
-                          node,
-                          parentUid: uid,
-                        }),
-                    },
-                  } as Field<CustomField>,
-                  {
-                    title: "Format",
-                    description: `The format ${nodeText} pages should have.`,
-                    defaultValue: "\\",
-                    Panel: TextPanel,
-                    options: {
-                      placeholder: `Include "{content}" in format`,
-                    },
-                  } as Field<TextField>,
-                  {
-                    title: "Specification",
-                    description: `The conditions specified to identify a ${nodeText} node.`,
-                    Panel: CustomPanel,
-                    options: {
-                      component: ({ uid }) =>
-                        React.createElement(NodeSpecification, {
-                          node,
-                          parentUid: uid,
-                        }),
-                    },
-                  } as Field<CustomField>,
-                  {
-                    title: "Shortcut",
-                    description: `The trigger to quickly create a ${nodeText} page from the node menu.`,
-                    defaultValue: "\\",
-                    Panel: TextPanel,
-                  },
-                  {
-                    title: "Description",
-                    description: `Describing what the ${nodeText} node represents in your graph.`,
-                    Panel: TextPanel,
-                  },
-                  {
-                    title: "Template",
-                    description: `The template that auto fills ${nodeText} page when generated.`,
-                    Panel: BlocksPanel,
-                  },
-                  {
-                    title: "Attributes",
-                    description: `A set of derived properties about the node based on queryable data.`,
-                    Panel: CustomPanel,
-                    options: {
-                      component: NodeAttributes,
-                    },
-                  } as Field<CustomField>,
-                  {
-                    title: "Overlay",
-                    description: `Select which attribute is used for the Discourse Overlay`,
-                    Panel: SelectPanel,
-                    options: {
-                      items: () =>
-                        getSubTree({
-                          parentUid: getCurrentPageUid(),
-                          key: "Attributes",
-                        }).children.map((c) => c.text),
-                    },
-                  } as Field<SelectField>,
-                ],
-              });
-
-            if (window.roamjs.extension.queryBuilder) {
-              renderNode();
-            } else {
-              document.body.addEventListener(
-                "roamjs:discourse-graph:query-builder",
-                renderNode,
-                { once: true }
-              );
-            }
           }
         }
       },
