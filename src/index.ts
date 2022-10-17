@@ -11,13 +11,11 @@ import updateBlock from "roamjs-components/writes/updateBlock";
 import toFlexRegex from "roamjs-components/util/toFlexRegex";
 import { render as renderToast } from "roamjs-components/components/Toast";
 import { render as importRender } from "./ImportDialog";
-import { render as contextRender } from "./DiscourseContext";
 import { render as notificationRender } from "./NotificationIcon";
 import { render as queryRequestRender } from "./components/SendQueryRequest";
 import { render as renderBlockFeed } from "./components/BlockFeed";
 import {
   getUserIdentifier,
-  isDiscourseNode,
 } from "./util";
 import ReactDOM from "react-dom";
 import importDiscourseGraph from "./utils/importDiscourseGraph";
@@ -229,34 +227,6 @@ export default runExtension({
       }
     };
 
-    const referencesObserver = createHTMLObserver({
-      tag: "DIV",
-      useBody: true,
-      className: "rm-reference-main",
-      callback: async (d: HTMLDivElement) => {
-        const isMain = !!d.closest(".roam-article");
-        const uid = isMain
-          ? await window.roamAlphaAPI.ui.mainWindow.getOpenPageOrBlockUid()
-          : getPageUidByPageTitle(elToTitle(getPageTitleByHtmlElement(d)));
-        if (
-          isDiscourseNode(uid) &&
-          !d.getAttribute("data-roamjs-discourse-context")
-        ) {
-          d.setAttribute("data-roamjs-discourse-context", "true");
-          const parent =
-            d.querySelector("div.rm-reference-container") || d.children[0];
-          if (parent) {
-            const p = document.createElement("div");
-            parent.parentElement.insertBefore(p, parent);
-            contextRender({
-              parent: p,
-              uid,
-            });
-          }
-        }
-      },
-    });
-
     const getSubscribedBlocks = () =>
       //treeRef.tree
       getBasicTreeByParentUid(
@@ -320,8 +290,5 @@ export default runExtension({
       label: "Open Feed",
       callback: () => renderBlockFeed({}),
     });
-    return {
-      observers: [referencesObserver],
-    };
   },
 });
