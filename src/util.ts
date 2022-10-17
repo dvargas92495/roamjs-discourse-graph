@@ -17,8 +17,6 @@ import compileDatalog from "roamjs-components/queries/compileDatalog";
 import getPageTitleByPageUid from "roamjs-components/queries/getPageTitleByPageUid";
 import { Result } from "roamjs-components/types/query-builder";
 
-export const ANY_RELATION_REGEX = /Has Any Relation To/i;
-
 export const DEFAULT_RELATION_VALUES: InputTextNode[] = [
   {
     text: "Informs",
