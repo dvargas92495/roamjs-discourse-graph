@@ -544,6 +544,17 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
     });
 
     const configTree = getBasicTreeByParentUid(pageUid);
+    const surveyed = getSubTree({ tree: configTree, key: "surveyed" });
+    if (!surveyed.uid) {
+      renderToast({
+        position: "bottom-right",
+        content:
+          "Hi! Joel Chan here gathering feedback on your usage of Discourse Graphs. It would be great if you could fill out your thoughts so far [by clicking here](https://roamjs.com).",
+        id: "discourse-survey",
+        timeout: 0,
+      });
+      createBlock({ parentUid: pageUid, node: { text: "surveyed" } });
+    }
     const grammarTree = getSubTree({
       tree: configTree,
       key: "grammar",

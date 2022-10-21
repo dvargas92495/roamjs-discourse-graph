@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - experimental
+      - SURVEY
     paths:
       - "src/**"
       - "package.json"
@@ -25,4 +26,4 @@ jobs:
       - name: build
         run: npx roamjs-scripts build
       - name: publish
-        run: npx roamjs-scripts publish
+        run: npx roamjs-scripts publish --path discourse-graph/survey
