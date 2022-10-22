@@ -23,6 +23,14 @@ jobs:
       - uses: actions/checkout@v2
       - name: install
         run: npm install
+      - name: ls
+        run: ls node_modules
+      - name: ls2
+        run: ls node_modules/@samepage
+      - name: ls3
+        run: ls node_modules/@samepage/external
+      - name: ls4
+        run: cat node_modules/@samepage/external/package.json | grep version
       - name: build
         run: npx roamjs-scripts build
       - name: publish
