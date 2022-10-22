@@ -87,7 +87,7 @@ import { render as versioning } from "roamjs-components/components/VersionSwitch
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 import NodeSpecification from "./components/NodeSpecification";
-import getSamePageApi from "@samepage/external/getSamePageApi";
+import getSamePageApi from "@samepage/external/getSamePageAPI";
 import apiPost from "roamjs-components/util/apiPost";
 
 const CONFIG = toConfig("discourse-graph");

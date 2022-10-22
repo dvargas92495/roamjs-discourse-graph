@@ -19,7 +19,7 @@ import {
 } from "../util";
 import XRegExp from "xregexp";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import getSamePageApi from "@samepage/external/getSamePageApi";
+import getSamePageApi from "@samepage/external/getSamePageAPI";
 
 const pullBlockToTreeNode = (n: PullBlock, v: `:${ViewType}`): TreeNode => ({
   text: n[":block/string"] || n[":node/title"] || "",

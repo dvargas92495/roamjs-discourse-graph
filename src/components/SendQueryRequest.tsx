@@ -19,7 +19,7 @@ import createPage from "roamjs-components/writes/createPage";
 import { PullBlock, TreeNode } from "roamjs-components/types";
 import getChildrenLengthByPageUid from "roamjs-components/queries/getChildrenLengthByPageUid";
 import nanoid from "nanoid";
-import getSamePageApi from "@samepage/external/getSamePageApi";
+import getSamePageApi from "@samepage/external/getSamePageAPI";
 
 type Props = {
   uid?: string;
