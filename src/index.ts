@@ -87,7 +87,7 @@ import { render as versioning } from "roamjs-components/components/VersionSwitch
 import fireWorkerQuery, { FireQuery } from "./utils/fireWorkerQuery";
 import registerExperimentalMode from "roamjs-components/util/registerExperimentalMode";
 import NodeSpecification from "./components/NodeSpecification";
-import getSamePageApi from "./utils/getSamePageApi";
+import getSamePageApi from "@samepage/external/getSamePageApi";
 import apiPost from "roamjs-components/util/apiPost";
 
 const CONFIG = toConfig("discourse-graph");
@@ -546,14 +546,33 @@ div.roamjs-discourse-notification-drawer div.bp3-drawer {
     const configTree = getBasicTreeByParentUid(pageUid);
     const surveyed = getSubTree({ tree: configTree, key: "surveyed" });
     if (!surveyed.uid) {
-      renderToast({
+      let dismissed = true;
+      const closeSurvey = renderToast({
         position: "bottom-right",
-        content:
-          "Hi! Joel Chan here gathering feedback on your usage of Discourse Graphs. It would be great if you could fill out your thoughts so far [by clicking here](https://roamjs.com).",
+        content: `👋 Greetings! 👋 
+
+The discourse graph team is trying to understand how people are using the discourse graph extension, or not (as part of the larger research project it is a part of; context [here](https://twitter.com/JoelChan86/status/1570853004458491904?s=20&t=iAC5Tx3PYrMBhqCp9UAYOw)). 
+
+Survey link is here: https://go.umd.edu/discourse-graph-survey
+
+If you’ve explored/used the discourse graph extension in any capacity, we would be so grateful if you could take a few minutes to contribute to the survey!
+
+Click on the ⏰ to dismiss and see this message later when you reload Roam.
+
+Click on the ✖️ to dismiss for good (you won't see this message again).`,
         id: "discourse-survey",
         timeout: 0,
+        onDismiss: () =>
+          dismissed &&
+          createBlock({ parentUid: pageUid, node: { text: "surveyed" } }),
+        action: {
+          text: "⏰",
+          onClick: () => {
+            dismissed = false;
+            closeSurvey();
+          },
+        },
       });
-      createBlock({ parentUid: pageUid, node: { text: "surveyed" } });
     }
     const grammarTree = getSubTree({
       tree: configTree,
@@ -673,11 +692,14 @@ We expect that there will be no disruption in functionality. If you see issues a
       },
       { once: true }
     );
-    const samePageLoadedListener = () => {
-      const { addGraphListener, sendToGraph } = getSamePageApi();
-      addGraphListener({
+    const samePageLoadedListener = async () => {
+      const { addNotebookListener, sendToNotebook } = await getSamePageApi();
+      addNotebookListener({
         operation: "IMPORT_DISCOURSE_GRAPH",
-        handler: (data: Parameters<typeof importDiscourseGraph>[0], graph) => {
+        handler: (
+          data: Parameters<typeof importDiscourseGraph>[0],
+          notebook
+        ) => {
           importDiscourseGraph(data);
           const todayUid = window.roamAlphaAPI.util.dateToPageUid(new Date());
           const todayOrder = getChildrenLengthByPageUid(todayUid);
@@ -685,17 +707,17 @@ We expect that there will be no disruption in functionality. If you see issues a
             parentUid: todayUid,
             order: todayOrder,
             node: {
-              text: `Imported discourse graph from [[${graph}]]`,
+              text: `Imported discourse graph from [[${notebook.workspace}]]`,
               children: [{ text: `[[${data.title}]]` }],
             },
           });
-          sendToGraph({
+          sendToNotebook({
             operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
-            graph,
+            target: notebook.uuid,
           });
         },
       });
-      addGraphListener({
+      addNotebookListener({
         operation: "IMPORT_DISCOURSE_GRAPH_CONFIRM",
         handler: (_, graph) =>
           renderToast({
@@ -703,9 +725,9 @@ We expect that there will be no disruption in functionality. If you see issues a
             content: `${graph} successfully imported your discourse graph!`,
           }),
       });
-      addGraphListener({
+      addNotebookListener({
         operation: "QUERY_REQUEST",
-        handler: (json, graph) => {
+        handler: (json, notebook) => {
           const { page, requestId } = json as {
             page: string;
             requestId: string;
@@ -716,25 +738,25 @@ We expect that there will be no disruption in functionality. If you see issues a
             parentUid: todayUid,
             order: bottom,
             node: {
-              text: `New [[query request]] from [[${graph}]]`,
+              text: `New [[query request]] from [[${notebook.workspace}]]`,
               children: [
                 {
                   text: `Get full page contents of [[${page}]]`,
                 },
                 {
-                  text: `{{Accept:${graph}:${requestId}:${page}}}`,
+                  text: `{{Accept:${notebook.workspace}:${requestId}:${page}}}`,
                 },
               ],
             },
           });
           renderToast({
             id: "new-query-request",
-            content: `New query request from ${graph}`,
+            content: `New query request from ${notebook.workspace}`,
             intent: Intent.PRIMARY,
           });
-          sendToGraph({
+          sendToNotebook({
             operation: "QUERY_REQUEST_RECEIVED",
-            graph,
+            target: notebook.uuid,
           });
         },
       });
@@ -809,7 +831,7 @@ We expect that there will be no disruption in functionality. If you see issues a
     createButtonObserver({
       attribute: "accept",
       render: (b) => {
-        b.onclick = () => {
+        b.onclick = async () => {
           const { blockUid } = getUidsFromButton(b);
           const text = getTextByBlockUid(blockUid);
           const parts = (/{{([^}]+)}}/.exec(text)?.[1] || "").split(":");
@@ -818,10 +840,13 @@ We expect that there will be no disruption in functionality. If you see issues a
             const title = page.join(":");
             const uid = getPageUidByPageTitle(title);
             const tree = getFullTreeByParentUid(uid).children;
-            const { sendToGraph, addGraphListener, removeGraphListener } =
-              getSamePageApi();
-            sendToGraph({
-              graph,
+            const {
+              sendToNotebook,
+              addNotebookListener,
+              removeNotebookListener,
+            } = await getSamePageApi();
+            sendToNotebook({
+              target: { app: 1, workspace: graph },
               operation: `QUERY_RESPONSE/${requestId}`,
               data: {
                 page: {
@@ -832,16 +857,16 @@ We expect that there will be no disruption in functionality. If you see issues a
               },
             });
             const operation = `QUERY_RESPONSE_RECEIVED/${requestId}`;
-            addGraphListener({
+            addNotebookListener({
               operation,
-              handler: (_, g) => {
-                if (g === graph) {
+              handler: (_, n) => {
+                if (n.workspace === graph) {
                   renderToast({
                     id: "query-response-success",
-                    content: `Graph ${g} Successfully Received the query`,
+                    content: `Graph ${n.workspace} Successfully Received the query`,
                     intent: Intent.SUCCESS,
                   });
-                  removeGraphListener({
+                  removeNotebookListener({
                     operation,
                   });
                   updateBlock({ uid: blockUid, text: "Sent" });

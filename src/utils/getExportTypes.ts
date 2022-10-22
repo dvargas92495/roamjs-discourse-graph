@@ -19,7 +19,7 @@ import {
 } from "../util";
 import XRegExp from "xregexp";
 import getSettingValueFromTree from "roamjs-components/util/getSettingValueFromTree";
-import getSamePageApi from "./getSamePageApi";
+import getSamePageApi from "@samepage/external/getSamePageApi";
 
 const pullBlockToTreeNode = (n: PullBlock, v: `:${ViewType}`): TreeNode => ({
   text: n[":block/string"] || n[":node/title"] || "",
@@ -530,14 +530,14 @@ const getExportTypes = ({
       name: "graph",
       callback: async ({ filename, graph, isBackendEnabled }) => {
         const data = await getJsonData(isBackendEnabled);
-        const { sendToGraph } = getSamePageApi();
-        sendToGraph({
+        const { sendToNotebook } = await getSamePageApi();
+        sendToNotebook({
           operation: "IMPORT_DISCOURSE_GRAPH",
           data: {
             ...data,
             title: filename,
           },
-          graph,
+          target: { app: 1, workspace: graph },
         });
         return [];
       },
