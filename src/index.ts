@@ -54,7 +54,7 @@ Click on the ✖️ to dismiss for good (you won't see this message again).`,
     if (process.env.NODE_ENV === "production") {
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
-        src: `https://roamjs.com/query-builder/trojan/main.js`,
+        src: `https://roamjs.com/query-builder/main.js`,
         dataAttributes: { source: "discourse-graph" },
       });
     }
