@@ -6,6 +6,7 @@ import getSubTree from "roamjs-components/util/getSubTree";
 import getPageUidByPageTitle from "roamjs-components/queries/getPageUidByPageTitle";
 import createBlock from "roamjs-components/writes/createBlock";
 import { render as renderToast } from "roamjs-components/components/Toast";
+import { render as renderSimpleAlert } from "roamjs-components/components/SimpleAlert";
 
 export default runExtension({
   extensionId: "discourse-graph",
@@ -51,7 +52,12 @@ Click on the ✖️ to dismiss for good (you won't see this message again).`,
       });
     }
 
-    if (process.env.NODE_ENV === "production") {
+    if (window.roamjs.loaded.has("query-builder")) {
+      renderSimpleAlert({
+        content:
+          "Warning! You must disable the Query Builder extension from Roam Depot in order to use the RoamJS Discourse Graph extension, as it comes with its own copy of Query Builder.\n\nDiscourse Graph will soon be a part of Query Builder once approved by Roam Depot.",
+      });
+    } else if (process.env.NODE_ENV === "production") {
       addScriptAsDependency({
         id: "roamjs-query-builder-main",
         src: `https://roamjs.com/query-builder/main.js`,
